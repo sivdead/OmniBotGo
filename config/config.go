@@ -12,7 +12,7 @@ type (
 		App     App
 		HTTP    HTTP
 		Log     Log
-		PG      PG
+		DB      DB
 		GRPC    GRPC
 		RMQ     RMQ
 		Metrics Metrics
@@ -36,10 +36,11 @@ type (
 		Level string `env:"LOG_LEVEL,required"`
 	}
 
-	// PG -.
-	PG struct {
-		PoolMax int    `env:"PG_POOL_MAX,required"`
-		URL     string `env:"PG_URL,required"`
+	// DB -.
+	DB struct {
+		Type           string `env:"DB_TYPE" envDefault:"mysql"`
+		DSN            string `env:"DB_DSN,required"`
+		MaxConnections int    `env:"DB_MAX_CONNECTIONS" envDefault:"10"`
 	}
 
 	// GRPC -.

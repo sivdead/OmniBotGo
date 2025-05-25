@@ -25,7 +25,6 @@ require (
 	github.com/gofiber/swagger v1.1.1
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.7.5
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.10.0
@@ -33,6 +32,15 @@ require (
 	go.uber.org/mock v0.5.2
 	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.6
+	gorm.io/driver/mysql v1.5.7
+	gorm.io/gorm v1.25.12
+)
+
+require (
+	github.com/jackc/pgx/v5 v5.5.5
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
+	gorm.io/driver/postgres v1.5.11
 )
 
 require (

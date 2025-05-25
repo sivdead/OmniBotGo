@@ -14,10 +14,10 @@ import (
 	"github.com/evrone/go-clean-template/internal/repo/persistent"
 	"github.com/evrone/go-clean-template/internal/repo/webapi"
 	"github.com/evrone/go-clean-template/internal/usecase/translation"
+	"github.com/evrone/go-clean-template/pkg/database"
 	"github.com/evrone/go-clean-template/pkg/grpcserver"
 	"github.com/evrone/go-clean-template/pkg/httpserver"
 	"github.com/evrone/go-clean-template/pkg/logger"
-	"github.com/evrone/go-clean-template/pkg/postgres"
 	"github.com/evrone/go-clean-template/pkg/rabbitmq/rmq_rpc/server"
 )
 
@@ -26,15 +26,21 @@ func Run(cfg *config.Config) {
 	l := logger.New(cfg.Log.Level)
 
 	// Repository
-	pg, err := postgres.New(cfg.PG.URL, postgres.MaxPoolSize(cfg.PG.PoolMax))
-	if err != nil {
-		l.Fatal(fmt.Errorf("app - Run - postgres.New: %w", err))
+	dbConfig := database.DatabaseConfig{
+		Type:           cfg.DB.Type,
+		DSN:            cfg.DB.DSN,
+		MaxConnections: cfg.DB.MaxConnections,
 	}
-	defer pg.Close()
+	
+	db, err := database.NewDatabase(dbConfig)
+	if err != nil {
+		l.Fatal(fmt.Errorf("app - Run - database.NewDatabase: %w", err))
+	}
+	defer db.Close()
 
 	// Use-Case
 	translationUseCase := translation.New(
-		persistent.New(pg),
+		persistent.New(db),
 		webapi.New(),
 	)
 

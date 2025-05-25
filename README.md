@@ -1,424 +1,495 @@
-![Go Clean Template](docs/img/logo.svg)
+# **OmniBotGo - 统一消息适配器网关**
 
-# Go Clean template
+基于Go语言开发的高性能、可扩展的统一消息适配器网关，能够**单一实例同时**连接和管理多个即时通讯平台（如企业微信、钉钉、公众号等），并将消息中继到后端业务逻辑或AI服务，实现消息的双向传递。
 
-[🇨🇳 中文](README_CN.md)
-[🇷🇺 RU](README_RU.md)
-
-Clean Architecture template for Golang services
-
-[![Release](https://img.shields.io/github/v/release/evrone/go-clean-template.svg)](https://github.com/evrone/go-clean-template/releases/)
-[![License](https://img.shields.io/badge/License-MIT-success)](https://github.com/evrone/go-clean-template/blob/master/LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/evrone/go-clean-template)](https://goreportcard.com/report/github.com/evrone/go-clean-template)
-[![codecov](https://codecov.io/gh/evrone/go-clean-template/branch/master/graph/badge.svg?token=XE3E0X3EVQ)](https://codecov.io/gh/evrone/go-clean-template)
+[![License](https://img.shields.io/badge/License-MIT-success)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sivdead/OmniBotGo)](https://goreportcard.com/report/github.com/sivdead/OmniBotGo)
 
 [![Web Framework](https://img.shields.io/badge/Fiber-Web%20Framework-blue)](https://github.com/gofiber/fiber)
 [![API Documentation](https://img.shields.io/badge/Swagger-API%20Documentation-blue)](https://github.com/swaggo/swag)
+[![ORM](https://img.shields.io/badge/GORM-Database%20ORM-blue)](https://gorm.io/)
+[![Database](https://img.shields.io/badge/MySQL-Database-blue)](https://www.mysql.com/)
 [![Validation](https://img.shields.io/badge/Validator-Data%20Integrity-blue)](https://github.com/go-playground/validator)
 [![JSON Handling](https://img.shields.io/badge/Go--JSON-Fast%20Serialization-blue)](https://github.com/goccy/go-json)
-[![Query Builder](https://img.shields.io/badge/Squirrel-SQL%20Query%20Builder-blue)](https://github.com/Masterminds/squirrel)
 [![Database Migrations](https://img.shields.io/badge/Migrations-Seamless%20Schema%20Updates-blue)](https://github.com/golang-migrate/migrate)
 [![Logging](https://img.shields.io/badge/ZeroLog-Structured%20Logging-blue)](https://github.com/rs/zerolog)
 [![Metrics](https://img.shields.io/badge/Prometheus-Metrics%20Integration-blue)](https://github.com/ansrivas/fiberprometheus)
 [![Testing](https://img.shields.io/badge/Testify-Testing%20Framework-blue)](https://github.com/stretchr/testify)
 [![Mocking](https://img.shields.io/badge/Mock-Mocking%20Library-blue)](https://go.uber.org/mock)
 
-## Overview
+## 项目目标
 
-The purpose of the template is to show:
+构建一个统一的消息适配器网关，实现：
+- **多平台并发管理**：在单个实例中同时连接多个IM平台
+- **消息双向中继**：将平台消息路由到后端服务，并将响应消息返回到目标平台
+- **高性能与稳定性**：支持大量并发消息处理和7x24小时稳定运行
+- **可扩展性**：支持轻松添加新的平台适配器
 
-- how to organize a project and prevent it from turning into spaghetti code
-- where to store business logic so that it remains independent, clean, and extensible
-- how not to lose control when a microservice grows
+## 核心功能
 
-Using the principles of Robert Martin (aka Uncle Bob).
+### 🚀 核心引擎 (P0)
+- **多平台并发管理**：单实例同时管理多个IM平台连接
+- **统一消息模型**：平台无关的标准消息格式
+- **智能消息路由**：基于来源和目标的精确消息分发
+- **后端服务对接**：HTTP/S Webhook + API方式的双向通信
+- **优雅启停与重连**：平滑运行和自动恢复机制
 
-[Go-clean-template](https://evrone.com/go-clean-template?utm_source=github&utm_campaign=go-clean-template) is created &
-supported by [Evrone](https://evrone.com/?utm_source=github&utm_campaign=go-clean-template).
+### 📱 支持的平台
+- **企业微信 (WeCom)**：应用消息收发、多种消息类型、事件处理
+- **钉钉 (DingTalk)**：机器人消息、企业内部应用支持
+- **微信公众号**：订阅号和服务号消息处理
+- **可扩展架构**：预留接口支持飞书、Telegram、Slack等
 
-This template implements three types of servers:
+### 💬 消息类型支持
+- **基础消息**：文本、图片、语音、视频
+- **富媒体消息**：Markdown、链接、文件、卡片
+- **事件消息**：关注/取消、进群/退群、菜单点击等
 
-- AMQP RPC (based on RabbitMQ as [transport](https://github.com/rabbitmq/amqp091-go))
-- gRPC ([gRPC](https://grpc.io/) framework based on protobuf)
-- REST API ([Fiber](https://github.com/gofiber/fiber) framework)
+## 快速开始
 
-## Content
-
-- [Quick start](#quick-start)
-- [Project structure](#project-structure)
-- [Dependency Injection](#dependency-injection)
-- [Clean Architecture](#clean-architecture)
-
-## Quick start
-
-### Local development
+### 本地开发
 
 ```sh
-# Postgres, RabbitMQ
+# 启动 MySQL 和 RabbitMQ
 make compose-up
-# Run app with migrations
+
+# 运行应用（包含数据库迁移）
 make run
 ```
 
-### Integration tests (can be run in CI)
+### 集成测试
 
 ```sh
-# DB, app + migrations, integration tests
+# 启动完整测试环境
 make compose-up-integration-test
 ```
 
-### Full docker stack with reverse proxy
+### 完整 Docker 部署
 
 ```sh
+# 启动完整服务栈（含反向代理）
 make compose-up-all 
 ```
 
-Check services:
+### 服务检查
 
-- AMQP RPC:
-  - URL: `amqp://guest:guest@127.0.0.1:5672/`
-  - Client Exchange: `rpc_client`
-  - Server Exchange: `rpc_server`
-- REST API:
+启动后可访问以下服务：
+
+- **REST API**:
   - http://app.lvh.me/healthz | http://127.0.0.1:8080/healthz
-  - http://app.lvh.me/metrics | http://127.0.0.1:8080/metrics
+  - http://app.lvh.me/metrics | http://127.0.0.1:8080/metrics  
   - http://app.lvh.me/swagger | http://127.0.0.1:8080/swagger
-- gRPC:
+
+- **gRPC 服务**:
   - URL: `tcp://grpc.lvh.me:8081` | `tcp://127.0.0.1:8081`
-  - [v1/translation.history.proto](docs/proto/v1/translation.history.proto)
-- PostgreSQL:
-  - `postgres://user:myAwEsOm3pa55@w0rd@127.0.0.1:5432/db`
-- RabbitMQ:
+
+- **MySQL 数据库**:
+  - `mysql://user:myAwEsOm3pa55@w0rd@127.0.0.1:3306/omnibotgo`
+
+- **RabbitMQ**:
   - http://rabbitmq.lvh.me | http://127.0.0.1:15672
-  - Credentials: `guest` / `guest`
+  - 用户名/密码: `guest` / `guest`
 
-## Project structure
+## 项目架构
 
-### `cmd/app/main.go`
+本项目基于整洁架构原则，采用依赖倒置设计：
 
-Configuration and logger initialization. Then the main function "continues" in
-`internal/app/app.go`.
+### 目录结构
 
-### `config`
-
-The twelve-factor app stores config in environment variables (often shortened to `env vars` or `env`). Env vars are easy 
-to change between deploys without changing any code; unlike config files, there is little chance of them being checked 
-into the code repo accidentally; and unlike custom config files, or other config mechanisms such as Java System 
-Properties, they are a language- and OS-agnostic standard.
-
-Config: [config.go](config/config.go)
-
-Example: [.env.example](.env.example)
-
-[docker-compose.yml](docker-compose.yml) uses `env` variables to configure services.
-
-### `docs`
-
-Swagger documentation. Auto-generated by [swag](https://github.com/swaggo/swag) library.
-You don't need to correct anything by yourself.
-
-#### `docs/proto`
-
-Protobuf files. They are used to generate Go code for gRPC services.
-The proto files are also used to generate documentation for gRPC services.
-You don't need to correct anything by yourself.
-
-### `integration-test`
-
-Integration tests.
-They are launched as a separate container, next to the application container.
-
-### `internal/app`
-
-There is always one _Run_ function in the `app.go` file, which "continues" the _main_ function.
-
-This is where all the main objects are created.
-Dependency injection occurs through the "New ..." constructors (see Dependency Injection).
-This technique allows us to layer the application using the [Dependency Injection](#dependency-injection) principle.
-This makes the business logic independent from other layers.
-
-Next, we start the server and wait for signals in _select_ for graceful completion.
-If `app.go` starts to grow, you can split it into multiple files.
-
-For a large number of injections, [wire](https://github.com/google/wire) can be used.
-
-The `migrate.go` file is used for database auto migrations.
-It is included if an argument with the _migrate_ tag is specified.
-For example:
-
-```sh
-go run -tags migrate ./cmd/app
+```
+OmniBotGo/
+├── cmd/app/                 # 应用程序入口
+├── config/                  # 配置管理（支持环境变量覆盖）
+├── internal/
+│   ├── app/                # 应用启动和依赖注入
+│   ├── controller/         # 控制器层（HTTP/gRPC/AMQP）
+│   ├── entity/             # 业务实体和消息模型
+│   ├── usecase/            # 业务逻辑层
+│   └── repo/               # 数据访问层抽象
+├── pkg/                    # 公共工具包
+│   ├── mysql/              # MySQL 连接包
+│   ├── httpserver/         # HTTP 服务器包
+│   ├── grpcserver/         # gRPC 服务器包
+│   └── rabbitmq/           # RabbitMQ RPC 包
+├── migrations/             # 数据库迁移文件
+├── docs/                   # 项目文档和 API 文档
+└── integration-test/       # 集成测试
 ```
 
-### `internal/controller`
+### 核心组件
 
-Server handler layer (MVC controllers). The template shows 3 servers:
+#### `cmd/app/main.go`
+应用程序启动入口，负责配置初始化和日志设置。
 
-- AMQP RPC (based on RabbitMQ as transport)
-- gRPC ([gRPC](https://grpc.io/) framework based on protobuf)
-- REST API ([Fiber](https://github.com/gofiber/fiber) framework)
+#### `config/`
+基于12-Factor原则的配置管理：
+- 环境变量配置
+- 多平台认证信息
+- 后端服务配置
+- 系统参数设置
 
-Server routers are written in the same style:
+#### `internal/controller/`
+多协议服务器支持：
+- **HTTP REST API** (基于 Fiber 框架)
+- **gRPC 服务** (基于 protobuf)  
+- **AMQP RPC** (基于 RabbitMQ)
 
-- Handlers are grouped by area of application (by a common basis)
-- For each group, its own router structure is created, the methods of which process paths
-- The structure of the business logic is injected into the router structure, which will be called by the handlers
+#### `internal/entity/`
+统一消息模型和业务实体定义，提供平台无关的消息格式。
 
-#### `internal/controller/amqp_rpc`
+#### `internal/usecase/`
+核心业务逻辑层：
+- 消息路由和转换
+- 平台适配器管理
+- 后端服务集成
+- 事件处理逻辑
 
-Simple RPC versioning.
-For v2, we will need to add the `amqp_rpc/v2` folder with the same content.
-And in the file `internal/controller/amqp_rpc/router.go` add the line:
+#### `internal/repo/`
+数据访问层，支持：
+- **MySQL 数据库**（GORM + Squirrel 混合架构）
+- **外部 WebAPI** 调用
+- **缓存和队列** 服务
 
+**数据库访问架构说明**：
+- **GORM为主**：处理模型定义、CRUD操作、关系映射、事务管理
+- **Squirrel为辅**：处理复杂查询、动态SQL构建、统计分析、性能优化场景
+- **共享连接池**：两者使用同一个MySQL连接池，避免资源浪费
+- **类型安全**：GORM提供编译时类型检查，Squirrel提供运行时灵活性
+
+#### `pkg/mysql/`
+MySQL 数据库连接管理：
+- 连接池管理
+- 自动重连机制
+- GORM ORM 集成
+- Squirrel 查询构建器集成
+- 事务支持
+
+## 技术栈
+
+### 核心技术
+- **语言**: Go 1.24+
+- **Web框架**: Fiber v2（高性能 HTTP 框架）
+- **数据库**: MySQL 8.0+
+- **ORM**: GORM（Go语言最受欢迎的ORM）
+- **查询构建器**: Squirrel（用于复杂SQL查询）
+- **消息队列**: RabbitMQ
+- **协议**: HTTP/HTTPS, gRPC, AMQP
+
+### 基础设施
+- **配置管理**: 环境变量 + YAML/TOML
+- **日志**: Zerolog（结构化日志）
+- **监控**: Prometheus + Grafana
+- **文档**: Swagger/OpenAPI 3.0
+- **容器**: Docker + Docker Compose
+- **CI/CD**: GitHub Actions
+
+### 开发工具
+- **代码质量**: golangci-lint
+- **测试**: Testify + 集成测试
+- **Mock**: go-mock
+- **迁移**: golang-migrate
+
+## 配置说明
+
+### 环境变量配置
+
+主要环境变量：
+
+```bash
+# 应用基础配置
+APP_NAME=omnibotgo
+APP_VERSION=1.0.0
+
+# HTTP 服务配置
+HTTP_PORT=8080
+HTTP_USE_PREFORK_MODE=false
+
+# MySQL 数据库配置
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DATABASE=omnibotgo
+MYSQL_USERNAME=root
+MYSQL_PASSWORD=password
+MYSQL_MAX_CONNECTIONS=100
+
+# gRPC 服务配置
+GRPC_PORT=8081
+
+# RabbitMQ 配置
+RMQ_URL=amqp://guest:guest@localhost:5672/
+RMQ_RPC_SERVER=rpc_server
+RMQ_RPC_CLIENT=rpc_client
+
+# 平台配置示例
+# 企业微信
+WECOM_CORP_ID=your_corp_id
+WECOM_APP_SECRET=your_app_secret
+
+# 钉钉
+DINGTALK_APP_KEY=your_app_key
+DINGTALK_APP_SECRET=your_app_secret
+
+# 公众号
+WECHAT_APPID=your_appid
+WECHAT_APP_SECRET=your_app_secret
+
+# 监控和调试
+LOG_LEVEL=info
+METRICS_ENABLED=true
+SWAGGER_ENABLED=true
+```
+
+### 平台适配器配置
+
+每个平台都有独立的配置节，支持多账号配置：
+
+```yaml
+platforms:
+  wecom:
+    - name: "default"
+      corp_id: "xxxx"
+      app_secret: "xxxx"
+      token: "xxxx"
+      encoding_aes_key: "xxxx"
+      
+  dingtalk:
+    - name: "default"
+      app_key: "xxxx"
+      app_secret: "xxxx"
+      
+  wechat_official:
+    - name: "service_account"
+      appid: "xxxx"
+      app_secret: "xxxx"
+      token: "xxxx"
+      encoding_aes_key: "xxxx"
+```
+
+## API 文档
+
+### REST API
+
+启动服务后访问 `/swagger` 端点查看完整的API文档。
+
+主要端点：
+- `GET /healthz` - 健康检查
+- `GET /metrics` - Prometheus 指标
+- `POST /webhook/{platform}` - 平台消息接收
+- `POST /api/v1/message/send` - 消息发送
+- `GET /api/v1/message/history` - 消息历史
+
+### gRPC API
+
+protobuf 定义文件位于 `docs/proto/` 目录。
+
+### 消息格式
+
+#### 统一消息格式
+```json
+{
+  "id": "msg_123456",
+  "platform": "wecom",
+  "platform_msg_id": "platform_specific_id",
+  "from": {
+    "platform_user_id": "user123",
+    "username": "张三",
+    "user_type": "user"
+  },
+  "to": {
+    "platform_group_id": "group456",
+    "group_name": "开发群",
+    "target_type": "group"
+  },
+  "message_type": "text",
+  "content": {
+    "text": "Hello World"
+  },
+  "timestamp": "2024-01-01T12:00:00Z",
+  "context": {
+    "conversation_id": "conv_789",
+    "reply_to_msg_id": "msg_456"
+  }
+}
+```
+
+## 开发指南
+
+### 开发环境设置
+
+1. **安装依赖**
+```bash
+go mod download
+make bin-deps  # 安装开发工具
+```
+
+2. **启动开发环境**
+```bash
+make compose-up  # 启动 MySQL 和 RabbitMQ
+make run        # 运行应用
+```
+
+3. **代码质量检查**
+```bash
+make linter-golangci  # 代码检查
+make test            # 运行测试
+make format          # 代码格式化
+```
+
+### 添加新的平台适配器
+
+1. **定义平台接口**
+在 `internal/usecase/platform/` 下创建平台接口定义
+
+2. **实现适配器**
+在 `internal/adapter/` 下实现具体的平台适配器
+
+3. **添加消息映射**
+在 `internal/entity/message.go` 中添加平台特定的消息类型映射
+
+4. **注册适配器**
+在 `internal/app/app.go` 中注册新的适配器
+
+### 数据库迁移
+
+```bash
+# 创建新的迁移文件
+make migrate-create migration_name
+
+# 执行迁移
+make migrate-up
+
+# 回滚迁移  
+migrate -path migrations -database 'mysql://user:pass@localhost:3306/omnibotgo' down 1
+```
+
+### 测试
+
+```bash
+# 单元测试
+make test
+
+# 集成测试
+make integration-test
+
+# 生成测试覆盖率报告
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+### 数据库使用示例
+
+项目采用 **GORM + Squirrel** 混合架构，各司其职：
+
+#### GORM 使用场景
 ```go
-routes := make(map[string]server.CallHandler)
-
-{
-    v1.NewTranslationRoutes(routes, t, l)
+// 简单 CRUD 操作
+func (r *TranslationRepo) Store(ctx context.Context, t entity.Translation) error {
+    return r.DB.WithContext(ctx).Create(&t).Error
 }
 
-{
-    v2.NewTranslationRoutes(routes, t, l)
+// 批量操作
+func (r *TranslationRepo) BatchInsert(ctx context.Context, items []entity.Translation) error {
+    return r.DB.WithContext(ctx).CreateInBatches(items, 100).Error
+}
+
+// 关联查询
+func (r *TranslationRepo) GetWithUser(ctx context.Context, id uint) (*entity.Translation, error) {
+    var translation entity.Translation
+    err := r.DB.WithContext(ctx).Preload("User").First(&translation, id).Error
+    return &translation, err
 }
 ```
 
-#### `internal/controller/grpc`
-
-Simple gRPC versioning.
-For v2, we will need to add the `grpc/v2` folder with the same content. 
-Also add the `v2` folder to the proto files in `docs/proto`.
-And in the file `internal/controller/grpc/router.go` add the line:
-
+#### Squirrel 使用场景
 ```go
-{
-    v1.NewTranslationRoutes(app, t, l)
+// 复杂动态查询
+func (r *TranslationRepo) SearchWithConditions(ctx context.Context, conditions map[string]interface{}) ([]entity.Translation, error) {
+    query := r.Builder.Select("*").From("translations")
+    
+    // 动态添加条件
+    if source, ok := conditions["source"]; ok {
+        query = query.Where("source = ?", source)
+    }
+    if keyword, ok := conditions["keyword"]; ok {
+        query = query.Where("original LIKE ?", "%"+keyword.(string)+"%")
+    }
+    
+    sql, args, _ := query.ToSql()
+    rows, err := r.SqlDB.QueryContext(ctx, sql, args...)
+    // ... 处理结果
 }
 
-{
-    v2.NewTranslationRoutes(app, t, l)
-}
-
-reflection.Register(app)
-```
-
-#### `internal/controller/http`
-
-Simple REST versioning.
-For v2, we will need to add the `http/v2` folder with the same content.
-And in the file `internal/controller/http/router.go` add the line:
-
-```go
-apiV1Group := app.Group("/v1")
-{
-	v1.NewTranslationRoutes(apiV1Group, t, l)
-}
-apiV2Group := app.Group("/v2")
-{
-	v2.NewTranslationRoutes(apiV2Group, t, l)
-}
-```
-
-Instead of [Fiber](https://github.com/gofiber/fiber), you can use any other http framework.
-
-In `router.go` and above the handler methods, there are comments for generating swagger documentation
-using [swag](https://github.com/swaggo/swag).
-
-### `internal/entity`
-
-Entities of business logic (models) can be used in any layer.
-There can also be methods, for example, for validation.
-
-### `internal/usecase`
-
-Business logic.
-
-- Methods are grouped by area of application (on a common basis)
-- Each group has its own structure
-- One file - one structure
-
-Repositories, webapi, rpc, and other business logic structures are injected into business logic structures
-(see [Dependency Injection](#dependency-injection)).
-
-#### `internal/repo/persistent`
-
-A repository is an abstract storage (database) that business logic works with.
-
-#### `internal/repo/webapi`
-
-It is an abstract web API that business logic works with.
-For example, it could be another microservice that business logic accesses via the REST API.
-The package name changes depending on the purpose.
-
-### `pkg/rabbitmq`
-
-RabbitMQ RPC pattern:
-
-- There is no routing inside RabbitMQ
-- Exchange fanout is used, to which 1 exclusive queue is bound, this is the most productive config
-- Reconnect on the loss of connection
-
-## Dependency Injection
-
-In order to remove the dependence of business logic on external packages, dependency injection is used.
-
-For example, through the New constructor, we inject the dependency into the structure of the business logic.
-This makes the business logic independent (and portable).
-We can override the implementation of the interface without making changes to the `usecase` package.
-
-```go
-package usecase
-
-import (
-// Nothing!
-)
-
-type Repository interface {
-	Get()
-}
-
-type UseCase struct {
-	repo Repository
-}
-
-func New(r Repository) *UseCase {
-	return &UseCase{
-		repo: r,
-	}
-}
-
-func (uc *UseCase) Do() {
-	uc.repo.Get()
+// 统计分析查询
+func (r *TranslationRepo) GetStatistics(ctx context.Context) ([]map[string]interface{}, error) {
+    sql, args, _ := r.Builder.
+        Select("source", "destination", "COUNT(*) as count", "AVG(LENGTH(original)) as avg_length").
+        From("translations").
+        GroupBy("source", "destination").
+        OrderBy("count DESC").
+        ToSql()
+        
+    rows, err := r.SqlDB.QueryContext(ctx, sql, args...)
+    // ... 处理结果
 }
 ```
 
-It will also allow us to do auto-generation of mocks (for example with [mockery](https://github.com/vektra/mockery)) and
-easily write unit tests.
+## 部署
 
-> We are not tied to specific implementations in order to always be able to change one component to another.
-> If the new component implements the interface, nothing needs to be changed in the business logic.
+### Docker 部署
 
-## Clean Architecture
+```bash
+# 构建镜像
+docker build -t omnibotgo:latest .
 
-### Key idea
-
-Programmers realize the optimal architecture for an application after most of the code has been written.
-
-> A good architecture allows decisions to be delayed to as late as possible.
-
-### The main principle
-
-Dependency Inversion (the same one from SOLID) is the principle of dependency injection.
-The direction of dependencies goes from the outer layer to the inner layer.
-Due to this, business logic and entities remain independent from other parts of the system.
-
-So, the application is divided into 2 layers, internal and external:
-
-1. **Business logic** (Go standard library).
-2. **Tools** (databases, servers, message brokers, any other packages and frameworks).
-
-![Clean Architecture](docs/img/layers-1.png)
-
-**The inner layer** with business logic should be clean. It should:
-
-- Not have package imports from the outer layer.
-- Use only the capabilities of the standard library.
-- Make calls to the outer layer through the interface (!).
-
-The business logic doesn't know anything about Postgres or a specific web API.
-Business logic has an interface for working with an _abstract_ database or _abstract_ web API.
-
-**The outer layer** has other limitations:
-
-- All components of this layer are unaware of each other's existence. How to call another from one tool? Not directly,
-  only through the inner layer of business logic.
-- All calls to the inner layer are made through the interface (!).
-- Data is transferred in a format that is convenient for business logic (`internal/entity`).
-
-For example, you need to access the database from HTTP (controller).
-Both HTTP and database are in the outer layer, which means they know nothing about each other.
-The communication between them is carried out through `usecase` (business logic):
-
-```
-    HTTP > usecase
-           usecase > repository (Postgres)
-           usecase < repository (Postgres)
-    HTTP < usecase
+# 使用 Docker Compose 部署
+docker-compose up -d
 ```
 
-The symbols > and < show the intersection of layer boundaries through Interfaces.
-The same is shown in the picture:
+### Kubernetes 部署
 
-![Example](docs/img/example-http-db.png)
+部署配置文件位于 `deployments/k8s/` 目录：
 
-Or more complex business logic:
-
-```
-    HTTP > usecase
-           usecase > repository
-           usecase < repository
-           usecase > webapi
-           usecase < webapi
-           usecase > RPC
-           usecase < RPC
-           usecase > repository
-           usecase < repository
-    HTTP < usecase
+```bash
+kubectl apply -f deployments/k8s/
 ```
 
-### Layers
+### 监控和日志
 
-![Example](docs/img/layers-2.png)
+- **指标监控**: Prometheus + Grafana
+- **日志聚合**: ELK Stack 或 Loki
+- **分布式追踪**: Jaeger 或 Zipkin
+- **健康检查**: `/healthz` 端点
 
-### Clean Architecture Terminology
+## 贡献指南
 
-- **Entities** are structures that business logic operates on.
-  They are located in the `internal/entity` folder.
-  In MVC terms, entities are models.
-- **Use Cases** is business logic located in `internal/usecase`.
+1. **Fork 本仓库**
+2. **创建功能分支** (`git checkout -b feature/AmazingFeature`)
+3. **提交更改** (`git commit -m 'Add some AmazingFeature'`)
+4. **推送到分支** (`git push origin feature/AmazingFeature`)
+5. **打开 Pull Request**
 
-The layer with which business logic directly interacts is usually called the _infrastructure_ layer.
-These can be repositories `internal/usecase/repo`, external webapi `internal/usecase/webapi`, any pkg, and other
-microservices.
-In the template, the _infrastructure_ packages are located inside `internal/usecase`.
+### 代码规范
 
-You can choose how to call the entry points as you wish. The options are:
+- 遵循 Go 官方代码规范
+- 使用 `golangci-lint` 进行代码检查
+- 编写单元测试，保持测试覆盖率 > 80%
+- 提交前运行 `make pre-commit`
 
-- controller (in our case)
-- delivery
-- transport
-- gateways
-- entrypoints
-- primary
-- input
+## 许可证
 
-### Additional layers
+本项目采用 MIT 许可证。详情请查看 [LICENSE](LICENSE) 文件。
 
-The classic version
-of [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) was designed for
-building large monolithic applications and has 4 layers.
+## 联系方式
 
-In the original version, the outer layer is divided into two more, which also have an inversion of dependencies
-to each other (directed inward) and communicate through interfaces.
+- **项目主页**: https://github.com/sivdead/OmniBotGo
+- **问题反馈**: https://github.com/sivdead/OmniBotGo/issues
+- **讨论社区**: https://github.com/sivdead/OmniBotGo/discussions
 
-The inner layer is also divided into two (with separation of interfaces), in the case of complex logic.
+## 致谢
+
+- 基于 [go-clean-template](https://github.com/evrone/go-clean-template) 构建
+- 感谢所有贡献者的支持
 
 ---
 
-Complex tools can be divided into additional layers.
-However, you should add layers only if really necessary.
-
-### Alternative approaches
-
-In addition to Clean architecture, _Onion architecture_ and _Hexagonal_ (_Ports and adapters_) are similar to it.
-Both are based on the principle of Dependency Inversion.
-_Ports and adapters_ are very close to _Clean Architecture_, the differences are mainly in terminology.
-
-## Similar projects
-
-- [https://github.com/bxcodec/go-clean-arch](https://github.com/bxcodec/go-clean-arch)
-- [https://github.com/zhashkevych/courses-backend](https://github.com/zhashkevych/courses-backend)
-
-## Useful links
-
-- [The Clean Architecture article](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
-- [Twelve factors](https://12factor.net/ru/)
+⭐ 如果这个项目对你有帮助，请给它一个星标！
