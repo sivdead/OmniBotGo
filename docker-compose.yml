@@ -39,7 +39,7 @@ x-backend-app-environment: &x-backend-app-environment
 services:
   db:
     container_name: db
-    image: mysql:8.0
+    image: mysql:9.3
     environment:
       <<: *x-db-environment
     volumes:
