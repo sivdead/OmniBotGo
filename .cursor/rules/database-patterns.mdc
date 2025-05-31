@@ -1,0 +1,126 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# 数据库设计模式
+
+## Repository模式
+
+### 接口设计
+所有数据访问都通过Repository接口进行：
+
+```go
+type Repository interface {
+    Create(ctx context.Context, entity interface{}) error
+    GetByID(ctx context.Context, id string) (interface{}, error)
+    Update(ctx context.Context, entity interface{}) error
+    Delete(ctx context.Context, id string) error
+    List(ctx context.Context, filters map[string]interface{}) ([]interface{}, error)
+}
+```
+
+### GORM集成
+项目使用 GORM 作为 ORM 框架：
+- 模型定义在 [internal/entity/](mdc:internal/entity/) 目录
+- Repository实现在 [internal/repo/](mdc:internal/repo/) 目录
+- 数据库配置在 [config/](mdc:config/) 目录
+
+### 数据库迁移
+使用 golang-migrate 进行数据库版本管理：
+- 迁移文件存放在 [migrations/](mdc:migrations/) 目录
+- 文件命名格式：`000001_initial_schema.up.sql`
+- 支持向上和向下迁移
+
+## 实体设计
+
+### 基础实体结构
+```go
+type BaseEntity struct {
+    ID        string    `gorm:"primaryKey;type:varchar(36)"`
+    CreatedAt time.Time `gorm:"autoCreateTime"`
+    UpdatedAt time.Time `gorm:"autoUpdateTime"`
+    DeletedAt *time.Time `gorm:"index"`
+}
+```
+
+### 消息实体
+```go
+type Message struct {
+    BaseEntity
+    PlatformID   string    `gorm:"not null;index"`
+    FromUserID   string    `gorm:"not null;index"`
+    ToUserID     string    `gorm:"index"`
+    MessageType  string    `gorm:"not null"`
+    Content      string    `gorm:"type:text"`
+    Status       string    `gorm:"default:'pending'"`
+    Metadata     string    `gorm:"type:json"`
+    ProcessedAt  *time.Time
+}
+```
+
+### 平台配置实体
+```go
+type Platform struct {
+    BaseEntity
+    Name        string `gorm:"uniqueIndex;not null"`
+    Type        string `gorm:"not null"`
+    Config      string `gorm:"type:json"`
+    IsActive    bool   `gorm:"default:true"`
+    LastSyncAt  *time.Time
+}
+```
+
+## 查询优化
+
+### 索引策略
+- 为经常查询的字段添加索引
+- 组合索引优于多个单列索引
+- 避免在小表上创建过多索引
+
+### 分页查询
+```go
+type PaginationParams struct {
+    Page     int `json:"page" validate:"min=1"`
+    PageSize int `json:"page_size" validate:"min=1,max=100"`
+}
+
+func (r *messageRepo) ListWithPagination(ctx context.Context, params PaginationParams) (*PaginatedResult, error) {
+    offset := (params.Page - 1) * params.PageSize
+    // 查询逻辑
+}
+```
+
+### 事务处理
+```go
+func (r *repository) WithTransaction(ctx context.Context, fn func(tx *gorm.DB) error) error {
+    return r.db.WithContext(ctx).Transaction(fn)
+}
+```
+
+## 缓存策略
+
+### Redis集成
+- 使用Redis作为缓存层
+- 缓存热点数据和查询结果
+- 设置合理的过期时间
+
+### 缓存模式
+- **缓存穿透**: 使用布隆过滤器
+- **缓存雪崩**: 设置随机过期时间
+- **缓存击穿**: 使用分布式锁
+
+## 监控和性能
+
+### 查询监控
+- 记录慢查询
+- 监控数据库连接数
+- 追踪查询性能指标
+
+### 连接池配置
+```go
+sqlDB, _ := db.DB()
+sqlDB.SetMaxIdleConns(10)
+sqlDB.SetMaxOpenConns(100)
+sqlDB.SetConnMaxLifetime(time.Hour)
+```

@@ -1,6 +1,9 @@
 # 导入环境变量
 set dotenv-load := true
 
+# 设置 Windows 下的 shell
+set shell := ["pwsh.exe", "-c"]
+
 # 变量定义
 local_bin := justfile_directory() + "/bin"
 base_stack := "docker compose -f docker-compose.yml"
@@ -52,8 +55,8 @@ format:
     gofumpt -l -w .
     gci write . --skip-generated -s standard -s default
 
-# 运行应用 (依赖于 deps, swag-v1, proto-v1)
-run: deps swag-v1 proto-v1
+# 运行应用 (依赖于 deps, swag-v1, proto-v1, wire)
+run: deps swag-v1 proto-v1 wire
     go mod download && \
     CGO_ENABLED=0 go run -tags migrate ./cmd/app
 
@@ -81,6 +84,10 @@ test:
 integration-test:
     go clean -testcache && go test -v ./integration-test/...
 
+# 生成 Wire 依赖注入代码
+wire:
+    wire ./internal/app
+
 # 生成 mock 文件
 mock:
     mockgen -source ./internal/repo/contracts.go -package usecase_test > ./internal/usecase/mocks_repo_test.go
@@ -99,4 +106,4 @@ bin-deps:
     GOBIN={{local_bin}} go install tool
 
 # 预提交检查 (依赖于多个任务)
-pre-commit: swag-v1 proto-v1 mock format linter-golangci test 
+pre-commit: swag-v1 proto-v1 wire mock format linter-golangci test 

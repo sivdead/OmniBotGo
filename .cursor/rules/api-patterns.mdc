@@ -1,0 +1,216 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# API设计模式
+
+## RESTful API设计
+
+### HTTP控制器结构
+使用 Fiber 框架构建 RESTful API：
+
+```go
+type Controller struct {
+    usecase UseCase
+    logger  *zerolog.Logger
+}
+
+func (c *Controller) RegisterRoutes(app *fiber.App) {
+    api := app.Group("/api/v1")
+    
+    // 消息相关路由
+    messages := api.Group("/messages")
+    messages.Post("/", c.CreateMessage)
+    messages.Get("/:id", c.GetMessage)
+    messages.Put("/:id", c.UpdateMessage)
+    messages.Delete("/:id", c.DeleteMessage)
+    messages.Get("/", c.ListMessages)
+}
+```
+
+### 统一响应格式
+```go
+type Response struct {
+    Success bool        `json:"success"`
+    Data    interface{} `json:"data,omitempty"`
+    Error   string      `json:"error,omitempty"`
+    Code    int         `json:"code"`
+    Message string      `json:"message"`
+}
+
+type PaginatedResponse struct {
+    Response
+    Pagination *PaginationInfo `json:"pagination,omitempty"`
+}
+```
+
+### 请求验证
+使用 validator 进行输入验证：
+```go
+type CreateMessageRequest struct {
+    Platform string `json:"platform" validate:"required,oneof=wecom dingtalk wechat"`
+    ToUser   string `json:"to_user" validate:"required"`
+    Content  string `json:"content" validate:"required,max=4096"`
+    Type     string `json:"type" validate:"required,oneof=text image voice"`
+}
+```
+
+## gRPC服务设计
+
+### Protocol Buffer定义
+在 `proto/` 目录中定义服务：
+
+```protobuf
+service MessageService {
+    rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+    rpc GetMessage(GetMessageRequest) returns (GetMessageResponse);
+    rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
+}
+
+message SendMessageRequest {
+    string platform = 1;
+    string to_user = 2;
+    string content = 3;
+    string type = 4;
+    map<string, string> metadata = 5;
+}
+```
+
+### gRPC控制器
+```go
+type GRPCController struct {
+    usecase UseCase
+    logger  *zerolog.Logger
+}
+
+func (s *GRPCController) SendMessage(ctx context.Context, req *pb.SendMessageRequest) (*pb.SendMessageResponse, error) {
+    // 实现逻辑
+}
+```
+
+## 中间件
+
+### 认证中间件
+```go
+func AuthMiddleware() fiber.Handler {
+    return func(c *fiber.Ctx) error {
+        token := c.Get("Authorization")
+        if token == "" {
+            return c.Status(401).JSON(Response{
+                Success: false,
+                Error:   "Missing authorization token",
+                Code:    401,
+            })
+        }
+        // 验证token逻辑
+        return c.Next()
+    }
+}
+```
+
+### 日志中间件
+```go
+func LoggingMiddleware(logger *zerolog.Logger) fiber.Handler {
+    return logger.Request(zerolog.RequestLogger{
+        GetLogger: func(c *fiber.Ctx) zerolog.Logger {
+            return logger.With().
+                Str("method", c.Method()).
+                Str("path", c.Path()).
+                Logger()
+        },
+    })
+}
+```
+
+### 限流中间件
+```go
+func RateLimitMiddleware() fiber.Handler {
+    return limiter.New(limiter.Config{
+        Max:        100,
+        Expiration: 1 * time.Minute,
+        KeyGenerator: func(c *fiber.Ctx) string {
+            return c.IP()
+        },
+    })
+}
+```
+
+## WebHook处理
+
+### 平台WebHook接收
+为每个平台提供专用的WebHook端点：
+
+```go
+// 企业微信WebHook
+func (c *Controller) WeComWebHook(ctx *fiber.Ctx) error {
+    var event WeComEvent
+    if err := ctx.BodyParser(&event); err != nil {
+        return c.errorResponse(ctx, 400, "Invalid request body")
+    }
+    
+    return c.usecase.HandleWeComEvent(ctx.Context(), &event)
+}
+
+// 钉钉WebHook  
+func (c *Controller) DingTalkWebHook(ctx *fiber.Ctx) error {
+    var event DingTalkEvent
+    if err := ctx.BodyParser(&event); err != nil {
+        return c.errorResponse(ctx, 400, "Invalid request body")
+    }
+    
+    return c.usecase.HandleDingTalkEvent(ctx.Context(), &event)
+}
+```
+
+### 签名验证
+```go
+func VerifyWebHookSignature(secret string, signature string, body []byte) bool {
+    mac := hmac.New(sha256.New, []byte(secret))
+    mac.Write(body)
+    expectedSignature := hex.EncodeToString(mac.Sum(nil))
+    return hmac.Equal([]byte(signature), []byte(expectedSignature))
+}
+```
+
+## API文档
+
+### Swagger集成
+使用 swaggo 自动生成API文档：
+
+```go
+// CreateMessage 创建消息
+// @Summary 创建新消息
+// @Description 向指定平台发送消息
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param message body CreateMessageRequest true "消息内容"
+// @Success 200 {object} Response{data=Message}
+// @Failure 400 {object} Response
+// @Router /api/v1/messages [post]
+func (c *Controller) CreateMessage(ctx *fiber.Ctx) error {
+    // 实现逻辑
+}
+```
+
+### 健康检查
+```go
+// HealthCheck 健康检查
+// @Summary 系统健康检查
+// @Description 检查系统各组件状态
+// @Tags system
+// @Produce json
+// @Success 200 {object} HealthResponse
+// @Router /healthz [get]
+func (c *Controller) HealthCheck(ctx *fiber.Ctx) error {
+    return ctx.JSON(HealthResponse{
+        Status:    "ok",
+        Timestamp: time.Now(),
+        Services: map[string]string{
+            "database": "healthy",
+            "rabbitmq": "healthy",
+        },
+    })
+}
+```

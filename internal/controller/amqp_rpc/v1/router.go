@@ -1,10 +1,10 @@
 package v1
 
 import (
-	"github.com/evrone/go-clean-template/internal/usecase"
-	"github.com/evrone/go-clean-template/pkg/logger"
-	"github.com/evrone/go-clean-template/pkg/rabbitmq/rmq_rpc/server"
 	"github.com/go-playground/validator/v10"
+	"github.com/sivdead/OmniBotGo/internal/usecase"
+	"github.com/sivdead/OmniBotGo/pkg/logger"
+	"github.com/sivdead/OmniBotGo/pkg/rabbitmq/rmq_rpc/server"
 )
 
 // NewTranslationRoutes -.

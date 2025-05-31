@@ -1,10 +1,10 @@
 package v1
 
 import (
-	v1 "github.com/evrone/go-clean-template/docs/proto/v1"
-	"github.com/evrone/go-clean-template/internal/usecase"
-	"github.com/evrone/go-clean-template/pkg/logger"
 	"github.com/go-playground/validator/v10"
+	v1 "github.com/sivdead/OmniBotGo/docs/proto/v1"
+	"github.com/sivdead/OmniBotGo/internal/usecase"
+	"github.com/sivdead/OmniBotGo/pkg/logger"
 	pbgrpc "google.golang.org/grpc"
 )
 

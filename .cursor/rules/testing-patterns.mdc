@@ -1,0 +1,298 @@
+---
+description:
+globs: 测试
+alwaysApply: false
+---
+# 测试模式
+
+## 测试架构
+
+### 测试分层
+```
+单元测试 (Unit Tests)
+├── Entity层测试
+├── UseCase层测试
+├── Repository层测试
+└── Controller层测试
+
+集成测试 (Integration Tests)
+├── API集成测试
+├──数据库集成测试
+└── 外部服务集成测试
+
+端到端测试 (E2E Tests)
+└── 完整业务流程测试
+```
+
+### 测试工具栈
+- **testify**: 断言和测试套件
+- **gomock**: Mock对象生成
+- **testcontainers**: 集成测试容器
+- **httptest**: HTTP服务测试
+
+## 单元测试
+
+### UseCase测试示例
+```go
+type MessageUseCaseTestSuite struct {
+    suite.Suite
+    usecase    *MessageUseCase
+    mockRepo   *mock.MockMessageRepository
+    mockLogger *zerolog.Logger
+}
+
+func (s *MessageUseCaseTestSuite) SetupTest() {
+    ctrl := gomock.NewController(s.T())
+    s.mockRepo = mock.NewMockMessageRepository(ctrl)
+    
+    logger := zerolog.New(os.Stdout)
+    s.mockLogger = &logger
+    
+    s.usecase = NewMessageUseCase(s.mockRepo, s.mockLogger)
+}
+
+func (s *MessageUseCaseTestSuite) TestSendMessage_Success() {
+    // Arrange
+    msg := &entity.Message{
+        ID:       "test-id",
+        Platform: "wecom",
+        Content:  "test message",
+    }
+    
+    s.mockRepo.EXPECT().
+        Create(gomock.Any(), msg).
+        Return(nil)
+    
+    // Act
+    err := s.usecase.SendMessage(context.Background(), msg)
+    
+    // Assert
+    s.NoError(err)
+}
+
+func TestMessageUseCaseTestSuite(t *testing.T) {
+    suite.Run(t, new(MessageUseCaseTestSuite))
+}
+```
+
+### Repository测试
+```go
+func TestMessageRepository_Create(t *testing.T) {
+    // 使用testcontainers启动MySQL容器
+    ctx := context.Background()
+    container, err := mysql.RunContainer(ctx)
+    require.NoError(t, err)
+    defer container.Terminate(ctx)
+    
+    // 获取数据库连接
+    db, err := container.GetDB()
+    require.NoError(t, err)
+    
+    // 运行迁移
+    err = runMigrations(db)
+    require.NoError(t, err)
+    
+    // 创建repository实例
+    repo := NewMessageRepository(db)
+    
+    // 测试用例
+    t.Run("create message successfully", func(t *testing.T) {
+        msg := &entity.Message{
+            ID:       uuid.New().String(),
+            Platform: "wecom",
+            Content:  "test message",
+        }
+        
+        err := repo.Create(ctx, msg)
+        assert.NoError(t, err)
+        
+        // 验证数据是否正确保存
+        saved, err := repo.GetByID(ctx, msg.ID)
+        assert.NoError(t, err)
+        assert.Equal(t, msg.Content, saved.Content)
+    })
+}
+```
+
+## 集成测试
+
+### HTTP API测试
+```go
+func TestMessageController_Integration(t *testing.T) {
+    // 启动测试环境
+    app := setupTestApp(t)
+    
+    t.Run("POST /api/v1/messages", func(t *testing.T) {
+        payload := map[string]interface{}{
+            "platform": "wecom",
+            "to_user":  "test@example.com",
+            "content":  "Hello, World!",
+            "type":     "text",
+        }
+        
+        body, _ := json.Marshal(payload)
+        req := httptest.NewRequest("POST", "/api/v1/messages", bytes.NewReader(body))
+        req.Header.Set("Content-Type", "application/json")
+        
+        resp, err := app.Test(req)
+        require.NoError(t, err)
+        
+        assert.Equal(t, 200, resp.StatusCode)
+        
+        var response Response
+        err = json.NewDecoder(resp.Body).Decode(&response)
+        require.NoError(t, err)
+        assert.True(t, response.Success)
+    })
+}
+
+func setupTestApp(t *testing.T) *fiber.App {
+    // 启动测试数据库
+    db := setupTestDB(t)
+    
+    // 创建测试用的依赖
+    logger := zerolog.New(os.Stdout)
+    repo := NewMessageRepository(db)
+    usecase := NewMessageUseCase(repo, &logger)
+    controller := NewMessageController(usecase, &logger)
+    
+    // 创建Fiber应用
+    app := fiber.New()
+    controller.RegisterRoutes(app)
+    
+    return app
+}
+```
+
+### gRPC服务测试
+```go
+func TestGRPCService_Integration(t *testing.T) {
+    // 启动gRPC测试服务器
+    server, conn := setupGRPCTestServer(t)
+    defer server.Stop()
+    defer conn.Close()
+    
+    client := pb.NewMessageServiceClient(conn)
+    
+    t.Run("SendMessage", func(t *testing.T) {
+        req := &pb.SendMessageRequest{
+            Platform: "wecom",
+            ToUser:   "test@example.com",
+            Content:  "Hello gRPC!",
+            Type:     "text",
+        }
+        
+        resp, err := client.SendMessage(context.Background(), req)
+        require.NoError(t, err)
+        assert.True(t, resp.Success)
+        assert.NotEmpty(t, resp.MessageId)
+    })
+}
+```
+
+## Mock生成
+
+### 接口Mock
+使用 `go generate` 自动生成Mock：
+
+```go
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mocks/mock_repository.go
+
+type MessageRepository interface {
+    Create(ctx context.Context, message *entity.Message) error
+    GetByID(ctx context.Context, id string) (*entity.Message, error)
+    Update(ctx context.Context, message *entity.Message) error
+    Delete(ctx context.Context, id string) error
+}
+```
+
+### 外部服务Mock
+```go
+type MockPlatformClient struct {
+    mock.Mock
+}
+
+func (m *MockPlatformClient) SendMessage(ctx context.Context, msg *Message) error {
+    args := m.Called(ctx, msg)
+    return args.Error(0)
+}
+
+func TestPlatformAdapter_SendMessage(t *testing.T) {
+    mockClient := new(MockPlatformClient)
+    adapter := NewPlatformAdapter(mockClient)
+    
+    msg := &Message{Content: "test"}
+    mockClient.On("SendMessage", mock.Anything, msg).Return(nil)
+    
+    err := adapter.SendMessage(context.Background(), msg)
+    
+    assert.NoError(t, err)
+    mockClient.AssertExpectations(t)
+}
+```
+
+## 测试数据管理
+
+### 测试夹具
+```go
+func CreateTestMessage(overrides ...func(*entity.Message)) *entity.Message {
+    msg := &entity.Message{
+        ID:        uuid.New().String(),
+        Platform:  "wecom",
+        FromUser:  "sender@example.com",
+        ToUser:    "receiver@example.com",
+        Content:   "Test message content",
+        Type:      "text",
+        Status:    "pending",
+        CreatedAt: time.Now(),
+    }
+    
+    for _, override := range overrides {
+        override(msg)
+    }
+    
+    return msg
+}
+
+// 使用示例
+msg := CreateTestMessage(func(m *entity.Message) {
+    m.Platform = "dingtalk"
+    m.Content = "Custom content"
+})
+```
+
+### 数据库清理
+```go
+func CleanupTestData(t *testing.T, db *gorm.DB) {
+    t.Cleanup(func() {
+        db.Exec("DELETE FROM messages")
+        db.Exec("DELETE FROM platforms")
+        db.Exec("DELETE FROM users")
+    })
+}
+```
+
+## 性能测试
+
+### 基准测试
+```go
+func BenchmarkMessageUseCase_SendMessage(b *testing.B) {
+    usecase := setupBenchmarkUseCase(b)
+    msg := CreateTestMessage()
+    
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        err := usecase.SendMessage(context.Background(), msg)
+        if err != nil {
+            b.Fatal(err)
+        }
+    }
+}
+```
+
+### 压力测试
+在 [integration-test/](mdc:integration-test/) 目录中包含压力测试脚本：
+```bash
+# 使用 k6 进行API压力测试
+k6 run --vus 100 --duration 30s stress-test.js
+```

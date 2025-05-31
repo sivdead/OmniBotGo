@@ -4,8 +4,8 @@ package database
 import (
 	"fmt"
 
-	"github.com/evrone/go-clean-template/pkg/mysql"
-	"github.com/evrone/go-clean-template/pkg/postgres"
+	"github.com/sivdead/OmniBotGo/pkg/mysql"
+	"github.com/sivdead/OmniBotGo/pkg/postgres"
 )
 
 // DatabaseType represents supported database types
@@ -27,21 +27,21 @@ type DatabaseConfig struct {
 // NewDatabase creates a database connection based on the specified type
 func NewDatabase(config DatabaseConfig) (CommonDB, error) {
 	dbType := DatabaseType(config.Type)
-	
+
 	switch dbType {
 	case MySQL:
 		return mysql.New(
 			config.DSN,
 			mysql.MaxConnections(config.MaxConnections),
 		)
-		
+
 	case PostgreSQL, PostgresQL:
 		return postgres.New(
 			config.DSN,
 			postgres.MaxPoolSize(config.MaxConnections),
 		)
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s. Supported types: mysql, postgres", config.Type)
 	}
-} 
+}

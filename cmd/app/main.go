@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"github.com/evrone/go-clean-template/config"
-	"github.com/evrone/go-clean-template/internal/app"
+	"github.com/sivdead/OmniBotGo/config"
+	"github.com/sivdead/OmniBotGo/internal/app"
 )
 
 func main() {

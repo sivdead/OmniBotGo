@@ -1,0 +1,97 @@
+---
+description:
+globs: 消息
+alwaysApply: false
+---
+# 消息处理模式
+
+## 统一消息模型
+
+### 消息结构设计
+项目使用统一的消息模型来处理不同平台的消息：
+
+```go
+type Message struct {
+    ID          string    `json:"id"`
+    Platform    Platform  `json:"platform"`
+    Type        MessageType `json:"type"`
+    Content     Content   `json:"content"`
+    Sender      User      `json:"sender"`
+    Receiver    User      `json:"receiver"`
+    Timestamp   time.Time `json:"timestamp"`
+    Metadata    map[string]interface{} `json:"metadata"`
+}
+```
+
+### 支持的平台
+- **企业微信 (WeCom)**: 应用消息、群聊消息、事件消息
+- **钉钉 (DingTalk)**: 机器人消息、企业应用消息
+- **微信公众号**: 订阅号、服务号消息
+- **扩展平台**: 飞书、Telegram、Slack等
+
+### 消息类型
+- **文本消息**: 纯文本内容
+- **富媒体消息**: 图片、音频、视频、文件
+- **交互消息**: 按钮、卡片、链接
+- **事件消息**: 关注、取消关注、菜单点击等
+
+## 适配器模式
+
+### 平台适配器接口
+```go
+type PlatformAdapter interface {
+    Name() string
+    SendMessage(ctx context.Context, msg *Message) error
+    ReceiveMessage(ctx context.Context) (<-chan *Message, error)
+    HandleEvent(ctx context.Context, event *Event) error
+}
+```
+
+### 适配器实现
+每个平台适配器应该：
+1. 实现统一的 `PlatformAdapter` 接口
+2. 处理平台特定的认证和配置
+3. 将平台消息格式转换为统一消息模型
+4. 处理平台特定的错误和重试逻辑
+
+### 消息路由
+消息路由器负责：
+1. 接收来自各平台的消息
+2. 根据路由规则转发消息
+3. 调用后端业务逻辑
+4. 将响应消息发送回原平台
+
+## 并发处理
+
+### Goroutine管理
+- 每个平台适配器运行在独立的 goroutine 中
+- 使用 worker pool 模式处理消息
+- 通过 context 控制生命周期
+
+### 消息队列
+使用 RabbitMQ 进行消息队列管理：
+- 异步处理大量消息
+- 保证消息可靠性
+- 支持消息重试和死信队列
+
+### 错误处理
+- 平台连接断开时自动重连
+- 消息发送失败时进行重试
+- 记录详细的错误日志和监控指标
+
+## 配置管理
+
+### 平台配置
+在 [config/](mdc:config/) 目录中管理平台配置：
+- 认证信息（Token、Secret等）
+- 连接参数（超时、重试次数等）
+- 路由规则配置
+
+### 环境变量
+使用环境变量覆盖配置：
+```
+WECOM_CORP_ID=your_corp_id
+WECOM_AGENT_ID=your_agent_id
+WECOM_SECRET=your_secret
+DINGTALK_ACCESS_TOKEN=your_token
+```

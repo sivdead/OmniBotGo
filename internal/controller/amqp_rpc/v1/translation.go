@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/evrone/go-clean-template/pkg/rabbitmq/rmq_rpc/server"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/sivdead/OmniBotGo/pkg/rabbitmq/rmq_rpc/server"
 )
 
 func (r *V1) getHistory() server.CallHandler {

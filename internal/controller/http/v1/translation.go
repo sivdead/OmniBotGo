@@ -3,9 +3,9 @@ package v1
 import (
 	"net/http"
 
-	"github.com/evrone/go-clean-template/internal/controller/http/v1/request"
-	"github.com/evrone/go-clean-template/internal/entity"
 	"github.com/gofiber/fiber/v2"
+	"github.com/sivdead/OmniBotGo/internal/controller/http/v1/request"
+	"github.com/sivdead/OmniBotGo/internal/entity"
 )
 
 // @Summary     Show history
