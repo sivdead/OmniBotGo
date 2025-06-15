@@ -1,23 +1,11 @@
 package v1
 
 import (
-	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/sivdead/OmniBotGo/internal/adapter"
 	"github.com/sivdead/OmniBotGo/internal/usecase"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
-
-// NewTranslationRoutes -.
-func NewTranslationRoutes(apiV1Group fiber.Router, t usecase.Translation, l logger.Interface) {
-	r := &V1{t: t, l: l, v: validator.New(validator.WithRequiredStructEnabled())}
-
-	translationGroup := apiV1Group.Group("/translation")
-
-	{
-		translationGroup.Get("/history", r.history)
-		translationGroup.Post("/do-translate", r.doTranslate)
-	}
-}
 
 // NewAPIRoutes 设置所有API路由
 func NewAPIRoutes(
@@ -25,17 +13,15 @@ func NewAPIRoutes(
 	messageUC usecase.MessageUseCase,
 	channelUC usecase.ChannelUseCase,
 	botUC usecase.BotUseCase,
-	webhookUC usecase.WebhookUseCase,
-	t usecase.Translation,
 	l logger.Interface,
 ) {
-	v1 := NewV1Controller(t, messageUC, channelUC, botUC, webhookUC, l)
+	v1 := NewV1Controller(messageUC, channelUC, botUC, l)
 
 	// 消息相关路由
 	messagesGroup := apiV1Group.Group("/messages")
 	{
 		messagesGroup.Post("/send", v1.SendMessage)
-		messagesGroup.Get("/history", v1.GetMessageHistory)
+		messagesGroup.Get("/", v1.GetMessageHistory)
 		messagesGroup.Get("/:id", v1.GetMessage)
 		messagesGroup.Post("/:id/retry", v1.RetryFailedMessage)
 	}
@@ -63,18 +49,22 @@ func NewAPIRoutes(
 	}
 }
 
-// NewWebhookRoutes 设置webhook路由
+// NewWebhookRoutes 设置Webhook路由（在根路由层调用）
 func NewWebhookRoutes(
 	app fiber.Router,
-	webhookUC usecase.WebhookUseCase,
+	messageUC usecase.MessageUseCase,
+	channelUC usecase.ChannelUseCase,
+	botUC usecase.BotUseCase,
 	l logger.Interface,
 ) {
-	v1 := &V1{webhookUC: webhookUC, l: l, v: validator.New()}
+	v1 := NewV1Controller(messageUC, channelUC, botUC, l)
+	adapterManager := adapter.NewManager()
+	webhookController := NewWebhookController(v1, adapterManager)
 
-	// Webhook路由（不在/api/v1下）
+	// Webhook路由
 	webhookGroup := app.Group("/webhook")
 	{
-		webhookGroup.Get("/:platform/:channel_id", v1.VerifyWebhook)
-		webhookGroup.Post("/:platform/:channel_id", v1.ProcessWebhook)
+		webhookGroup.Get("/:platform/:channel_id", webhookController.GetWebhookInfo)
+		webhookGroup.Post("/:platform/:channel_id", webhookController.HandleWebhook)
 	}
 }

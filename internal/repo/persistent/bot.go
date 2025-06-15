@@ -84,18 +84,17 @@ func (r *BotRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取Bot列表（分页）
-func (r *BotRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult, error) {
+func (r *BotRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.Bot], error) {
 	params = r.validateParams(params)
 
 	var bots []*entity.Bot
 	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Bot{}), params)
 
-	result, err := r.paginate(ctx, query, params, &bots)
+	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &bots)
 	if err != nil {
 		return nil, r.handleError(err, "list bots")
 	}
 
-	result.Items = bots
 	return result, nil
 }
 

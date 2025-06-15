@@ -87,6 +87,18 @@ func (r *ChannelRepo) GetByWebhookPath(ctx context.Context, path string) (*entit
 	return &channel, nil
 }
 
+// GetByName 根据机器人ID和通道名称获取Channel
+func (r *ChannelRepo) GetByName(ctx context.Context, botID int64, channelName string) (*entity.Channel, error) {
+	var channel entity.Channel
+	err := r.db.GetGORM().WithContext(ctx).
+		Where("bot_id = ? AND channel_name = ?", botID, channelName).
+		First(&channel).Error
+	if err != nil {
+		return nil, r.handleError(err, "get channel by name")
+	}
+	return &channel, nil
+}
+
 // Update 更新Channel
 func (r *ChannelRepo) Update(ctx context.Context, channel *entity.Channel) error {
 	if err := channel.Validate(); err != nil {
@@ -109,18 +121,17 @@ func (r *ChannelRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取Channel列表（分页）
-func (r *ChannelRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult, error) {
+func (r *ChannelRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.Channel], error) {
 	params = r.validateParams(params)
 
 	var channels []*entity.Channel
 	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Channel{}), params)
 
-	result, err := r.paginate(ctx, query, params, &channels)
+	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &channels)
 	if err != nil {
 		return nil, r.handleError(err, "list channels")
 	}
 
-	result.Items = channels
 	return result, nil
 }
 
@@ -187,4 +198,17 @@ func (r *ChannelRepo) UpdateAccessToken(ctx context.Context, id int64, token str
 // Exists 检查Channel是否存在
 func (r *ChannelRepo) Exists(ctx context.Context, id int64) (bool, error) {
 	return r.exists(ctx, &entity.Channel{}, "id = ?", id)
+}
+
+// GetPendingMessageCount 获取通道的待处理消息数量
+func (r *ChannelRepo) GetPendingMessageCount(ctx context.Context, channelID int64) (int64, error) {
+	var count int64
+	err := r.db.GetGORM().WithContext(ctx).
+		Model(&entity.Message{}).
+		Where("channel_id = ? AND message_status = ?", channelID, entity.MessageStatusPending).
+		Count(&count).Error
+	if err != nil {
+		return 0, r.handleError(err, "get pending message count")
+	}
+	return count, nil
 }

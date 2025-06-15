@@ -2,7 +2,7 @@ package providers
 
 import (
 	"github.com/google/wire"
-	"github.com/sivdead/OmniBotGo/config"
+	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )

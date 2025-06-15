@@ -6,7 +6,7 @@ package app
 import (
 	"log"
 
-	"github.com/sivdead/OmniBotGo/config"
+	"github.com/sivdead/OmniBotGo/internal/config"
 )
 
 // Run creates objects via Wire dependency injection and starts the application.

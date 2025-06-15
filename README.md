@@ -140,9 +140,10 @@ just compose-up-all
 ```
 OmniBotGo/
 ├── cmd/app/                 # 应用程序入口
-├── config/                  # 配置管理（支持环境变量覆盖）
+├── config/                  # 配置文件目录（YAML格式）
 ├── internal/
 │   ├── app/                # 应用启动和Wire依赖注入
+│   ├── config/             # 配置管理逻辑（Viper）
 │   ├── controller/         # 控制器层（HTTP/gRPC/AMQP）
 │   ├── entity/             # 业务实体和消息模型
 │   ├── providers/          # Wire Provider 函数定义
@@ -155,6 +156,7 @@ OmniBotGo/
 │   └── rabbitmq/           # RabbitMQ RPC 包
 ├── migrations/             # 数据库迁移文件
 ├── docs/                   # 项目文档和 API 文档
+├── README_CONFIG.md        # 配置系统详细说明
 └── integration-test/       # 集成测试
 ```
 
@@ -177,12 +179,15 @@ Wire Provider函数定义，采用模块化设计：
 - **servers.go**: 服务器层Provider（HTTP、gRPC、RMQ）
 - **app.go**: 应用程序主结构体Provider
 
-#### `config/`
-基于12-Factor原则的配置管理：
-- 环境变量配置
-- 多平台认证信息
-- 后端服务配置
-- 系统参数设置
+#### `internal/config/` & `config/`
+基于Viper的配置管理系统：
+- **`internal/config/`**: 配置管理逻辑、类型定义、验证规则
+- **`config/`**: YAML配置文件存储目录
+- **多源配置**: 支持环境变量覆盖配置文件
+- **类型安全**: 强类型配置结构体，编译时检查
+- **配置验证**: 启动时验证必需配置项
+
+详细说明请参考 [README_CONFIG.md](README_CONFIG.md)
 
 #### `internal/controller/`
 多协议服务器支持：

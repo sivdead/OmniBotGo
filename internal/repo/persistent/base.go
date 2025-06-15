@@ -101,8 +101,8 @@ func (r *BaseRepo) buildQuery(db *gorm.DB, params repo.ListParams) *gorm.DB {
 	return query
 }
 
-// paginate 执行分页查询
-func (r *BaseRepo) paginate(ctx context.Context, query *gorm.DB, params repo.ListParams, result interface{}) (*repo.PaginatedResult, error) {
+// PaginateTyped 执行泛型分页查询（独立函数）
+func PaginateTyped[T any](db *gorm.DB, ctx context.Context, query *gorm.DB, params repo.ListParams, result *[]T) (*repo.PaginatedResult[T], error) {
 	// 计算总数
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
@@ -128,7 +128,43 @@ func (r *BaseRepo) paginate(ctx context.Context, query *gorm.DB, params repo.Lis
 		return nil, fmt.Errorf("failed to query records: %w", err)
 	}
 
-	return &repo.PaginatedResult{
+	return &repo.PaginatedResult[T]{
+		Items:      *result,
+		Total:      total,
+		Page:       params.Page,
+		PageSize:   params.PageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// paginate 执行分页查询（原始版本，保持向后兼容）
+func (r *BaseRepo) paginate(ctx context.Context, query *gorm.DB, params repo.ListParams, result interface{}) (*repo.LegacyPaginatedResult, error) {
+	// 计算总数
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, fmt.Errorf("failed to count records: %w", err)
+	}
+
+	// 计算分页参数
+	if params.Page <= 0 {
+		params.Page = 1
+	}
+	if params.PageSize <= 0 {
+		params.PageSize = 20
+	}
+	if params.PageSize > 100 {
+		params.PageSize = 100
+	}
+
+	offset := (params.Page - 1) * params.PageSize
+	totalPages := int(math.Ceil(float64(total) / float64(params.PageSize)))
+
+	// 执行分页查询
+	if err := query.Offset(offset).Limit(params.PageSize).Find(result).Error; err != nil {
+		return nil, fmt.Errorf("failed to query records: %w", err)
+	}
+
+	return &repo.LegacyPaginatedResult{
 		Items:      result,
 		Total:      total,
 		Page:       params.Page,

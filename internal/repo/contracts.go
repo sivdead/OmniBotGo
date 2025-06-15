@@ -18,12 +18,43 @@ type ListParams struct {
 	Filters  map[string]interface{} `json:"filters"`
 }
 
-type PaginatedResult struct {
+// PaginatedResult 泛型分页结果
+type PaginatedResult[T any] struct {
+	Items      []T   `json:"items"`
+	Total      int64 `json:"total"`
+	Page       int   `json:"page"`
+	PageSize   int   `json:"page_size"`
+	TotalPages int   `json:"total_pages"`
+}
+
+// 为了向后兼容，保留原始的interface{}版本
+type LegacyPaginatedResult struct {
 	Items      interface{} `json:"items"`
 	Total      int64       `json:"total"`
 	Page       int         `json:"page"`
 	PageSize   int         `json:"page_size"`
 	TotalPages int         `json:"total_pages"`
+}
+
+// 通用分页仓库接口
+type PaginatedRepo[T any] interface {
+	List(ctx context.Context, params ListParams) (*PaginatedResult[T], error)
+	ListActive(ctx context.Context) ([]T, error)
+}
+
+// 基础CRUD仓库接口
+type BaseRepo[T any] interface {
+	Create(ctx context.Context, entity T) error
+	GetByID(ctx context.Context, id int64) (T, error)
+	Update(ctx context.Context, entity T) error
+	Delete(ctx context.Context, id int64) error
+	Exists(ctx context.Context, id int64) (bool, error)
+}
+
+// 完整仓库接口（组合基础CRUD和分页）
+type Repository[T any] interface {
+	BaseRepo[T]
+	PaginatedRepo[T]
 }
 
 // BotRepo Bot相关Repository接口
@@ -33,7 +64,7 @@ type BotRepo interface {
 	GetByName(ctx context.Context, name string) (*entity.Bot, error)
 	Update(ctx context.Context, bot *entity.Bot) error
 	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context, params ListParams) (*PaginatedResult, error)
+	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.Bot], error)
 	ListActive(ctx context.Context) ([]*entity.Bot, error)
 	Exists(ctx context.Context, id int64) (bool, error)
 	ExistsByName(ctx context.Context, name string) (bool, error)
@@ -49,7 +80,7 @@ type ChannelRepo interface {
 	GetByWebhookPath(ctx context.Context, path string) (*entity.Channel, error)
 	Update(ctx context.Context, channel *entity.Channel) error
 	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context, params ListParams) (*PaginatedResult, error)
+	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.Channel], error)
 	ListActive(ctx context.Context) ([]*entity.Channel, error)
 	UpdateConnectionStatus(ctx context.Context, id int64, status entity.ConnectionStatus) error
 	UpdateAccessToken(ctx context.Context, id int64, token string, expiresAt *time.Time) error
@@ -61,13 +92,13 @@ type MessageRepo interface {
 	Create(ctx context.Context, message *entity.Message) error
 	GetByID(ctx context.Context, id int64) (*entity.Message, error)
 	GetByMessageID(ctx context.Context, messageID string) (*entity.Message, error)
-	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult, error)
-	GetByConversationID(ctx context.Context, conversationID string, params ListParams) (*PaginatedResult, error)
+	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult[*entity.Message], error)
+	GetByConversationID(ctx context.Context, conversationID string, params ListParams) (*PaginatedResult[*entity.Message], error)
 	GetPendingMessages(ctx context.Context, limit int) ([]*entity.Message, error)
 	GetFailedMessages(ctx context.Context, limit int) ([]*entity.Message, error)
 	Update(ctx context.Context, message *entity.Message) error
 	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context, params ListParams) (*PaginatedResult, error)
+	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.Message], error)
 	UpdateStatus(ctx context.Context, id int64, status entity.MessageStatus) error
 	IncrementRetryCount(ctx context.Context, id int64) error
 	MarkAsProcessed(ctx context.Context, id int64) error
@@ -85,7 +116,7 @@ type MessageProcessorRepo interface {
 	GetByType(ctx context.Context, processorType string) ([]*entity.MessageProcessor, error)
 	Update(ctx context.Context, processor *entity.MessageProcessor) error
 	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context, params ListParams) (*PaginatedResult, error)
+	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.MessageProcessor], error)
 	ListActive(ctx context.Context) ([]*entity.MessageProcessor, error)
 	ListByPriority(ctx context.Context) ([]*entity.MessageProcessor, error)
 	Exists(ctx context.Context, id int64) (bool, error)
@@ -102,7 +133,7 @@ type MessageRoutingRuleRepo interface {
 	GetFallbackRules(ctx context.Context) ([]*entity.MessageRoutingRule, error)
 	Update(ctx context.Context, rule *entity.MessageRoutingRule) error
 	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context, params ListParams) (*PaginatedResult, error)
+	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.MessageRoutingRule], error)
 	ListByPriority(ctx context.Context) ([]*entity.MessageRoutingRule, error)
 	Exists(ctx context.Context, id int64) (bool, error)
 }
@@ -118,7 +149,7 @@ type SystemConfigRepo interface {
 	Update(ctx context.Context, config *entity.SystemConfig) error
 	UpdateValue(ctx context.Context, key, value string) error
 	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context, params ListParams) (*PaginatedResult, error)
+	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.SystemConfig], error)
 	Exists(ctx context.Context, key string) (bool, error)
 }
 
@@ -131,7 +162,7 @@ type MessageQueueRepo interface {
 	GetExpiredJobs(ctx context.Context, timeout int64) ([]*entity.MessageQueue, error)
 	Update(ctx context.Context, queue *entity.MessageQueue) error
 	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context, params ListParams) (*PaginatedResult, error)
+	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.MessageQueue], error)
 	MarkAsRunning(ctx context.Context, id int64) error
 	MarkAsCompleted(ctx context.Context, id int64) error
 	MarkAsFailed(ctx context.Context, id int64, errorMsg string) error
@@ -143,10 +174,10 @@ type MessageQueueRepo interface {
 // ConnectionLogRepo ConnectionLog相关Repository接口
 type ConnectionLogRepo interface {
 	Create(ctx context.Context, log *entity.ConnectionLog) error
-	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult, error)
+	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult[*entity.ConnectionLog], error)
 	GetRecentLogs(ctx context.Context, limit int) ([]*entity.ConnectionLog, error)
 	GetErrorLogs(ctx context.Context, channelID int64, limit int) ([]*entity.ConnectionLog, error)
-	List(ctx context.Context, params ListParams) (*PaginatedResult, error)
+	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.ConnectionLog], error)
 	Delete(ctx context.Context, id int64) error
 	DeleteOldLogs(ctx context.Context, beforeDays int) error
 }
@@ -155,12 +186,12 @@ type ConnectionLogRepo interface {
 type APICallLogRepo interface {
 	Create(ctx context.Context, log *entity.APICallLog) error
 	GetByRequestID(ctx context.Context, requestID string) (*entity.APICallLog, error)
-	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult, error)
-	GetByProcessorID(ctx context.Context, processorID int64, params ListParams) (*PaginatedResult, error)
+	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
+	GetByProcessorID(ctx context.Context, processorID int64, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
 	GetSlowCalls(ctx context.Context, thresholdMs int, limit int) ([]*entity.APICallLog, error)
 	GetFailedCalls(ctx context.Context, limit int) ([]*entity.APICallLog, error)
 	GetRecentCalls(ctx context.Context, limit int) ([]*entity.APICallLog, error)
-	List(ctx context.Context, params ListParams) (*PaginatedResult, error)
+	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
 	Delete(ctx context.Context, id int64) error
 	DeleteOldLogs(ctx context.Context, beforeDays int) error
 	GetStatistics(ctx context.Context, channelID *int64, processorID *int64) (*CallStatistics, error)

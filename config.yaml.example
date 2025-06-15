@@ -1,0 +1,40 @@
+# OmniBotGo 配置文件模板
+# 复制此文件为 config.yaml 并填入实际配置值
+
+# 应用程序配置
+app:
+  name: "OmniBotGo"
+  version: "1.0.0"
+
+# HTTP 服务器配置
+http:
+  port: "8080"
+  use_prefork_mode: false
+
+# 日志配置
+log:
+  level: "debug"
+
+# 数据库配置
+db:
+  type: "mysql"
+  dsn: "username:password@tcp(localhost:3306)/database_name?charset=utf8mb4&parseTime=True&loc=Local"
+  max_connections: 10
+
+# gRPC 服务器配置
+grpc:
+  port: "8081"
+
+# RabbitMQ 配置
+rmq:
+  server_exchange: "rpc_server"
+  client_exchange: "rpc_client"
+  url: "amqp://username:password@localhost:5672/"
+
+# 监控配置
+metrics:
+  enabled: true
+
+# Swagger 文档配置
+swagger:
+  enabled: true 

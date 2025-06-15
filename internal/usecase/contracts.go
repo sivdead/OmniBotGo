@@ -55,20 +55,6 @@ type (
 		// ListBots 获取机器人列表
 		ListBots(ctx context.Context, params ListBotsParams) (*BotListResult, error)
 	}
-
-	// WebhookUseCase Webhook处理业务逻辑
-	WebhookUseCase interface {
-		// HandleWebhook 处理平台Webhook事件
-		HandleWebhook(ctx context.Context, platform string, channelID int64, payload []byte) error
-		// VerifyWebhookSignature 验证Webhook签名
-		VerifyWebhookSignature(ctx context.Context, platform string, channelID int64, signature string, payload []byte) error
-	}
-
-	// Translation 翻译业务逻辑（保留原有接口）
-	Translation interface {
-		Translate(context.Context, entity.Translation) (entity.Translation, error)
-		History(context.Context) (entity.TranslationHistory, error)
-	}
 )
 
 // 请求和响应结构体
@@ -99,13 +85,7 @@ type ListChannelsParams struct {
 }
 
 // ChannelListResult 通道列表结果
-type ChannelListResult struct {
-	Items      []entity.Channel `json:"items"`
-	Total      int64            `json:"total"`
-	Page       int              `json:"page"`
-	PageSize   int              `json:"page_size"`
-	TotalPages int              `json:"total_pages"`
-}
+type ChannelListResult = ListResult[entity.Channel]
 
 // CreateBotRequest 创建机器人请求
 type CreateBotRequest struct {
@@ -163,10 +143,4 @@ type GetMessageHistoryParams struct {
 }
 
 // MessageHistoryResult 消息历史结果
-type MessageHistoryResult struct {
-	Items      []entity.Message `json:"items"`
-	Total      int64            `json:"total"`
-	Page       int              `json:"page"`
-	PageSize   int              `json:"page_size"`
-	TotalPages int              `json:"total_pages"`
-}
+type MessageHistoryResult = ListResult[entity.Message]

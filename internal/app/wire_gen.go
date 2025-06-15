@@ -7,7 +7,7 @@
 package app
 
 import (
-	"github.com/sivdead/OmniBotGo/config"
+	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/providers"
 )
 
@@ -15,14 +15,21 @@ import (
 
 // InitializeApp 使用Wire进行依赖注入，初始化整个应用程序
 func InitializeApp(cfg *config.Config) (*providers.App, error) {
-	loggerInterface := providers.NewLogger(cfg)
-	server := providers.NewHTTPServer(cfg, loggerInterface)
-	grpcserverServer := providers.NewGRPCServer(cfg, loggerInterface)
-	serverServer, err := providers.NewRMQServer(cfg, loggerInterface)
+	commonDB, err := providers.NewDatabase(cfg)
 	if err != nil {
 		return nil, err
 	}
-	commonDB, err := providers.NewDatabase(cfg)
+	messageRepo := providers.NewMessageRepo(commonDB)
+	channelRepo := providers.NewChannelRepo(commonDB)
+	manager := providers.NewAdapterManager()
+	loggerInterface := providers.NewLogger(cfg)
+	messageUseCase := providers.NewMessageUseCase(messageRepo, channelRepo, manager, loggerInterface)
+	botRepo := providers.NewBotRepo(commonDB)
+	channelUseCase := providers.NewChannelUseCase(channelRepo, messageRepo, botRepo, loggerInterface)
+	botUseCase := providers.NewBotUseCase(botRepo, channelRepo, loggerInterface)
+	server := providers.NewHTTPServer(cfg, messageUseCase, channelUseCase, botUseCase, loggerInterface)
+	grpcserverServer := providers.NewGRPCServer(cfg, loggerInterface)
+	serverServer, err := providers.NewRMQServer(cfg, loggerInterface)
 	if err != nil {
 		return nil, err
 	}
