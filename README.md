@@ -96,37 +96,130 @@ just compose-up-all
 
 本项目基于整洁架构原则，采用依赖倒置设计，使用Google Wire进行编译时依赖注入：
 
+### 架构特点
+
+**接口隔离与依赖倒置**
+- 基于能力（Capability-based）的细粒度接口设计
+- 接口所有权在UseCase层（`internal/usecase/port/`），实现标准的整洁架构
+- 每个适配器只实现自己需要的接口，代码纯粹
+
+**连接生命周期管理**
+- `ConnectionManager`组件统一管理所有主动连接型适配器（如钉钉Stream）
+- 基于数据库配置的动态连接启动和管理
+- 支持优雅启动、停止和重连机制
+
+**官方SDK集成**
+- **钉钉**: `github.com/open-dingtalk/dingtalk-stream-sdk-go`（官方SDK）
+- **企业微信**: `github.com/wenerme/go-wecom`（成熟第三方SDK）
+- **飞书**: `github.com/larksuite/oapi-sdk-go/v3`（官方SDK）
+- 自动token管理、统一错误处理、类型安全的API调用
+
+### 核心接口设计
+
+#### Port接口（UseCase层定义）
+
+```go
+// 消息发送能力
+type MessageSender interface {
+    SendMessage(ctx context.Context, message *UnifiedMessage, config map[string]interface{}, accessToken string) error
+}
+
+// Webhook处理能力
+type WebhookProcessor interface {
+    VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error
+    ParseInboundMessage(ctx context.Context, body []byte, config map[string]interface{}) (*UnifiedMessage, error)
+    BuildWebhookPath(channelID int64) string
+}
+
+// Token管理能力
+type TokenManager interface {
+    GetAccessToken(ctx context.Context, config map[string]interface{}) (*AccessTokenResponse, error)
+    RefreshAccessToken(ctx context.Context, config map[string]interface{}, oldToken string) (*AccessTokenResponse, error)
+}
+
+// Stream连接能力（用于钉钉Stream等主动连接模式）
+type StreamAdapter interface {
+    Start(ctx context.Context, messageHandler MessageHandler, config map[string]interface{}) error
+    Stop(ctx context.Context) error
+    IsConnected() bool
+}
+
+// 配置验证能力
+type ConfigValidator interface {
+    ValidateConfig(config map[string]interface{}) error
+}
+
+// 平台识别能力
+type PlatformIdentifier interface {
+    GetPlatformType() PlatformType
+}
+```
+
+#### 平台能力矩阵
+
+| 平台 | MessageSender | WebhookProcessor | TokenManager | StreamAdapter | 连接模式 |
+|------|:-------------:|:----------------:|:------------:|:-------------:|:--------:|
+| **企业微信** | ✅ | ✅ | ✅ | ❌ | Webhook |
+| **飞书** | ✅ | ✅ | ✅ | ❌ | Webhook |
+| **钉钉Stream** | ✅ | ❌ | ❌ | ✅ | Stream |
+
 ### 依赖注入架构
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Config        │    │   Logger        │    │   Database      │
-└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
-          │                      │                      │
-          └──────────────────────┼──────────────────────┼───────────┐
-                                 │                      │           │
-                          ┌──────▼──────┐    ┌─────────▼──────┐    │
-                          │TranslationWA│    │TranslationRepo │    │
-                          │     API     │    │               │    │
-                          └──────┬──────┘    └─────────┬──────┘    │
-                                 │                     │           │
-                                 └─────────┬───────────┘           │
-                                           │                       │
-                                  ┌────────▼────────┐              │
-                                  │TranslationUseCase│              │
-                                  └────────┬────────┘              │
-                                           │                       │
-                      ┌────────────────────┼─────────────────────┬─┘
-                      │                    │                     │
-              ┌───────▼────┐    ┌─────────▼────┐    ┌──────────▼────┐
-              │HTTPServer  │    │GRPCServer    │    │RMQServer      │
-              └───────┬────┘    └─────────┬────┘    └──────────┬────┘
-                      │                   │                    │
-                      └───────────────────┼────────────────────┘
-                                          │
-                                  ┌───────▼────────┐
-                                  │       App      │
-                                  └────────────────┘
+```mermaid
+graph TD;
+    subgraph "Frameworks (外部框架)"
+        direction LR
+        A["Web Server / gRPC"]
+        B["Database (GORM)"]
+        C["3rd Party SDK<br/>(DingTalk, WeCom, Feishu)"]
+    end
+
+    subgraph "Adapters (适配器层)"
+        direction LR
+        D["Controller"]
+        E["Repository Impl"]
+        F["Platform Adapters<br/>(基于能力接口)"]
+        G["ConnectionManager<br/>(Stream连接管理)"]
+    end
+
+    subgraph "Use Cases (业务逻辑层)"
+        direction LR
+        H["MessageUseCase"]
+        I("Ports - 接口定义<br/>MessageSender<br/>WebhookProcessor<br/>TokenManager<br/>StreamAdapter<br/>ConfigValidator<br/>PlatformIdentifier")
+    end
+    
+    subgraph "Entities (实体层)"
+        direction LR
+        J["UnifiedMessage"]
+        K["Channel"]
+        L["...其他业务实体"]
+    end
+
+    %% 依赖关系
+    A --> D;
+    B --> E;
+    C --> F;
+    
+    D -- "调用 UseCase" --> H;
+    E -- "实现 Repository 接口" --> H;
+    F -- "实现 Port 接口" --> I;
+    G -- "管理 Stream 连接" --> F;
+
+    H -- "依赖 Port 接口" --> I;
+    H -- "操作 Entity" --> J;
+    H -- "操作 Entity" --> K;
+    
+    I -- "参数/返回值为 Entity" --> J;
+
+    classDef entity fill:#D5E8D4,stroke:#82B366;
+    classDef usecase fill:#DAE8FC,stroke:#6C8EBF;
+    classDef adapter fill:#F8CECC,stroke:#B85450;
+    classDef framework fill:#E1D5E7,stroke:#9673A6;
+
+    class J,K,L entity;
+    class H,I usecase;
+    class D,E,F,G adapter;
+    class A,B,C framework;
 ```
 
 **Wire的优势**：
@@ -148,6 +241,14 @@ OmniBotGo/
 │   ├── entity/             # 业务实体和消息模型
 │   ├── providers/          # Wire Provider 函数定义
 │   ├── usecase/            # 业务逻辑层
+│   │   └── port/           # UseCase接口定义（重构核心）
+│   ├── adapter/            # 平台适配器实现层
+│   │   ├── manager.go      # 基于能力的适配器管理器
+│   │   ├── wecom/          # 企业微信适配器（SDK集成）
+│   │   ├── feishu/         # 飞书适配器（官方SDK）
+│   │   └── dingtalk_stream/ # 钉钉Stream适配器（官方SDK）
+│   ├── service/            # 基础设施服务
+│   │   └── connection_manager.go  # Stream连接生命周期管理
 │   └── repo/               # 数据访问层抽象
 ├── pkg/                    # 公共工具包
 │   ├── mysql/              # MySQL 连接包
@@ -156,6 +257,7 @@ OmniBotGo/
 │   └── rabbitmq/           # RabbitMQ RPC 包
 ├── migrations/             # 数据库迁移文件
 ├── docs/                   # 项目文档和 API 文档
+│   └── architecture/       # 架构设计文档
 ├── README_CONFIG.md        # 配置系统详细说明
 └── integration-test/       # 集成测试
 ```
@@ -169,7 +271,25 @@ OmniBotGo/
 应用程序生命周期管理：
 - **wire.go**: Wire依赖注入配置和Injector函数
 - **wire_gen.go**: Wire自动生成的依赖注入代码
-- **app.go**: 简化的应用启动逻辑
+- **app.go**: 应用启动逻辑和生命周期管理
+
+#### `internal/service/connection_manager.go`
+Stream连接生命周期管理器：
+- 从数据库加载活跃通道配置
+- 启动和停止Stream连接（如钉钉Stream）
+- 连接状态监控和重启
+- 优雅启停机制
+
+#### `internal/adapter/manager.go`
+基于能力的适配器管理器：
+- `GetMessageSender()` - 获取消息发送能力
+- `GetWebhookProcessor()` - 获取Webhook处理能力
+- `GetTokenManager()` - 获取Token管理能力
+- `GetStreamAdapter()` - 获取Stream连接能力
+- `GetConfigValidator()` - 获取配置验证能力
+
+#### `internal/usecase/port/`
+UseCase层接口定义目录，定义业务逻辑所需的所有能力接口，是UseCase和Adapter之间解耦的关键。
 
 #### `internal/providers/`
 Wire Provider函数定义，采用模块化设计：
@@ -201,7 +321,7 @@ Wire Provider函数定义，采用模块化设计：
 #### `internal/usecase/`
 核心业务逻辑层：
 - 消息路由和转换
-- 平台适配器管理
+- 平台适配器调用
 - 后端服务集成
 - 事件处理逻辑
 
@@ -236,6 +356,12 @@ MySQL 数据库连接管理：
 - **查询构建器**: Squirrel（用于复杂SQL查询）
 - **消息队列**: RabbitMQ
 - **协议**: HTTP/HTTPS, gRPC, AMQP
+
+### 平台SDK集成
+- **钉钉**: `github.com/open-dingtalk/dingtalk-stream-sdk-go` (官方SDK)
+- **企业微信**: `github.com/wenerme/go-wecom` (成熟第三方SDK)
+- **飞书**: `github.com/larksuite/oapi-sdk-go/v3` (官方SDK)
+- **优势**: 自动token管理、统一错误处理、类型安全的API调用
 
 ### 基础设施
 - **配置管理**: 环境变量 + YAML/TOML
@@ -310,23 +436,29 @@ SWAGGER_ENABLED=true
 platforms:
   wecom:
     - name: "default"
-      corp_id: "xxxx"
-      app_secret: "xxxx"
-      token: "xxxx"
-      encoding_aes_key: "xxxx"
+      corp_id: "ww1234567890abcdef"
+      agent_id: "1000001"
+      secret: "abc123def456ghi789jkl"
+      token: "optional_webhook_token"
       
-  dingtalk:
+  dingtalk_stream:
     - name: "default"
-      app_key: "xxxx"
-      app_secret: "xxxx"
+      client_id: "your_client_id"
+      client_secret: "your_client_secret"
       
-  wechat_official:
-    - name: "service_account"
-      appid: "xxxx"
-      app_secret: "xxxx"
-      token: "xxxx"
-      encoding_aes_key: "xxxx"
+  feishu:
+    - name: "default"
+      app_id: "cli_a1234567890abcde"
+      app_secret: "abc123def456ghi789jkl012mno345pqr"
+      webhook_url: "optional_webhook_url"
+      encrypt_key: "optional_encrypt_key"
+      verification_token: "optional_verification_token"
 ```
+
+### 连接模式
+
+- **Webhook模式**（企业微信/飞书）: 被动接收平台推送的消息
+- **Stream模式**（钉钉）: 主动建立长连接接收实时消息
 
 ## API 文档
 

@@ -2,9 +2,12 @@ package providers
 
 import (
 	"github.com/google/wire"
+	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/adapter"
 	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/service"
 	"github.com/sivdead/OmniBotGo/internal/usecase"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
@@ -14,6 +17,8 @@ var UseCaseSet = wire.NewSet(
 	NewBotUseCase,
 	NewMessageUseCase,
 	NewAdapterManager,
+	NewConnectionManager,
+	NewStreamMessageHandler,
 )
 
 // NewChannelUseCase 创建ChannelUseCase实例
@@ -48,4 +53,21 @@ func NewMessageUseCase(
 // NewAdapterManager 创建适配器管理器实例
 func NewAdapterManager() *adapter.Manager {
 	return adapter.NewManager()
+}
+
+// NewConnectionManager 创建连接管理器实例
+func NewConnectionManager(
+	logger zerolog.Logger,
+	channelRepo repo.ChannelRepo,
+	adapterManager *adapter.Manager,
+	messageHandler port.MessageHandler,
+) *service.ConnectionManager {
+	return service.NewConnectionManager(logger, channelRepo, adapterManager, messageHandler)
+}
+
+// NewStreamMessageHandler 创建Stream消息处理器
+func NewStreamMessageHandler(
+	messageUseCase usecase.MessageUseCase,
+) port.MessageHandler {
+	return messageUseCase.CreateStreamMessageHandler()
 }

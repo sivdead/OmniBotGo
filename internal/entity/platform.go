@@ -1,7 +1,6 @@
 package entity
 
 import (
-	"context"
 	"time"
 )
 
@@ -14,33 +13,6 @@ const (
 	PlatformTypeWechatOfficial PlatformType = "wechat_official" // 微信公众号
 	PlatformTypeFeishu         PlatformType = "feishu"          // 飞书
 )
-
-// PlatformAdapter 平台适配器接口
-type PlatformAdapter interface {
-	// GetPlatformType 获取平台类型
-	GetPlatformType() PlatformType
-
-	// ValidateConfig 验证平台配置
-	ValidateConfig(config map[string]interface{}) error
-
-	// GetAccessToken 获取访问令牌
-	GetAccessToken(ctx context.Context, config map[string]interface{}) (*AccessTokenResponse, error)
-
-	// RefreshAccessToken 刷新访问令牌
-	RefreshAccessToken(ctx context.Context, config map[string]interface{}, oldToken string) (*AccessTokenResponse, error)
-
-	// VerifyWebhook 验证Webhook请求
-	VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error
-
-	// ParseInboundMessage 解析入站消息
-	ParseInboundMessage(ctx context.Context, body []byte, config map[string]interface{}) (*UnifiedMessage, error)
-
-	// SendMessage 发送消息
-	SendMessage(ctx context.Context, message *UnifiedMessage, config map[string]interface{}, accessToken string) error
-
-	// BuildWebhookPath 构建Webhook路径
-	BuildWebhookPath(channelID int64) string
-}
 
 // AccessTokenResponse 访问令牌响应
 type AccessTokenResponse struct {

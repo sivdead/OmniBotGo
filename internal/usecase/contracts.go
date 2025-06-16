@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
 
 //go:generate mockgen -source=contracts.go -destination=./mocks_usecase_test.go -package=usecase_test
@@ -22,6 +23,8 @@ type (
 		GetMessage(ctx context.Context, id int64) (*entity.Message, error)
 		// RetryFailedMessage 重试失败的消息
 		RetryFailedMessage(ctx context.Context, messageID int64) error
+		// CreateStreamMessageHandler 创建用于Stream适配器的消息处理回调函数
+		CreateStreamMessageHandler() port.MessageHandler
 	}
 
 	// ChannelUseCase 通道管理业务逻辑

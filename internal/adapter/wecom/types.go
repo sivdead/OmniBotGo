@@ -232,3 +232,9 @@ type WecomCallbackRequest struct {
 	Nonce        string `form:"nonce" query:"nonce"`
 	EchoStr      string `form:"echostr" query:"echostr"`
 }
+
+// WecomResponse 企业微信API响应
+type WecomResponse struct {
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+}

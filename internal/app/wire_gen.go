@@ -33,6 +33,9 @@ func InitializeApp(cfg *config.Config) (*providers.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	app := providers.NewApp(server, grpcserverServer, serverServer, commonDB, loggerInterface)
+	logger := providers.NewZerologLogger(cfg)
+	messageHandler := providers.NewStreamMessageHandler(messageUseCase)
+	connectionManager := providers.NewConnectionManager(logger, channelRepo, manager, messageHandler)
+	app := providers.NewApp(server, grpcserverServer, serverServer, connectionManager, commonDB, loggerInterface)
 	return app, nil
 }

@@ -1,12 +1,14 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/google/wire"
+	"github.com/sivdead/OmniBotGo/internal/service"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 	"github.com/sivdead/OmniBotGo/pkg/grpcserver"
 	"github.com/sivdead/OmniBotGo/pkg/httpserver"
@@ -21,11 +23,12 @@ var AppSet = wire.NewSet(
 
 // App 应用程序主结构体
 type App struct {
-	HTTPServer *httpserver.Server
-	GRPCServer *grpcserver.Server
-	RMQServer  *server.Server
-	Database   database.CommonDB
-	Logger     logger.Interface
+	HTTPServer        *httpserver.Server
+	GRPCServer        *grpcserver.Server
+	RMQServer         *server.Server
+	ConnectionManager *service.ConnectionManager
+	Database          database.CommonDB
+	Logger            logger.Interface
 }
 
 // NewApp 创建应用程序实例
@@ -33,15 +36,17 @@ func NewApp(
 	httpSrv *httpserver.Server,
 	grpcSrv *grpcserver.Server,
 	rmqSrv *server.Server,
+	connMgr *service.ConnectionManager,
 	db database.CommonDB,
 	l logger.Interface,
 ) *App {
 	return &App{
-		HTTPServer: httpSrv,
-		GRPCServer: grpcSrv,
-		RMQServer:  rmqSrv,
-		Database:   db,
-		Logger:     l,
+		HTTPServer:        httpSrv,
+		GRPCServer:        grpcSrv,
+		RMQServer:         rmqSrv,
+		ConnectionManager: connMgr,
+		Database:          db,
+		Logger:            l,
 	}
 }
 
@@ -54,10 +59,17 @@ func (a *App) Run() {
 		}
 	}()
 
+	// 启动ConnectionManager（在其他服务之前启动，确保Stream连接已就绪）
+	if err := a.ConnectionManager.Start(context.Background()); err != nil {
+		a.Logger.Error(fmt.Errorf("app - Run - connectionManager.Start: %w", err))
+	}
+
 	// 启动所有服务器
 	a.RMQServer.Start()
 	a.GRPCServer.Start()
 	a.HTTPServer.Start()
+
+	a.Logger.Info("应用程序启动完成")
 
 	// 等待中断信号
 	interrupt := make(chan os.Signal, 1)
@@ -80,6 +92,14 @@ func (a *App) Run() {
 
 // shutdown 优雅关闭所有服务器
 func (a *App) shutdown() {
+	a.Logger.Info("开始优雅关闭应用程序")
+
+	// 先关闭ConnectionManager（Stream连接）
+	if err := a.ConnectionManager.Stop(context.Background()); err != nil {
+		a.Logger.Error(fmt.Errorf("app - shutdown - connectionManager.Stop: %w", err))
+	}
+
+	// 然后关闭其他服务器
 	if err := a.HTTPServer.Shutdown(); err != nil {
 		a.Logger.Error(fmt.Errorf("app - shutdown - httpServer.Shutdown: %w", err))
 	}
@@ -91,4 +111,6 @@ func (a *App) shutdown() {
 	if err := a.RMQServer.Shutdown(); err != nil {
 		a.Logger.Error(fmt.Errorf("app - shutdown - rmqServer.Shutdown: %w", err))
 	}
+
+	a.Logger.Info("应用程序优雅关闭完成")
 }

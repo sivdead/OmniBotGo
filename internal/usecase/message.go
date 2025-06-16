@@ -8,6 +8,7 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/adapter"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
@@ -31,6 +32,48 @@ func NewMessageUseCase(
 		channelRepo:    channelRepo,
 		adapterManager: adapterManager,
 		logger:         logger,
+	}
+}
+
+// CreateStreamMessageHandler 创建用于Stream适配器的消息处理回调函数
+func (uc *messageUseCase) CreateStreamMessageHandler() port.MessageHandler {
+	return func(ctx context.Context, unifiedMessage *entity.UnifiedMessage) error {
+		uc.logger.Info("Stream消息处理回调", "message_id", unifiedMessage.MessageID, "sender_id", unifiedMessage.SenderID)
+
+		// 创建消息实体
+		message := &entity.Message{
+			MessageID:         unifiedMessage.MessageID,
+			PlatformMessageID: unifiedMessage.PlatformMessageID,
+			Direction:         entity.MessageDirectionInbound,
+			MessageType:       unifiedMessage.MessageType,
+			ContentType:       unifiedMessage.MediaType,
+			SenderID:          unifiedMessage.SenderID,
+			SenderName:        unifiedMessage.SenderName,
+			SenderType:        unifiedMessage.SenderType,
+			ReceiverID:        unifiedMessage.ReceiverID,
+			ReceiverName:      unifiedMessage.ReceiverName,
+			ReceiverType:      unifiedMessage.ReceiverType,
+			Content:           unifiedMessage.Content,
+			RawContent:        entity.JSONField(unifiedMessage.RawContent),
+			MediaURL:          unifiedMessage.MediaURL,
+			MediaType:         unifiedMessage.MediaType,
+			FileSize:          unifiedMessage.FileSize,
+			MessageStatus:     entity.MessageStatusPending,
+			ConversationID:    unifiedMessage.ConversationID,
+			PlatformTimestamp: unifiedMessage.PlatformTimestamp,
+			ReceivedAt:        time.Now(),
+		}
+
+		// 这里需要找到对应的ChannelID，可以通过平台类型和配置信息查找
+		// 为了简化，我们可以在RawContent中传递channelID
+		if channelIDValue, ok := unifiedMessage.RawContent["channel_id"]; ok {
+			if channelID, ok := channelIDValue.(float64); ok {
+				message.ChannelID = int64(channelID)
+			}
+		}
+
+		// 处理入站消息
+		return uc.ProcessInboundMessage(ctx, message)
 	}
 }
 
@@ -154,16 +197,26 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 
 // sendMessageToPlatform 发送消息到具体平台
 func (uc *messageUseCase) sendMessageToPlatform(ctx context.Context, msg *entity.Message, channel *entity.Channel) error {
-	// 检查访问令牌是否存在和有效
+	platformType := entity.PlatformType(channel.PlatformType)
+
+	// 使用新的MessageSender接口
+	messageSender, err := uc.adapterManager.GetMessageSender(platformType)
+	if err != nil {
+		return fmt.Errorf("获取消息发送器失败: %w", err)
+	}
+
+	// 检查访问令牌是否存在和有效（对于需要Token的平台）
 	if channel.AccessToken == "" {
-		return fmt.Errorf("通道访问令牌为空")
+		// 对于Stream模式（如钉钉Stream），可能不需要传统的AccessToken
+		uc.logger.Debug("通道访问令牌为空，可能为Stream模式")
 	}
 
 	// 检查访问令牌是否过期
 	if channel.AccessTokenExpiresAt != nil && time.Now().After(*channel.AccessTokenExpiresAt) {
 		// 尝试刷新令牌
 		if err := uc.refreshChannelToken(ctx, channel); err != nil {
-			return fmt.Errorf("刷新访问令牌失败: %w", err)
+			uc.logger.Warn("刷新访问令牌失败", "error", err)
+			// 对于Stream模式，Token刷新失败不是致命错误
 		}
 	}
 
@@ -188,8 +241,7 @@ func (uc *messageUseCase) sendMessageToPlatform(ctx context.Context, msg *entity
 	}
 
 	// 发送消息到平台
-	platformType := entity.PlatformType(channel.PlatformType)
-	return uc.adapterManager.SendMessage(ctx, platformType, unifiedMessage, channel.Config, channel.AccessToken)
+	return messageSender.SendMessage(ctx, unifiedMessage, channel.Config, channel.AccessToken)
 }
 
 // refreshChannelToken 刷新通道访问令牌
@@ -197,21 +249,27 @@ func (uc *messageUseCase) refreshChannelToken(ctx context.Context, channel *enti
 	uc.logger.Info("刷新通道访问令牌", "channel_id", channel.ID)
 
 	platformType := entity.PlatformType(channel.PlatformType)
-	tokenResponse, err := uc.adapterManager.RefreshAccessToken(ctx, platformType, channel.Config, channel.AccessToken)
+
+	// 使用新的TokenManager接口
+	tokenManager, err := uc.adapterManager.GetTokenManager(platformType)
+	if err != nil {
+		return fmt.Errorf("获取Token管理器失败: %w", err)
+	}
+
+	tokenResponse, err := tokenManager.RefreshAccessToken(ctx, channel.Config, channel.AccessToken)
 	if err != nil {
 		return fmt.Errorf("刷新访问令牌失败: %w", err)
 	}
 
-	// 更新通道访问令牌
-	if err := uc.channelRepo.UpdateAccessToken(ctx, channel.ID, tokenResponse.AccessToken, tokenResponse.ExpiresAt); err != nil {
-		return fmt.Errorf("更新通道访问令牌失败: %w", err)
-	}
-
-	// 更新内存中的令牌
+	// 更新通道的访问令牌
 	channel.AccessToken = tokenResponse.AccessToken
 	channel.AccessTokenExpiresAt = tokenResponse.ExpiresAt
 
-	uc.logger.Info("通道访问令牌刷新成功", "channel_id", channel.ID)
+	if err := uc.channelRepo.Update(ctx, channel); err != nil {
+		return fmt.Errorf("更新通道访问令牌失败: %w", err)
+	}
+
+	uc.logger.Info("通道访问令牌刷新成功")
 	return nil
 }
 
