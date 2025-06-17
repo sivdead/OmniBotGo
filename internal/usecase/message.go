@@ -17,6 +17,7 @@ type messageUseCase struct {
 	messageRepo    repo.MessageRepo
 	channelRepo    repo.ChannelRepo
 	adapterManager *adapter.Manager
+	routingUC      RoutingUseCase
 	logger         logger.Interface
 }
 
@@ -25,12 +26,14 @@ func NewMessageUseCase(
 	messageRepo repo.MessageRepo,
 	channelRepo repo.ChannelRepo,
 	adapterManager *adapter.Manager,
+	routingUC RoutingUseCase,
 	logger logger.Interface,
 ) MessageUseCase {
 	return &messageUseCase{
 		messageRepo:    messageRepo,
 		channelRepo:    channelRepo,
 		adapterManager: adapterManager,
+		routingUC:      routingUC,
 		logger:         logger,
 	}
 }
@@ -122,8 +125,15 @@ func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity
 		return fmt.Errorf("更新消息状态失败: %w", err)
 	}
 
-	// TODO: 将消息发送到消息队列进行异步处理
-	// 这里可以集成 RabbitMQ 或其他消息队列
+	// 进行消息路由处理
+	if err := uc.routeAndProcessMessage(ctx, msg); err != nil {
+		uc.logger.Error("消息路由处理失败", "error", err)
+		// 标记消息为失败，但不返回错误，避免影响消息保存
+		msg.MarkAsFailed(err.Error())
+		if updateErr := uc.messageRepo.Update(ctx, msg); updateErr != nil {
+			uc.logger.Error("更新消息状态失败", "error", updateErr)
+		}
+	}
 
 	uc.logger.Info("入站消息处理完成")
 	return nil
@@ -376,4 +386,123 @@ func (uc *messageUseCase) RetryFailedMessage(ctx context.Context, messageID int6
 // generateMessageID 生成消息ID
 func (uc *messageUseCase) generateMessageID() string {
 	return fmt.Sprintf("msg_%d", time.Now().UnixNano())
+}
+
+// routeAndProcessMessage 路由并处理消息
+func (uc *messageUseCase) routeAndProcessMessage(ctx context.Context, msg *entity.Message) error {
+	// 使用路由规则处理消息
+	processors, err := uc.routingUC.RouteMessage(ctx, msg)
+	if err != nil {
+		return fmt.Errorf("消息路由失败: %w", err)
+	}
+
+	if len(processors) == 0 {
+		uc.logger.Warn("没有找到匹配的处理器", "message_id", msg.MessageID)
+		return nil // 没有处理器不算错误，可能是正常情况
+	}
+
+	// 依次调用处理器处理消息
+	for _, processor := range processors {
+		if err := uc.processMessageWithProcessor(ctx, msg, processor); err != nil {
+			uc.logger.Error("处理器处理消息失败", "processor_id", processor.ID, "processor_name", processor.ProcessorName, "error", err)
+			// 继续处理其他处理器，不中断流程
+		}
+	}
+
+	// 标记消息为已处理
+	msg.MarkAsProcessed()
+	if err := uc.messageRepo.Update(ctx, msg); err != nil {
+		return fmt.Errorf("更新消息状态失败: %w", err)
+	}
+
+	return nil
+}
+
+// processMessageWithProcessor 使用特定处理器处理消息
+func (uc *messageUseCase) processMessageWithProcessor(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor) error {
+	uc.logger.Info("开始处理消息", "processor_id", processor.ID, "processor_type", processor.ProcessorType, "message_id", msg.MessageID)
+
+	switch processor.ProcessorType {
+	case "webhook_forwarder":
+		return uc.processWebhookForwarder(ctx, msg, processor)
+	case "auto_reply":
+		return uc.processAutoReply(ctx, msg, processor)
+	case "ai_chat":
+		return uc.processAIChat(ctx, msg, processor)
+	default:
+		uc.logger.Warn("未知的处理器类型", "processor_type", processor.ProcessorType)
+		return fmt.Errorf("未知的处理器类型: %s", processor.ProcessorType)
+	}
+}
+
+// processWebhookForwarder 处理Webhook转发
+func (uc *messageUseCase) processWebhookForwarder(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor) error {
+	// 获取Webhook URL配置
+	webhookURL := processor.GetConfigValue("webhook_url")
+	if webhookURL == nil {
+		return fmt.Errorf("Webhook处理器缺少webhook_url配置")
+	}
+
+	url, ok := webhookURL.(string)
+	if !ok || url == "" {
+		return fmt.Errorf("无效的webhook_url配置")
+	}
+
+	// TODO: 实现Webhook转发逻辑
+	// 1. 构建要发送的数据
+	// 2. 发送HTTP POST请求到目标URL
+	// 3. 处理响应并记录日志
+
+	uc.logger.Info("Webhook转发处理完成", "url", url, "message_id", msg.MessageID)
+	return nil
+}
+
+// processAutoReply 处理自动回复
+func (uc *messageUseCase) processAutoReply(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor) error {
+	// 获取自动回复内容配置
+	replyContent := processor.GetConfigValue("reply_content")
+	if replyContent == nil {
+		return fmt.Errorf("自动回复处理器缺少reply_content配置")
+	}
+
+	content, ok := replyContent.(string)
+	if !ok || content == "" {
+		return fmt.Errorf("无效的reply_content配置")
+	}
+
+	// 构建回复消息
+	replyMsg := &entity.Message{
+		MessageID:       uc.generateMessageID(),
+		ChannelID:       msg.ChannelID,
+		Direction:       entity.MessageDirectionOutbound,
+		MessageType:     "text",
+		SenderID:        msg.ReceiverID, // 回复者变成发送者
+		SenderName:      msg.ReceiverName,
+		SenderType:      msg.ReceiverType,
+		ReceiverID:      msg.SenderID, // 原发送者变成接收者
+		ReceiverName:    msg.SenderName,
+		ReceiverType:    msg.SenderType,
+		Content:         content,
+		ConversationID:  msg.ConversationID,
+		ParentMessageID: &msg.ID, // 设置父消息ID
+	}
+
+	// 发送回复消息
+	if err := uc.SendMessage(ctx, replyMsg); err != nil {
+		return fmt.Errorf("发送自动回复失败: %w", err)
+	}
+
+	uc.logger.Info("自动回复处理完成", "reply_message_id", replyMsg.MessageID, "original_message_id", msg.MessageID)
+	return nil
+}
+
+// processAIChat 处理AI聊天
+func (uc *messageUseCase) processAIChat(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor) error {
+	// TODO: 实现AI聊天逻辑
+	// 1. 调用AI API（如OpenAI、Claude等）
+	// 2. 获取AI回复
+	// 3. 发送回复消息
+
+	uc.logger.Info("AI聊天处理完成（暂未实现）", "message_id", msg.MessageID)
+	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/adapter/dingtalk_stream"
 	"github.com/sivdead/OmniBotGo/internal/adapter/feishu"
+	"github.com/sivdead/OmniBotGo/internal/adapter/wechat_official"
 	"github.com/sivdead/OmniBotGo/internal/adapter/wecom"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
@@ -27,6 +28,9 @@ func NewManager() *Manager {
 
 	// 注册钉钉Stream适配器
 	adapters[entity.PlatformTypeDingtalk] = dingtalk_stream.NewAdapter(zerolog.New(os.Stdout))
+
+	// 注册微信公众号适配器
+	adapters[entity.PlatformTypeWechatOfficial] = wechat_official.NewWechatOfficialAdapter()
 
 	// 注册飞书适配器
 	adapters[entity.PlatformTypeFeishu] = feishu.NewFeishuAdapter()
