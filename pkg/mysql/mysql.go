@@ -4,9 +4,12 @@ package mysql
 import (
 	"database/sql"
 	"log"
+	"os"
 	"time"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/rs/zerolog"
+	customLogger "github.com/sivdead/OmniBotGo/pkg/logger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -20,6 +23,7 @@ const (
 	_defaultConnAttempts    = 10
 	_defaultConnTimeout     = time.Second
 	_defaultLogLevel        = logger.Silent
+	_defaultSlowThreshold   = 200 // 默认200毫秒
 )
 
 // MySQL represents MySQL database connection with both GORM and Squirrel support.
@@ -31,6 +35,7 @@ type MySQL struct {
 	connAttempts    int
 	connTimeout     time.Duration
 	logLevel        logger.LogLevel
+	slowThreshold   int // 慢查询阈值(毫秒)
 
 	// GORM instance for ORM operations
 	DB *gorm.DB
@@ -52,6 +57,7 @@ func New(dsn string, opts ...Option) (*MySQL, error) {
 		connAttempts:    _defaultConnAttempts,
 		connTimeout:     _defaultConnTimeout,
 		logLevel:        _defaultLogLevel,
+		slowThreshold:   _defaultSlowThreshold,
 	}
 
 	// Custom options
@@ -61,8 +67,10 @@ func New(dsn string, opts ...Option) (*MySQL, error) {
 
 	var err error
 
-	// Configure GORM logger
-	gormLogger := logger.Default.LogMode(m.logLevel)
+	// Configure GORM logger with JSON format
+	zlogger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	gormLogger := customLogger.NewGormLogger(zlogger, m.logLevel)
+	gormLogger.SetSlowThreshold(time.Duration(m.slowThreshold) * time.Millisecond)
 
 	for m.connAttempts > 0 {
 		m.DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{

@@ -57,3 +57,10 @@ func LogLevel(level logger.LogLevel) Option {
 		m.logLevel = level
 	}
 }
+
+// SlowThreshold 设置慢查询阈值(毫秒)
+func SlowThreshold(thresholdMs int) Option {
+	return func(m *MySQL) {
+		m.slowThreshold = thresholdMs
+	}
+}

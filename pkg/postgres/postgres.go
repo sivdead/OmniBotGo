@@ -6,28 +6,33 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	customLogger "github.com/sivdead/OmniBotGo/pkg/logger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 const (
-	_defaultMaxPoolSize  = 1
-	_defaultConnAttempts = 10
-	_defaultConnTimeout  = time.Second
-	_defaultLogLevel     = logger.Silent
+	_defaultMaxPoolSize   = 1
+	_defaultConnAttempts  = 10
+	_defaultConnTimeout   = time.Second
+	_defaultLogLevel      = logger.Silent
+	_defaultSlowThreshold = 200 // 默认200毫秒
 )
 
 // Postgres represents PostgreSQL database connection with both GORM and Squirrel support.
 type Postgres struct {
-	maxPoolSize  int
-	connAttempts int
-	connTimeout  time.Duration
-	logLevel     logger.LogLevel
+	maxPoolSize   int
+	connAttempts  int
+	connTimeout   time.Duration
+	logLevel      logger.LogLevel
+	slowThreshold int // 慢查询阈值(毫秒)
 
 	// GORM instance for ORM operations (similar to MySQL implementation)
 	DB *gorm.DB
@@ -45,10 +50,11 @@ type Postgres struct {
 // New creates a new PostgreSQL connection with both GORM and Squirrel support.
 func New(url string, opts ...Option) (*Postgres, error) {
 	pg := &Postgres{
-		maxPoolSize:  _defaultMaxPoolSize,
-		connAttempts: _defaultConnAttempts,
-		connTimeout:  _defaultConnTimeout,
-		logLevel:     _defaultLogLevel,
+		maxPoolSize:   _defaultMaxPoolSize,
+		connAttempts:  _defaultConnAttempts,
+		connTimeout:   _defaultConnTimeout,
+		logLevel:      _defaultLogLevel,
+		slowThreshold: _defaultSlowThreshold,
 	}
 
 	// Custom options
@@ -58,8 +64,10 @@ func New(url string, opts ...Option) (*Postgres, error) {
 
 	var err error
 
-	// Configure GORM logger
-	gormLogger := logger.Default.LogMode(pg.logLevel)
+	// Configure GORM logger with JSON format
+	zlogger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	gormLogger := customLogger.NewGormLogger(zlogger, pg.logLevel)
+	gormLogger.SetSlowThreshold(time.Duration(pg.slowThreshold) * time.Millisecond)
 
 	// Initialize GORM connection
 	for pg.connAttempts > 0 {

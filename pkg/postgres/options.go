@@ -36,3 +36,10 @@ func LogLevel(level logger.LogLevel) Option {
 		p.logLevel = level
 	}
 }
+
+// SlowThreshold 设置慢查询阈值(毫秒)
+func SlowThreshold(thresholdMs int) Option {
+	return func(p *Postgres) {
+		p.slowThreshold = thresholdMs
+	}
+}

@@ -21,6 +21,7 @@ db:
   dsn: "username:password@tcp(localhost:3306)/database_name?charset=utf8mb4&parseTime=True&loc=Local"
   max_connections: 10
   log_level: "warn"  # 数据库日志级别 (error, warn, info, debug)
+  slow_threshold: 200  # 慢查询阈值(毫秒)，超过此时间的查询将被标记为慢查询
 
 # gRPC 服务器配置
 grpc:

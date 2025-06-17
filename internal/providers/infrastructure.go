@@ -43,7 +43,8 @@ func NewDatabase(cfg *config.Config) (database.CommonDB, error) {
 		Type:           cfg.DB.Type,
 		DSN:            cfg.DB.DSN,
 		MaxConnections: cfg.DB.MaxConnections,
-		LogLevel:       cfg.DB.LogLevel, // 使用数据库专用日志级别
+		LogLevel:       cfg.DB.LogLevel,      // 使用数据库专用日志级别
+		SlowThreshold:  cfg.DB.SlowThreshold, // 慢查询阈值
 	}
 	return database.NewDatabase(dbConfig)
 }

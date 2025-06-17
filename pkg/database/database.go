@@ -25,6 +25,7 @@ type DatabaseConfig struct {
 	DSN            string
 	MaxConnections int
 	LogLevel       string // 新增日志级别配置
+	SlowThreshold  int    // 慢查询阈值(毫秒)
 }
 
 // parseLogLevel 将字符串转换为GORM日志级别
@@ -56,6 +57,7 @@ func NewDatabase(config DatabaseConfig) (CommonDB, error) {
 			config.DSN,
 			mysql.MaxConnections(config.MaxConnections),
 			mysql.LogLevel(logLevel),
+			mysql.SlowThreshold(config.SlowThreshold),
 		)
 
 	case PostgreSQL, PostgresQL:
@@ -63,6 +65,7 @@ func NewDatabase(config DatabaseConfig) (CommonDB, error) {
 			config.DSN,
 			postgres.MaxPoolSize(config.MaxConnections),
 			postgres.LogLevel(logLevel),
+			postgres.SlowThreshold(config.SlowThreshold),
 		)
 
 	default:

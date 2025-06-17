@@ -43,6 +43,7 @@ type (
 		DSN            string `mapstructure:"dsn"`
 		MaxConnections int    `mapstructure:"max_connections"`
 		LogLevel       string `mapstructure:"log_level"`
+		SlowThreshold  int    `mapstructure:"slow_threshold"` // 慢查询阈值(毫秒)
 	}
 
 	// GRPC -.
@@ -138,6 +139,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("db.type", "mysql")
 	v.SetDefault("db.max_connections", 10)
 	v.SetDefault("db.log_level", "warn")
+	v.SetDefault("db.slow_threshold", 200) // 默认200毫秒
 
 	// gRPC defaults
 	v.SetDefault("grpc.port", "8081")
