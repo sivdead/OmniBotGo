@@ -42,6 +42,7 @@ type (
 		Type           string `mapstructure:"type"`
 		DSN            string `mapstructure:"dsn"`
 		MaxConnections int    `mapstructure:"max_connections"`
+		LogLevel       string `mapstructure:"log_level"`
 	}
 
 	// GRPC -.
@@ -136,6 +137,7 @@ func setDefaults(v *viper.Viper) {
 	// DB defaults
 	v.SetDefault("db.type", "mysql")
 	v.SetDefault("db.max_connections", 10)
+	v.SetDefault("db.log_level", "warn")
 
 	// gRPC defaults
 	v.SetDefault("grpc.port", "8081")

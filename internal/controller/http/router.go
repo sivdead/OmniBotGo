@@ -21,7 +21,7 @@ import (
 // @description 统一消息机器人管理平台API
 // @version     1.0
 // @host        localhost:8080
-// @BasePath    /v1
+// @BasePath    /api/v1
 func NewRouter(
 	app *fiber.App,
 	cfg *config.Config,
@@ -50,7 +50,7 @@ func NewRouter(
 	app.Get("/healthz", func(ctx *fiber.Ctx) error { return ctx.SendStatus(http.StatusOK) })
 
 	// Routers
-	apiV1Group := app.Group("/v1")
+	apiV1Group := app.Group("/api/v1")
 	{
 		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, l)
 	}

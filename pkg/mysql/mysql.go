@@ -13,29 +13,31 @@ import (
 )
 
 const (
-	_defaultMaxConnections    = 10
-	_defaultMaxIdleConns      = 5
-	_defaultConnMaxLifetime   = time.Hour
-	_defaultConnMaxIdleTime   = time.Minute * 30
-	_defaultConnAttempts      = 10
-	_defaultConnTimeout       = time.Second
+	_defaultMaxConnections  = 10
+	_defaultMaxIdleConns    = 5
+	_defaultConnMaxLifetime = time.Hour
+	_defaultConnMaxIdleTime = time.Minute * 30
+	_defaultConnAttempts    = 10
+	_defaultConnTimeout     = time.Second
+	_defaultLogLevel        = logger.Silent
 )
 
 // MySQL represents MySQL database connection with both GORM and Squirrel support.
 type MySQL struct {
-	maxConnections    int
-	maxIdleConns      int
-	connMaxLifetime   time.Duration
-	connMaxIdleTime   time.Duration
-	connAttempts      int
-	connTimeout       time.Duration
+	maxConnections  int
+	maxIdleConns    int
+	connMaxLifetime time.Duration
+	connMaxIdleTime time.Duration
+	connAttempts    int
+	connTimeout     time.Duration
+	logLevel        logger.LogLevel
 
 	// GORM instance for ORM operations
 	DB *gorm.DB
-	
+
 	// Squirrel query builder for complex queries
 	Builder squirrel.StatementBuilderType
-	
+
 	// Raw SQL database connection (for Squirrel)
 	SqlDB *sql.DB
 }
@@ -49,6 +51,7 @@ func New(dsn string, opts ...Option) (*MySQL, error) {
 		connMaxIdleTime: _defaultConnMaxIdleTime,
 		connAttempts:    _defaultConnAttempts,
 		connTimeout:     _defaultConnTimeout,
+		logLevel:        _defaultLogLevel,
 	}
 
 	// Custom options
@@ -57,9 +60,9 @@ func New(dsn string, opts ...Option) (*MySQL, error) {
 	}
 
 	var err error
-	
+
 	// Configure GORM logger
-	gormLogger := logger.Default.LogMode(logger.Silent)
+	gormLogger := logger.Default.LogMode(m.logLevel)
 
 	for m.connAttempts > 0 {
 		m.DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
@@ -122,4 +125,4 @@ func (m *MySQL) GetSquirrel() squirrel.StatementBuilderType {
 // GetSqlDB returns raw SQL database connection
 func (m *MySQL) GetSqlDB() *sql.DB {
 	return m.SqlDB
-} 
+}

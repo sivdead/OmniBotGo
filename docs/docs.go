@@ -1743,7 +1743,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:8080",
-	BasePath:         "/v1",
+	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "OmniBotGo API",
 	Description:      "统一消息机器人管理平台API",

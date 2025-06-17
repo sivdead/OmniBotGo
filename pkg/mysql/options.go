@@ -1,6 +1,10 @@
 package mysql
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm/logger"
+)
 
 // Option -.
 type Option func(*MySQL)
@@ -45,4 +49,11 @@ func ConnTimeout(timeout time.Duration) Option {
 	return func(m *MySQL) {
 		m.connTimeout = timeout
 	}
-} 
+}
+
+// LogLevel 设置GORM日志级别
+func LogLevel(level logger.LogLevel) Option {
+	return func(m *MySQL) {
+		m.logLevel = level
+	}
+}
