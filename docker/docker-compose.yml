@@ -71,7 +71,8 @@ services:
     platform: linux/amd64
     pid: "host"
     build:
-      context: .
+      context: ..
+      dockerfile: docker/Dockerfile
     environment:
       <<: *x-backend-app-environment
     ports:

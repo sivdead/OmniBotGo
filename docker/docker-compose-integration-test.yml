@@ -7,7 +7,7 @@ services:
     platform: linux/amd64
     pid: "host"
     build:
-      context: .
+      context: ..
       dockerfile: integration-test/Dockerfile
     depends_on:
       - app

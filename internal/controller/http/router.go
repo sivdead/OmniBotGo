@@ -49,12 +49,18 @@ func NewRouter(
 	// K8s probe
 	app.Get("/healthz", func(ctx *fiber.Ctx) error { return ctx.SendStatus(http.StatusOK) })
 
-	// Routers
+	// 创建V1控制器实例（避免重复创建）
+	v1Controller := v1.NewV1Controller(messageUC, channelUC, botUC, l)
+
+	// API路由
 	apiV1Group := app.Group("/api/v1")
 	{
 		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, l)
 	}
 
 	// Webhook路由（在根路径下）
-	v1.NewWebhookRoutes(app, messageUC, channelUC, botUC, l)
+	v1.NewWebhookRoutes(app, v1Controller)
+
+	// 健康检查路由
+	v1.NewHealthRoutes(app, v1Controller)
 }

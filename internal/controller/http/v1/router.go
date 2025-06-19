@@ -121,14 +121,10 @@ func NewAPIRoutes(
 // NewWebhookRoutes 设置Webhook路由（在根路由层调用）
 func NewWebhookRoutes(
 	app fiber.Router,
-	messageUC usecase.MessageUseCase,
-	channelUC usecase.ChannelUseCase,
-	botUC usecase.BotUseCase,
-	l logger.Interface,
+	v1Controller *V1,
 ) {
-	v1 := NewV1Controller(messageUC, channelUC, botUC, l)
 	adapterManager := adapter.NewManager()
-	webhookController := NewWebhookController(v1, adapterManager)
+	webhookController := NewWebhookController(v1Controller, adapterManager)
 
 	// Webhook路由
 	webhookGroup := app.Group("/webhook")
@@ -141,14 +137,10 @@ func NewWebhookRoutes(
 // NewHealthRoutes 设置健康检查路由（在根路由层调用）
 func NewHealthRoutes(
 	app fiber.Router,
-	messageUC usecase.MessageUseCase,
-	channelUC usecase.ChannelUseCase,
-	botUC usecase.BotUseCase,
-	l logger.Interface,
+	v1Controller *V1,
 ) {
-	v1 := NewV1Controller(messageUC, channelUC, botUC, l)
 	adapterManager := adapter.NewManager()
-	healthController := NewHealthController(v1, adapterManager)
+	healthController := NewHealthController(v1Controller, adapterManager)
 
 	// 健康检查路由
 	app.Get("/healthz", healthController.GetHealth)

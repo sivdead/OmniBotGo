@@ -14,9 +14,15 @@ import (
 
 // 类型别名，用于简化引用
 type (
-	MessageUseCase = usecase.MessageUseCase
-	ChannelUseCase = usecase.ChannelUseCase
-	BotUseCase     = usecase.BotUseCase
+	MessageUseCase      = usecase.MessageUseCase
+	ChannelUseCase      = usecase.ChannelUseCase
+	BotUseCase          = usecase.BotUseCase
+	SystemConfigUseCase = usecase.SystemConfigUseCase
+	PlatformUseCase     = usecase.PlatformUseCase
+	MonitorUseCase      = usecase.MonitorUseCase
+	LogUseCase          = usecase.LogUseCase
+	QueueUseCase        = usecase.QueueUseCase
+	ProcessorUseCase    = usecase.ProcessorUseCase
 )
 
 // V1 HTTP控制器结构体
@@ -25,9 +31,15 @@ type V1 struct {
 	v *validator.Validate
 
 	// 业务逻辑接口
-	messageUC MessageUseCase
-	channelUC ChannelUseCase
-	botUC     BotUseCase
+	messageUC      MessageUseCase
+	channelUC      ChannelUseCase
+	botUC          BotUseCase
+	systemConfigUC SystemConfigUseCase
+	platformUC     PlatformUseCase
+	monitorUC      MonitorUseCase
+	logUC          LogUseCase
+	queueUC        QueueUseCase
+	processorUC    ProcessorUseCase
 }
 
 // NewV1Controller 创建V1控制器实例
@@ -35,14 +47,26 @@ func NewV1Controller(
 	messageUC MessageUseCase,
 	channelUC ChannelUseCase,
 	botUC BotUseCase,
+	systemConfigUC SystemConfigUseCase,
+	platformUC PlatformUseCase,
+	monitorUC MonitorUseCase,
+	logUC LogUseCase,
+	queueUC QueueUseCase,
+	processorUC ProcessorUseCase,
 	l logger.Interface,
 ) *V1 {
 	return &V1{
-		messageUC: messageUC,
-		channelUC: channelUC,
-		botUC:     botUC,
-		l:         l,
-		v:         validator.New(),
+		messageUC:      messageUC,
+		channelUC:      channelUC,
+		botUC:          botUC,
+		systemConfigUC: systemConfigUC,
+		platformUC:     platformUC,
+		monitorUC:      monitorUC,
+		logUC:          logUC,
+		queueUC:        queueUC,
+		processorUC:    processorUC,
+		l:              l,
+		v:              validator.New(),
 	}
 }
 
@@ -63,16 +87,37 @@ type SendMessageRequest struct {
 
 // GetMessageHistoryRequest 获取消息历史请求
 type GetMessageHistoryRequest struct {
-	ChannelID     *int64  `query:"channel_id"`
-	SenderID      *string `query:"sender_id"`
-	ReceiverID    *string `query:"receiver_id"`
-	MessageType   *string `query:"message_type"`
-	MessageStatus *string `query:"message_status"`
-	Direction     *string `query:"direction"`
-	StartTime     *string `query:"start_time"`
-	EndTime       *string `query:"end_time"`
-	Page          int     `query:"page" validate:"min=1"`
-	PageSize      int     `query:"page_size" validate:"min=1,max=100"`
+	ChannelID     *int64                   `json:"channel_id,omitempty"`
+	SenderID      *string                  `json:"sender_id,omitempty"`
+	ReceiverID    *string                  `json:"receiver_id,omitempty"`
+	MessageType   *string                  `json:"message_type,omitempty"`
+	MessageStatus *entity.MessageStatus    `json:"message_status,omitempty"`
+	Direction     *entity.MessageDirection `json:"direction,omitempty"`
+	StartTime     *string                  `json:"start_time,omitempty"`
+	EndTime       *string                  `json:"end_time,omitempty"`
+	Page          int                      `json:"page" validate:"min=1"`
+	PageSize      int                      `json:"page_size" validate:"min=1,max=100"`
+}
+
+// 工具函数
+
+// parseInt64 解析int64参数
+func (v *V1) parseInt64(value string, fieldName string) (int64, error) {
+	id, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, &entity.ValidationError{Field: fieldName, Message: "必须是有效的数字"}
+	}
+	return id, nil
+}
+
+// setDefaultPagination 设置默认分页参数
+func setDefaultPagination(page, pageSize *int) {
+	if *page <= 0 {
+		*page = 1
+	}
+	if *pageSize <= 0 {
+		*pageSize = 20
+	}
 }
 
 // parseTime 解析时间字符串
@@ -96,25 +141,33 @@ func parseTime(timeStr string) (time.Time, error) {
 }
 
 // SendMessage 发送消息
-func (v1 *V1) SendMessage(c *fiber.Ctx) error {
+// @Summary 发送消息
+// @Description 通过指定通道发送消息到平台
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param request body SendMessageRequest true "发送消息请求"
+// @Success 200 {object} StandardResponse{data=entity.Message} "发送成功"
+// @Failure 400 {object} StandardResponse "请求参数错误"
+// @Failure 404 {object} StandardResponse "通道不存在"
+// @Failure 500 {object} StandardResponse "内部服务器错误"
+// @Router /api/v1/messages/send [post]
+func (v *V1) SendMessage(c *fiber.Ctx) error {
 	var req SendMessageRequest
 	if err := c.BodyParser(&req); err != nil {
-		v1.l.Error("解析请求体失败", "error", err)
-		return NewErrorResponse(c, http.StatusBadRequest, "invalid request body")
+		v.l.Error("解析请求体失败: %v", err)
+		return NewErrorResponse(c, http.StatusBadRequest, "请求参数格式错误")
 	}
 
-	if err := v1.v.Struct(&req); err != nil {
-		v1.l.Error("请求验证失败", "error", err)
+	if err := v.v.Struct(&req); err != nil {
+		v.l.Error("请求参数验证失败: %v", err)
 		return NewValidationErrorResponse(c, err)
 	}
 
-	// 构建消息实体
+	// 创建消息实体
 	message := &entity.Message{
 		ChannelID:      req.ChannelID,
 		MessageType:    req.MessageType,
-		SenderID:       "system",
-		SenderName:     "System",
-		SenderType:     "system",
 		ReceiverID:     req.ReceiverID,
 		ReceiverName:   req.ReceiverName,
 		ReceiverType:   req.ReceiverType,
@@ -122,158 +175,126 @@ func (v1 *V1) SendMessage(c *fiber.Ctx) error {
 		MediaURL:       req.MediaURL,
 		MediaType:      req.MediaType,
 		ConversationID: req.ConversationID,
+		Direction:      entity.MessageDirectionOutbound,
+		MessageStatus:  entity.MessageStatusPending,
 	}
 
-	// 发送消息
-	if err := v1.messageUC.SendMessage(c.Context(), message); err != nil {
-		v1.l.Error("发送消息失败", "error", err)
-		return NewErrorResponse(c, http.StatusInternalServerError, "failed to send message")
+	// 调用usecase发送消息
+	if err := v.messageUC.SendMessage(c.Context(), message); err != nil {
+		v.l.Error("发送消息失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "发送消息失败")
 	}
 
-	v1.l.Info("消息发送成功", "message_id", message.MessageID, "channel_id", message.ChannelID)
-
-	return NewSuccessResponse(c, map[string]interface{}{
-		"message_id": message.MessageID,
-		"status":     message.MessageStatus.String(),
-	})
+	return NewSuccessResponse(c, message)
 }
 
 // GetMessageHistory 获取消息历史
-func (v1 *V1) GetMessageHistory(c *fiber.Ctx) error {
+// @Summary 获取消息历史
+// @Description 根据条件获取消息历史记录，支持分页
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param channel_id query int false "通道ID"
+// @Param sender_id query string false "发送者ID"
+// @Param receiver_id query string false "接收者ID"
+// @Param message_type query string false "消息类型"
+// @Param message_status query string false "消息状态"
+// @Param direction query string false "消息方向"
+// @Param start_time query string false "开始时间"
+// @Param end_time query string false "结束时间"
+// @Param page query int false "页码，默认1" default(1)
+// @Param page_size query int false "每页数量，默认20" default(20)
+// @Success 200 {object} StandardResponse{data=usecase.MessageHistoryResult} "获取成功"
+// @Failure 400 {object} StandardResponse "请求参数错误"
+// @Failure 500 {object} StandardResponse "内部服务器错误"
+// @Router /api/v1/messages/history [get]
+func (v *V1) GetMessageHistory(c *fiber.Ctx) error {
 	var req GetMessageHistoryRequest
 	if err := c.QueryParser(&req); err != nil {
-		v1.l.Error("解析查询参数失败", "error", err)
-		return NewErrorResponse(c, http.StatusBadRequest, "invalid query parameters")
+		v.l.Error("解析查询参数失败: %v", err)
+		return NewErrorResponse(c, http.StatusBadRequest, "查询参数格式错误")
 	}
 
 	// 设置默认值
-	if req.Page == 0 {
-		req.Page = 1
-	}
-	if req.PageSize == 0 {
-		req.PageSize = 20
-	}
+	setDefaultPagination(&req.Page, &req.PageSize)
 
-	if err := v1.v.Struct(&req); err != nil {
-		v1.l.Error("请求验证失败", "error", err)
-		return NewValidationErrorResponse(c, err)
-	}
-
-	// 构建查询参数
+	// 构建usecase参数
 	params := usecase.GetMessageHistoryParams{
-		ChannelID:   req.ChannelID,
-		SenderID:    req.SenderID,
-		ReceiverID:  req.ReceiverID,
-		MessageType: req.MessageType,
-		Page:        req.Page,
-		PageSize:    req.PageSize,
+		ChannelID:     req.ChannelID,
+		SenderID:      req.SenderID,
+		ReceiverID:    req.ReceiverID,
+		MessageType:   req.MessageType,
+		MessageStatus: req.MessageStatus,
+		Direction:     req.Direction,
+		StartTime:     req.StartTime,
+		EndTime:       req.EndTime,
+		Page:          req.Page,
+		PageSize:      req.PageSize,
 	}
 
-	// 处理消息状态
-	if req.MessageStatus != nil && *req.MessageStatus != "" {
-		var status entity.MessageStatus
-		switch *req.MessageStatus {
-		case "pending":
-			status = entity.MessageStatusPending
-		case "processing":
-			status = entity.MessageStatusProcessing
-		case "processed":
-			status = entity.MessageStatusProcessed
-		case "sent":
-			status = entity.MessageStatusSent
-		case "failed":
-			status = entity.MessageStatusFailed
-		case "expired":
-			status = entity.MessageStatusExpired
-		default:
-			v1.l.Error("无效的消息状态", "status", *req.MessageStatus)
-			return NewErrorResponse(c, http.StatusBadRequest, "invalid message status")
-		}
-		params.MessageStatus = &status
-	}
-
-	// 处理消息方向
-	if req.Direction != nil && *req.Direction != "" {
-		var direction entity.MessageDirection
-		switch *req.Direction {
-		case "inbound":
-			direction = entity.MessageDirectionInbound
-		case "outbound":
-			direction = entity.MessageDirectionOutbound
-		default:
-			v1.l.Error("无效的消息方向", "direction", *req.Direction)
-			return NewErrorResponse(c, http.StatusBadRequest, "invalid message direction")
-		}
-		params.Direction = &direction
-	}
-
-	// 处理时间参数
-	if req.StartTime != nil && *req.StartTime != "" {
-		if _, err := parseTime(*req.StartTime); err != nil {
-			v1.l.Error("解析开始时间失败", "error", err, "start_time", *req.StartTime)
-			return NewErrorResponse(c, http.StatusBadRequest, "invalid start_time format")
-		}
-		params.StartTime = req.StartTime
-	}
-
-	if req.EndTime != nil && *req.EndTime != "" {
-		if _, err := parseTime(*req.EndTime); err != nil {
-			v1.l.Error("解析结束时间失败", "error", err, "end_time", *req.EndTime)
-			return NewErrorResponse(c, http.StatusBadRequest, "invalid end_time format")
-		}
-		params.EndTime = req.EndTime
-	}
-
-	// 查询消息历史
-	result, err := v1.messageUC.GetMessageHistory(c.Context(), params)
+	// 调用usecase获取消息历史
+	result, err := v.messageUC.GetMessageHistory(c.Context(), params)
 	if err != nil {
-		v1.l.Error("获取消息历史失败", "error", err)
-		return NewErrorResponse(c, http.StatusInternalServerError, "failed to get message history")
+		v.l.Error("获取消息历史失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "获取消息历史失败")
 	}
-
-	v1.l.Info("消息历史查询成功", "total", result.Total, "page", result.Page, "page_size", result.PageSize)
 
 	return NewSuccessResponse(c, result)
 }
 
 // GetMessage 获取消息详情
-func (v1 *V1) GetMessage(c *fiber.Ctx) error {
+// @Summary 获取消息详情
+// @Description 根据ID获取单个消息的详细信息
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param id path string true "消息ID"
+// @Success 200 {object} StandardResponse{data=entity.Message} "获取成功"
+// @Failure 400 {object} StandardResponse "请求参数错误"
+// @Failure 404 {object} StandardResponse "消息不存在"
+// @Failure 500 {object} StandardResponse "内部服务器错误"
+// @Router /api/v1/messages/{id} [get]
+func (v *V1) GetMessage(c *fiber.Ctx) error {
 	idStr := c.Params("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := v.parseInt64(idStr, "id")
 	if err != nil {
-		v1.l.Error("无效的消息ID", "error", err, "id", idStr)
-		return NewErrorResponse(c, http.StatusBadRequest, "invalid message id")
+		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
 	}
 
-	message, err := v1.messageUC.GetMessage(c.Context(), id)
+	// 调用usecase获取消息
+	message, err := v.messageUC.GetMessage(c.Context(), id)
 	if err != nil {
-		v1.l.Error("获取消息失败", "error", err, "id", id)
-		return NewErrorResponse(c, http.StatusNotFound, "message not found")
+		v.l.Error("获取消息失败: %v", err)
+		return NewErrorResponse(c, http.StatusNotFound, "消息不存在")
 	}
-
-	v1.l.Info("消息获取成功", "message_id", message.MessageID, "id", id)
 
 	return NewSuccessResponse(c, message)
 }
 
-// RetryFailedMessage 重试失败的消息
-func (v1 *V1) RetryFailedMessage(c *fiber.Ctx) error {
+// RetryMessage 重试失败的消息
+// @Summary 重试失败的消息
+// @Description 重新发送失败的消息
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param id path string true "消息ID"
+// @Success 200 {object} StandardResponse "重试成功"
+// @Failure 400 {object} StandardResponse "请求参数错误"
+// @Failure 404 {object} StandardResponse "消息不存在"
+// @Failure 500 {object} StandardResponse "内部服务器错误"
+// @Router /api/v1/messages/{id}/retry [post]
+func (v *V1) RetryMessage(c *fiber.Ctx) error {
 	idStr := c.Params("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := v.parseInt64(idStr, "id")
 	if err != nil {
-		v1.l.Error("无效的消息ID", "error", err, "id", idStr)
-		return NewErrorResponse(c, http.StatusBadRequest, "invalid message id")
+		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
 	}
 
-	if err := v1.messageUC.RetryFailedMessage(c.Context(), id); err != nil {
-		v1.l.Error("重试消息失败", "error", err, "id", id)
-		return NewErrorResponse(c, http.StatusInternalServerError, "failed to retry message")
+	// 调用usecase重试消息
+	if err := v.messageUC.RetryFailedMessage(c.Context(), id); err != nil {
+		v.l.Error("重试消息失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "重试消息失败")
 	}
 
-	v1.l.Info("消息重试成功", "id", id)
-
-	return NewSuccessResponse(c, map[string]interface{}{
-		"message": "Message retry initiated",
-		"id":      id,
-	})
+	return NewSuccessResponse(c, "重试成功")
 }

@@ -1,7 +1,6 @@
 .idea
 .git
 .github
-nginx
 
 .dockerignore
 .env

@@ -6,8 +6,8 @@ set shell := ["pwsh.exe", "-c"]
 
 # 变量定义
 local_bin := justfile_directory() + "/bin"
-base_stack := "docker compose -f docker-compose.yml"
-integration_test_stack := base_stack + " -f docker-compose-integration-test.yml"
+base_stack := "docker compose -f docker/docker-compose.yml"
+integration_test_stack := base_stack + " -f docker/docker-compose-integration-test.yml"
 all_stack := integration_test_stack
 
 # 默认命令 - 显示帮助
@@ -16,19 +16,19 @@ default:
 
 # 运行 docker compose (不包含后端和反向代理)
 compose-up:
-    {{base_stack}} up --build -d db rabbitmq && docker compose logs -f
+    cd docker && docker compose up --build -d db rabbitmq && docker compose logs -f
 
 # 运行 docker compose (包含后端和反向代理)
 compose-up-all:
-    {{base_stack}} up --build -d
+    cd docker && docker compose up --build -d
 
 # 运行 docker compose 并进行集成测试
 compose-up-integration-test:
-    {{integration_test_stack}} up --build --abort-on-container-exit --exit-code-from integration-test
+    cd docker && docker compose -f docker-compose.yml -f docker-compose-integration-test.yml up --build --abort-on-container-exit --exit-code-from integration-test
 
 # 停止 docker compose
 compose-down:
-    {{all_stack}} down --remove-orphans
+    cd docker && docker compose -f docker-compose.yml -f docker-compose-integration-test.yml down --remove-orphans
 
 # 生成 swagger 文档
 swag-v1:
