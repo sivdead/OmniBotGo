@@ -6,36 +6,43 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	customLogger "github.com/sivdead/OmniBotGo/pkg/logger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 const (
-	_defaultMaxPoolSize  = 1
-	_defaultConnAttempts = 10
-	_defaultConnTimeout  = time.Second
+	_defaultMaxPoolSize   = 1
+	_defaultConnAttempts  = 10
+	_defaultConnTimeout   = time.Second
+	_defaultLogLevel      = logger.Silent
+	_defaultSlowThreshold = 200 // 默认200毫秒
 )
 
 // Postgres represents PostgreSQL database connection with both GORM and Squirrel support.
 type Postgres struct {
-	maxPoolSize  int
-	connAttempts int
-	connTimeout  time.Duration
+	maxPoolSize   int
+	connAttempts  int
+	connTimeout   time.Duration
+	logLevel      logger.LogLevel
+	slowThreshold int // 慢查询阈值(毫秒)
 
 	// GORM instance for ORM operations (similar to MySQL implementation)
 	DB *gorm.DB
-	
+
 	// Squirrel query builder for complex queries
 	Builder squirrel.StatementBuilderType
-	
+
 	// Native pgx connection pool
 	Pool *pgxpool.Pool
-	
+
 	// Raw SQL database connection (for Squirrel)
 	SqlDB *sql.DB
 }
@@ -43,9 +50,11 @@ type Postgres struct {
 // New creates a new PostgreSQL connection with both GORM and Squirrel support.
 func New(url string, opts ...Option) (*Postgres, error) {
 	pg := &Postgres{
-		maxPoolSize:  _defaultMaxPoolSize,
-		connAttempts: _defaultConnAttempts,
-		connTimeout:  _defaultConnTimeout,
+		maxPoolSize:   _defaultMaxPoolSize,
+		connAttempts:  _defaultConnAttempts,
+		connTimeout:   _defaultConnTimeout,
+		logLevel:      _defaultLogLevel,
+		slowThreshold: _defaultSlowThreshold,
 	}
 
 	// Custom options
@@ -55,8 +64,10 @@ func New(url string, opts ...Option) (*Postgres, error) {
 
 	var err error
 
-	// Configure GORM logger
-	gormLogger := logger.Default.LogMode(logger.Silent)
+	// Configure GORM logger with JSON format
+	zlogger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	gormLogger := customLogger.NewGormLogger(zlogger, pg.logLevel)
+	gormLogger.SetSlowThreshold(time.Duration(pg.slowThreshold) * time.Millisecond)
 
 	// Initialize GORM connection
 	for pg.connAttempts > 0 {
@@ -113,26 +124,14 @@ func New(url string, opts ...Option) (*Postgres, error) {
 	return pg, nil
 }
 
-// Close closes both GORM and pgx connections.
+// Close closes all PostgreSQL connections.
 func (p *Postgres) Close() error {
-	var errs []error
-
-	// Close GORM connection
-	if p.SqlDB != nil {
-		if err := p.SqlDB.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("close GORM connection: %w", err))
-		}
-	}
-
-	// Close pgx pool
 	if p.Pool != nil {
 		p.Pool.Close()
 	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("postgres close errors: %v", errs)
+	if p.SqlDB != nil {
+		return p.SqlDB.Close()
 	}
-
 	return nil
 }
 
@@ -149,4 +148,9 @@ func (p *Postgres) GetSquirrel() squirrel.StatementBuilderType {
 // GetSqlDB returns raw SQL database connection
 func (p *Postgres) GetSqlDB() *sql.DB {
 	return p.SqlDB
+}
+
+// GetPool returns native pgx pool for advanced PostgreSQL operations
+func (p *Postgres) GetPool() *pgxpool.Pool {
+	return p.Pool
 }

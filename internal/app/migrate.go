@@ -6,11 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/sivdead/OmniBotGo/internal/config"
+
 	// migrate tools
 	_ "github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -23,19 +24,15 @@ const (
 )
 
 func init() {
-	// Get database type and DSN from environment
-	dbType := os.Getenv("DB_TYPE")
+	// Get database configuration from Viper
+	dbType := config.GetString("db.type")
 	if dbType == "" {
 		dbType = "mysql" // default to mysql for backward compatibility
 	}
 
-	dbDSN := os.Getenv("DB_DSN")
+	dbDSN := config.GetString("db.dsn")
 	if dbDSN == "" {
-		// Fallback to MYSQL_DSN for backward compatibility
-		dbDSN = os.Getenv("MYSQL_DSN")
-		if dbDSN == "" {
-			log.Fatalf("migrate: environment variable not declared: DB_DSN or MYSQL_DSN")
-		}
+		log.Fatalf("migrate: database DSN not configured. Please set db.dsn in config file or DB_DSN environment variable")
 	}
 
 	// Construct migration URL based on database type
@@ -48,6 +45,8 @@ func init() {
 	default:
 		log.Fatalf("migrate: unsupported database type: %s. Supported types: mysql, postgres", dbType)
 	}
+
+	log.Printf("Migrate: Using database type: %s", dbType)
 
 	var (
 		attempts = _defaultAttempts

@@ -11,11 +11,7 @@ import (
 	"testing"
 	"time"
 
-	protov1 "github.com/evrone/go-clean-template/docs/proto/v1"
-	"github.com/evrone/go-clean-template/pkg/rabbitmq/rmq_rpc/client"
 	"github.com/goccy/go-json"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -29,19 +25,7 @@ const (
 	requestTimeout = 5 * time.Second
 
 	// HTTP REST
-	basePathV1 = httpURL + "/v1"
-
-	// gRPC
-	grpcURL = host + ":8081"
-
-	// RabbitMQ RPC
-	rmqURL            = "amqp://guest:guest@rabbitmq:5672/"
-	rpcServerExchange = "rpc_server"
-	rpcClientExchange = "rpc_client"
-	requests          = 10
-
-	// Test data
-	expectedOriginal = "текст для перевода"
+	basePathV1 = httpURL + "/api/v1"
 )
 
 var errHealthCheck = fmt.Errorf("url %s is not available", healthPath)
@@ -105,36 +89,28 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// HTTP POST: /v1/translation/do-translate.
-func TestHTTPDoTranslateV1(t *testing.T) {
+// HTTP POST: /api/v1/bots - 创建机器人
+func TestHTTPCreateBot(t *testing.T) {
 	tests := []struct {
 		description string
 		body        string
 		expected    int
 	}{
 		{
-			description: "DoTranslate Success",
+			description: "Create Bot Success",
 			body: `{
-				"destination": "en",
-				"original": "текст для перевода",
-				"source": "auto"
+				"bot_name": "测试机器人",
+				"bot_type": "general",
+				"description": "集成测试机器人",
+				"created_by": "test"
 			}`,
-			expected: http.StatusOK,
+			expected: http.StatusCreated,
 		},
 		{
-			description: "DoTranslate Success",
+			description: "Create Bot Fail - Missing Name",
 			body: `{
-				"destination": "en",
-				"original": "Текст для перевода",
-				"source": "ru"
-			}`,
-			expected: http.StatusOK,
-		},
-		{
-			description: "DoTranslate Fail",
-			body: `{
-				"destination": "en",
-				"original": "текст для перевода"
+				"bot_type": "general",
+				"description": "测试机器人"
 			}`,
 			expected: http.StatusBadRequest,
 		},
@@ -142,7 +118,7 @@ func TestHTTPDoTranslateV1(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			url := basePathV1 + "/translation/do-translate"
+			url := basePathV1 + "/bots"
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 
 			defer cancel()
@@ -161,9 +137,9 @@ func TestHTTPDoTranslateV1(t *testing.T) {
 	}
 }
 
-// HTTP GET: /v1/translation/history.
-func TestHTTPHistoryV1(t *testing.T) {
-	url := basePathV1 + "/translation/history"
+// HTTP GET: /api/v1/bots - 获取机器人列表
+func TestHTTPListBots(t *testing.T) {
+	url := basePathV1 + "/bots"
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 
 	defer cancel()
@@ -180,94 +156,87 @@ func TestHTTPHistoryV1(t *testing.T) {
 	}
 
 	var body struct {
-		History []struct {
-			Source      string `json:"source"`
-			Destination string `json:"destination"`
-			Original    string `json:"original"`
-			Translation string `json:"translation"`
-		} `json:"history"`
+		Items []struct {
+			ID          int64  `json:"id"`
+			BotName     string `json:"bot_name"`
+			BotType     string `json:"bot_type"`
+			Description string `json:"description"`
+			Status      string `json:"status"`
+		} `json:"items"`
+		Total      int64 `json:"total"`
+		Page       int   `json:"page"`
+		PageSize   int   `json:"page_size"`
+		TotalPages int   `json:"total_pages"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("Failed to decode response body: %v", err)
 	}
 
-	if len(body.History) == 0 {
-		t.Error("Expected non-empty history")
+	// 检查响应结构是否正确
+	if body.Page == 0 {
+		t.Error("Expected page > 0")
+	}
+	if body.PageSize == 0 {
+		t.Error("Expected page_size > 0")
 	}
 }
 
-// gRPC Client V1: GetHistory.
-func TestClientGRPCV1(t *testing.T) {
-	grpcConn, err := grpc.NewClient(grpcURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+// HTTP POST: /api/v1/channels - 创建通道
+func TestHTTPCreateChannel(t *testing.T) {
+	// 首先创建一个机器人
+	botBody := `{
+		"bot_name": "通道测试机器人",
+		"bot_type": "general",
+		"description": "用于通道测试的机器人",
+		"created_by": "test"
+	}`
+
+	url := basePathV1 + "/bots"
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+
+	resp, err := doWebRequestWithTimeout(ctx, http.MethodPost, url, bytes.NewBuffer([]byte(botBody)))
 	if err != nil {
-		t.Fatal("gRPC Client - init error - grpc.NewClient", err)
+		t.Fatalf("Failed to create bot: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Skipf("Cannot create bot for channel test, status: %d", resp.StatusCode)
+		return
 	}
 
-	defer func() {
-		err = grpcConn.Close()
-		if err != nil {
-			t.Fatal("gRPC Client - shutdown error - grpcClientV1.GetHistory", err)
-		}
-	}()
-
-	grpcClientV1 := protov1.NewTranslationClient(grpcConn)
-
-	for i := 0; i < requests; i++ {
-		history, err := grpcClientV1.GetHistory(t.Context(), &protov1.GetHistoryRequest{})
-		if err != nil {
-			t.Fatal("gRPC Client - remote call error - grpcClientV1.GetHistory", err)
-		}
-
-		if len(history.History) == 0 {
-			t.Fatal("History slice is empty, expected at least one entry")
-		}
-
-		if history.History[0].Original != expectedOriginal {
-			t.Fatalf("Original mismatch: expected %q, got %q", expectedOriginal, history.History[0].Original)
-		}
+	var botResp struct {
+		ID int64 `json:"id"`
 	}
-}
+	if err := json.NewDecoder(resp.Body).Decode(&botResp); err != nil {
+		t.Fatalf("Failed to decode bot response: %v", err)
+	}
 
-// RabbitMQ RPC Client V1: getHistory.
-func TestClientRMQRPCV1(t *testing.T) {
-	rmqClient, err := client.New(rmqURL, rpcServerExchange, rpcClientExchange)
+	// 现在创建通道
+	channelBody := fmt.Sprintf(`{
+		"bot_id": %d,
+		"platform_type": "wecom",
+		"channel_name": "测试通道",
+		"config": {
+			"corp_id": "test_corp",
+			"agent_id": "test_agent",
+			"secret": "test_secret"
+		}
+	}`, botResp.ID)
+
+	channelURL := basePathV1 + "/channels"
+	ctx2, cancel2 := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel2()
+
+	channelResp, err := doWebRequestWithTimeout(ctx2, http.MethodPost, channelURL, bytes.NewBuffer([]byte(channelBody)))
 	if err != nil {
-		t.Fatal("RabbitMQ RPC Client - init error - client.New", err)
+		t.Fatalf("Failed to create channel: %v", err)
 	}
+	defer channelResp.Body.Close()
 
-	defer func() {
-		err = rmqClient.Shutdown()
-		if err != nil {
-			t.Fatal("RabbitMQ RPC Client - shutdown error - rmqClient.RemoteCall", err)
-		}
-	}()
-
-	type Translation struct {
-		Source      string `json:"source"`
-		Destination string `json:"destination"`
-		Original    string `json:"original"`
-		Translation string `json:"translation"`
-	}
-
-	type historyResponse struct {
-		History []Translation `json:"history"`
-	}
-
-	for i := 0; i < requests; i++ {
-		var history historyResponse
-
-		err = rmqClient.RemoteCall("v1.getHistory", nil, &history)
-		if err != nil {
-			t.Fatal("RabbitMQ RPC Client - remote call error - rmqClient.RemoteCall", err)
-		}
-
-		if len(history.History) == 0 {
-			t.Fatal("History slice is empty, expected at least one entry")
-		}
-
-		if history.History[0].Original != expectedOriginal {
-			t.Fatalf("Original mismatch: expected %q, got %q", expectedOriginal, history.History[0].Original)
-		}
+	if channelResp.StatusCode != http.StatusCreated {
+		t.Errorf("Expected status %d, got %d", http.StatusCreated, channelResp.StatusCode)
 	}
 }

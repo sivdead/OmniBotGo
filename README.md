@@ -6,6 +6,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/sivdead/OmniBotGo)](https://goreportcard.com/report/github.com/sivdead/OmniBotGo)
 
 [![Web Framework](https://img.shields.io/badge/Fiber-Web%20Framework-blue)](https://github.com/gofiber/fiber)
+[![Dependency Injection](https://img.shields.io/badge/Wire-Compile--time%20DI-blue)](https://github.com/google/wire)
 [![API Documentation](https://img.shields.io/badge/Swagger-API%20Documentation-blue)](https://github.com/swaggo/swag)
 [![ORM](https://img.shields.io/badge/GORM-Database%20ORM-blue)](https://gorm.io/)
 [![Database](https://img.shields.io/badge/MySQL-Database-blue)](https://www.mysql.com/)
@@ -33,6 +34,7 @@
 - **智能消息路由**：基于来源和目标的精确消息分发
 - **后端服务对接**：HTTP/S Webhook + API方式的双向通信
 - **优雅启停与重连**：平滑运行和自动恢复机制
+- **编译时依赖注入**：基于Google Wire的类型安全依赖管理
 
 ### 📱 支持的平台
 - **企业微信 (WeCom)**：应用消息收发、多种消息类型、事件处理
@@ -51,24 +53,24 @@
 
 ```sh
 # 启动 MySQL 和 RabbitMQ
-make compose-up
+just compose-up
 
-# 运行应用（包含数据库迁移）
-make run
+# 运行应用（包含依赖注入代码生成和数据库迁移）
+just run
 ```
 
 ### 集成测试
 
 ```sh
 # 启动完整测试环境
-make compose-up-integration-test
+just compose-up-integration-test
 ```
 
 ### 完整 Docker 部署
 
 ```sh
 # 启动完整服务栈（含反向代理）
-make compose-up-all 
+just compose-up-all 
 ```
 
 ### 服务检查
@@ -92,19 +94,161 @@ make compose-up-all
 
 ## 项目架构
 
-本项目基于整洁架构原则，采用依赖倒置设计：
+本项目基于整洁架构原则，采用依赖倒置设计，使用Google Wire进行编译时依赖注入：
+
+### 架构特点
+
+**接口隔离与依赖倒置**
+- 基于能力（Capability-based）的细粒度接口设计
+- 接口所有权在UseCase层（`internal/usecase/port/`），实现标准的整洁架构
+- 每个适配器只实现自己需要的接口，代码纯粹
+
+**连接生命周期管理**
+- `ConnectionManager`组件统一管理所有主动连接型适配器（如钉钉Stream）
+- 基于数据库配置的动态连接启动和管理
+- 支持优雅启动、停止和重连机制
+
+**官方SDK集成**
+- **钉钉**: `github.com/open-dingtalk/dingtalk-stream-sdk-go`（官方SDK）
+- **企业微信**: `github.com/wenerme/go-wecom`（成熟第三方SDK）
+- **飞书**: `github.com/larksuite/oapi-sdk-go/v3`（官方SDK）
+- 自动token管理、统一错误处理、类型安全的API调用
+
+### 核心接口设计
+
+#### Port接口（UseCase层定义）
+
+```go
+// 消息发送能力
+type MessageSender interface {
+    SendMessage(ctx context.Context, message *UnifiedMessage, config map[string]interface{}, accessToken string) error
+}
+
+// Webhook处理能力
+type WebhookProcessor interface {
+    VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error
+    ParseInboundMessage(ctx context.Context, body []byte, config map[string]interface{}) (*UnifiedMessage, error)
+    BuildWebhookPath(channelID int64) string
+}
+
+// Token管理能力
+type TokenManager interface {
+    GetAccessToken(ctx context.Context, config map[string]interface{}) (*AccessTokenResponse, error)
+    RefreshAccessToken(ctx context.Context, config map[string]interface{}, oldToken string) (*AccessTokenResponse, error)
+}
+
+// Stream连接能力（用于钉钉Stream等主动连接模式）
+type StreamAdapter interface {
+    Start(ctx context.Context, messageHandler MessageHandler, config map[string]interface{}) error
+    Stop(ctx context.Context) error
+    IsConnected() bool
+}
+
+// 配置验证能力
+type ConfigValidator interface {
+    ValidateConfig(config map[string]interface{}) error
+}
+
+// 平台识别能力
+type PlatformIdentifier interface {
+    GetPlatformType() PlatformType
+}
+```
+
+#### 平台能力矩阵
+
+| 平台 | MessageSender | WebhookProcessor | TokenManager | StreamAdapter | 连接模式 |
+|------|:-------------:|:----------------:|:------------:|:-------------:|:--------:|
+| **企业微信** | ✅ | ✅ | ✅ | ❌ | Webhook |
+| **飞书** | ✅ | ✅ | ✅ | ❌ | Webhook |
+| **钉钉Stream** | ✅ | ❌ | ❌ | ✅ | Stream |
+
+### 依赖注入架构
+
+```mermaid
+graph TD;
+    subgraph "Frameworks (外部框架)"
+        direction LR
+        A["Web Server / gRPC"]
+        B["Database (GORM)"]
+        C["3rd Party SDK<br/>(DingTalk, WeCom, Feishu)"]
+    end
+
+    subgraph "Adapters (适配器层)"
+        direction LR
+        D["Controller"]
+        E["Repository Impl"]
+        F["Platform Adapters<br/>(基于能力接口)"]
+        G["ConnectionManager<br/>(Stream连接管理)"]
+    end
+
+    subgraph "Use Cases (业务逻辑层)"
+        direction LR
+        H["MessageUseCase"]
+        I("Ports - 接口定义<br/>MessageSender<br/>WebhookProcessor<br/>TokenManager<br/>StreamAdapter<br/>ConfigValidator<br/>PlatformIdentifier")
+    end
+    
+    subgraph "Entities (实体层)"
+        direction LR
+        J["UnifiedMessage"]
+        K["Channel"]
+        L["...其他业务实体"]
+    end
+
+    %% 依赖关系
+    A --> D;
+    B --> E;
+    C --> F;
+    
+    D -- "调用 UseCase" --> H;
+    E -- "实现 Repository 接口" --> H;
+    F -- "实现 Port 接口" --> I;
+    G -- "管理 Stream 连接" --> F;
+
+    H -- "依赖 Port 接口" --> I;
+    H -- "操作 Entity" --> J;
+    H -- "操作 Entity" --> K;
+    
+    I -- "参数/返回值为 Entity" --> J;
+
+    classDef entity fill:#D5E8D4,stroke:#82B366;
+    classDef usecase fill:#DAE8FC,stroke:#6C8EBF;
+    classDef adapter fill:#F8CECC,stroke:#B85450;
+    classDef framework fill:#E1D5E7,stroke:#9673A6;
+
+    class J,K,L entity;
+    class H,I usecase;
+    class D,E,F,G adapter;
+    class A,B,C framework;
+```
+
+**Wire的优势**：
+- **编译时安全**：依赖错误在编译期发现
+- **无运行时开销**：生成普通Go代码，无反射
+- **类型安全**：基于Go类型系统的依赖管理
+- **易于测试**：支持Mock依赖轻松注入
 
 ### 目录结构
 
 ```
 OmniBotGo/
 ├── cmd/app/                 # 应用程序入口
-├── config/                  # 配置管理（支持环境变量覆盖）
+├── config/                  # 配置文件目录（YAML格式）
 ├── internal/
-│   ├── app/                # 应用启动和依赖注入
+│   ├── app/                # 应用启动和Wire依赖注入
+│   ├── config/             # 配置管理逻辑（Viper）
 │   ├── controller/         # 控制器层（HTTP/gRPC/AMQP）
 │   ├── entity/             # 业务实体和消息模型
+│   ├── providers/          # Wire Provider 函数定义
 │   ├── usecase/            # 业务逻辑层
+│   │   └── port/           # UseCase接口定义（重构核心）
+│   ├── adapter/            # 平台适配器实现层
+│   │   ├── manager.go      # 基于能力的适配器管理器
+│   │   ├── wecom/          # 企业微信适配器（SDK集成）
+│   │   ├── feishu/         # 飞书适配器（官方SDK）
+│   │   └── dingtalk_stream/ # 钉钉Stream适配器（官方SDK）
+│   ├── service/            # 基础设施服务
+│   │   └── connection_manager.go  # Stream连接生命周期管理
 │   └── repo/               # 数据访问层抽象
 ├── pkg/                    # 公共工具包
 │   ├── mysql/              # MySQL 连接包
@@ -113,20 +257,57 @@ OmniBotGo/
 │   └── rabbitmq/           # RabbitMQ RPC 包
 ├── migrations/             # 数据库迁移文件
 ├── docs/                   # 项目文档和 API 文档
+│   └── architecture/       # 架构设计文档
+├── README_CONFIG.md        # 配置系统详细说明
 └── integration-test/       # 集成测试
 ```
 
 ### 核心组件
 
 #### `cmd/app/main.go`
-应用程序启动入口，负责配置初始化和日志设置。
+应用程序启动入口，负责配置初始化和调用Wire依赖注入。
 
-#### `config/`
-基于12-Factor原则的配置管理：
-- 环境变量配置
-- 多平台认证信息
-- 后端服务配置
-- 系统参数设置
+#### `internal/app/`
+应用程序生命周期管理：
+- **wire.go**: Wire依赖注入配置和Injector函数
+- **wire_gen.go**: Wire自动生成的依赖注入代码
+- **app.go**: 应用启动逻辑和生命周期管理
+
+#### `internal/service/connection_manager.go`
+Stream连接生命周期管理器：
+- 从数据库加载活跃通道配置
+- 启动和停止Stream连接（如钉钉Stream）
+- 连接状态监控和重启
+- 优雅启停机制
+
+#### `internal/adapter/manager.go`
+基于能力的适配器管理器：
+- `GetMessageSender()` - 获取消息发送能力
+- `GetWebhookProcessor()` - 获取Webhook处理能力
+- `GetTokenManager()` - 获取Token管理能力
+- `GetStreamAdapter()` - 获取Stream连接能力
+- `GetConfigValidator()` - 获取配置验证能力
+
+#### `internal/usecase/port/`
+UseCase层接口定义目录，定义业务逻辑所需的所有能力接口，是UseCase和Adapter之间解耦的关键。
+
+#### `internal/providers/`
+Wire Provider函数定义，采用模块化设计：
+- **infrastructure.go**: 基础设施Provider（Logger、Database）
+- **repository.go**: 数据访问层Provider
+- **usecase.go**: 业务逻辑层Provider
+- **servers.go**: 服务器层Provider（HTTP、gRPC、RMQ）
+- **app.go**: 应用程序主结构体Provider
+
+#### `internal/config/` & `config/`
+基于Viper的配置管理系统：
+- **`internal/config/`**: 配置管理逻辑、类型定义、验证规则
+- **`config/`**: YAML配置文件存储目录
+- **多源配置**: 支持环境变量覆盖配置文件
+- **类型安全**: 强类型配置结构体，编译时检查
+- **配置验证**: 启动时验证必需配置项
+
+详细说明请参考 [README_CONFIG.md](README_CONFIG.md)
 
 #### `internal/controller/`
 多协议服务器支持：
@@ -140,7 +321,7 @@ OmniBotGo/
 #### `internal/usecase/`
 核心业务逻辑层：
 - 消息路由和转换
-- 平台适配器管理
+- 平台适配器调用
 - 后端服务集成
 - 事件处理逻辑
 
@@ -169,11 +350,18 @@ MySQL 数据库连接管理：
 ### 核心技术
 - **语言**: Go 1.24+
 - **Web框架**: Fiber v2（高性能 HTTP 框架）
+- **依赖注入**: Google Wire（编译时依赖注入）
 - **数据库**: MySQL 8.0+
 - **ORM**: GORM（Go语言最受欢迎的ORM）
 - **查询构建器**: Squirrel（用于复杂SQL查询）
 - **消息队列**: RabbitMQ
 - **协议**: HTTP/HTTPS, gRPC, AMQP
+
+### 平台SDK集成
+- **钉钉**: `github.com/open-dingtalk/dingtalk-stream-sdk-go` (官方SDK)
+- **企业微信**: `github.com/wenerme/go-wecom` (成熟第三方SDK)
+- **飞书**: `github.com/larksuite/oapi-sdk-go/v3` (官方SDK)
+- **优势**: 自动token管理、统一错误处理、类型安全的API调用
 
 ### 基础设施
 - **配置管理**: 环境变量 + YAML/TOML
@@ -185,6 +373,7 @@ MySQL 数据库连接管理：
 
 ### 开发工具
 - **代码质量**: golangci-lint
+- **依赖注入代码生成**: Wire
 - **测试**: Testify + 集成测试
 - **Mock**: go-mock
 - **迁移**: golang-migrate
@@ -247,23 +436,29 @@ SWAGGER_ENABLED=true
 platforms:
   wecom:
     - name: "default"
-      corp_id: "xxxx"
-      app_secret: "xxxx"
-      token: "xxxx"
-      encoding_aes_key: "xxxx"
+      corp_id: "ww1234567890abcdef"
+      agent_id: "1000001"
+      secret: "abc123def456ghi789jkl"
+      token: "optional_webhook_token"
       
-  dingtalk:
+  dingtalk_stream:
     - name: "default"
-      app_key: "xxxx"
-      app_secret: "xxxx"
+      client_id: "your_client_id"
+      client_secret: "your_client_secret"
       
-  wechat_official:
-    - name: "service_account"
-      appid: "xxxx"
-      app_secret: "xxxx"
-      token: "xxxx"
-      encoding_aes_key: "xxxx"
+  feishu:
+    - name: "default"
+      app_id: "cli_a1234567890abcde"
+      app_secret: "abc123def456ghi789jkl012mno345pqr"
+      webhook_url: "optional_webhook_url"
+      encrypt_key: "optional_encrypt_key"
+      verification_token: "optional_verification_token"
 ```
+
+### 连接模式
+
+- **Webhook模式**（企业微信/飞书）: 被动接收平台推送的消息
+- **Stream模式**（钉钉）: 主动建立长连接接收实时消息
 
 ## API 文档
 
@@ -319,20 +514,21 @@ protobuf 定义文件位于 `docs/proto/` 目录。
 1. **安装依赖**
 ```bash
 go mod download
-make bin-deps  # 安装开发工具
+just bin-deps  # 安装开发工具
 ```
 
 2. **启动开发环境**
 ```bash
-make compose-up  # 启动 MySQL 和 RabbitMQ
-make run        # 运行应用
+just compose-up  # 启动 MySQL 和 RabbitMQ
+just run        # 运行应用
 ```
 
 3. **代码质量检查**
 ```bash
-make linter-golangci  # 代码检查
-make test            # 运行测试
-make format          # 代码格式化
+just linter-golangci  # 代码检查
+just test            # 运行测试
+just format          # 代码格式化
+just wire           # 生成依赖注入代码
 ```
 
 ### 添加新的平台适配器
@@ -343,20 +539,33 @@ make format          # 代码格式化
 2. **实现适配器**
 在 `internal/adapter/` 下实现具体的平台适配器
 
-3. **添加消息映射**
-在 `internal/entity/message.go` 中添加平台特定的消息类型映射
+3. **创建Wire Provider**
+在 `internal/providers/` 下添加新平台的Provider函数：
+```go
+func NewWeChatAdapter(cfg *config.Config) (*wechat.Adapter, error) {
+    return wechat.New(cfg.WeChat)
+}
+```
 
-4. **注册适配器**
-在 `internal/app/app.go` 中注册新的适配器
+4. **更新ProviderSet**
+将新的Provider添加到相应的ProviderSet中
+
+5. **重新生成Wire代码**
+```bash
+just wire  # 或直接运行 wire ./internal/app
+```
+
+6. **添加消息映射**
+在 `internal/entity/message.go` 中添加平台特定的消息类型映射
 
 ### 数据库迁移
 
 ```bash
 # 创建新的迁移文件
-make migrate-create migration_name
+just migrate-create migration_name
 
 # 执行迁移
-make migrate-up
+just migrate-up
 
 # 回滚迁移  
 migrate -path migrations -database 'mysql://user:pass@localhost:3306/omnibotgo' down 1
@@ -366,10 +575,10 @@ migrate -path migrations -database 'mysql://user:pass@localhost:3306/omnibotgo' 
 
 ```bash
 # 单元测试
-make test
+just test
 
 # 集成测试
-make integration-test
+just integration-test
 
 # 生成测试覆盖率报告
 go test -coverprofile=coverage.out ./...
@@ -473,7 +682,7 @@ kubectl apply -f deployments/k8s/
 - 遵循 Go 官方代码规范
 - 使用 `golangci-lint` 进行代码检查
 - 编写单元测试，保持测试覆盖率 > 80%
-- 提交前运行 `make pre-commit`
+- 提交前运行 `just pre-commit`
 
 ## 许可证
 
@@ -481,13 +690,13 @@ kubectl apply -f deployments/k8s/
 
 ## 联系方式
 
-- **项目主页**: https://github.com/sivdead/OmniBotGo
-- **问题反馈**: https://github.com/sivdead/OmniBotGo/issues
-- **讨论社区**: https://github.com/sivdead/OmniBotGo/discussions
+- **项目主页**: github.com/sivdead/OmniBotGo
+- **问题反馈**: github.com/sivdead/OmniBotGo/issues
+- **讨论社区**: github.com/sivdead/OmniBotGo/discussions
 
 ## 致谢
 
-- 基于 [go-clean-template](https://github.com/evrone/go-clean-template) 构建
+- 基于 [go-clean-template](https://github.com/sivdead/OmniBotGo) 构建
 - 感谢所有贡献者的支持
 
 ---

@@ -1,0 +1,223 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# 开发工作流程
+
+## 项目构建
+
+### 构建工具
+项目使用 [justfile](mdc:justfile) 作为任务运行器：
+
+```bash
+# 运行应用（包含代码生成和迁移）
+just run
+
+# 构建应用
+just build
+
+# 运行测试
+just test
+
+# 代码格式化和检查
+just lint
+
+# 生成依赖注入代码
+just generate
+
+# 数据库迁移
+just migrate-up
+just migrate-down
+```
+
+### 代码生成
+项目使用多个代码生成工具：
+
+```bash
+# Wire依赖注入代码生成
+go generate ./internal/app
+
+# Mock代码生成
+go generate ./internal/...
+
+# Swagger文档生成
+swag init -g cmd/app/main.go -o docs
+
+# Protocol Buffer代码生成
+protoc --go_out=. --go-grpc_out=. proto/*.proto
+```
+
+## Git工作流
+
+### 分支策略
+- **main**: 主分支，用于生产环境
+- **develop**: 开发分支，用于集成测试
+- **feature/***: 功能分支，从develop创建
+- **hotfix/***: 热修复分支，从main创建
+- **release/***: 发布分支，从develop创建
+
+### 提交规范
+使用约定式提交格式：
+
+```
+type(scope): description
+
+feat(messaging): 添加企业微信消息适配器
+fix(database): 修复连接池配置问题
+docs(api): 更新API文档
+style(controller): 代码格式化
+refactor(usecase): 重构消息处理逻辑
+test(integration): 添加API集成测试
+chore(deps): 更新依赖版本
+```
+
+### 代码审查
+- 所有功能分支必须通过PR合并
+- 至少需要一个审查员批准
+- 必须通过所有自动化测试
+- 代码覆盖率不能低于80%
+
+## 开发环境
+
+### 本地环境设置
+```bash
+# 1. 启动依赖服务
+just compose-up
+
+# 2. 配置环境变量
+cp config/.env.example config/.env
+
+# 3. 运行数据库迁移
+just migrate-up
+
+# 4. 启动应用
+just run
+```
+
+### 环境变量配置
+开发环境配置模板：
+```bash
+# 数据库配置
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=user
+DB_PASSWORD=myAwEsOm3pa55@w0rd
+DB_NAME=omnibotgo
+
+# 服务端口
+HTTP_PORT=8080
+GRPC_PORT=8081
+
+# 企业微信配置
+WECOM_CORP_ID=your_corp_id
+WECOM_AGENT_ID=your_agent_id
+WECOM_SECRET=your_secret
+
+# 钉钉配置
+DINGTALK_ACCESS_TOKEN=your_token
+DINGTALK_APP_KEY=your_app_key
+DINGTALK_APP_SECRET=your_app_secret
+```
+
+### 调试配置
+IDE调试配置：
+```json
+{
+    "name": "Launch App",
+    "type": "go",
+    "request": "launch",
+    "mode": "auto",
+    "program": "${workspaceFolder}/cmd/app",
+    "env": {
+        "CONFIG_PATH": "${workspaceFolder}/config"
+    },
+    "args": []
+}
+```
+
+## 质量保证
+
+### 代码检查
+使用 [.golangci.yml](mdc:.golangci.yml) 配置的linter：
+
+```bash
+# 运行所有检查
+just lint
+
+# 自动修复可修复的问题
+just lint-fix
+
+# 安全漏洞检查
+just security-check
+```
+
+### 测试策略
+```bash
+# 单元测试
+go test ./internal/...
+
+# 集成测试
+just test-integration
+
+# 基准测试
+go test -bench=. ./...
+
+# 测试覆盖率
+go test -cover ./...
+```
+
+### 性能分析
+```bash
+# CPU性能分析
+go test -cpuprofile=cpu.prof -bench=.
+
+# 内存分析
+go test -memprofile=mem.prof -bench=.
+
+# 查看分析结果
+go tool pprof cpu.prof
+```
+
+## 依赖管理
+
+### 模块更新
+```bash
+# 更新所有依赖
+go get -u ./...
+
+# 更新特定依赖
+go get -u github.com/gofiber/fiber/v2
+
+# 清理未使用的依赖
+go mod tidy
+
+# 验证依赖
+go mod verify
+```
+
+### 安全检查
+```bash
+# 漏洞扫描
+go run golang.org/x/vuln/cmd/govulncheck ./...
+
+# 依赖审计
+go list -json -m all | nancy sleuth
+```
+
+## 文档维护
+
+### API文档
+- 使用Swagger注释自动生成
+- 访问地址：http://localhost:8080/swagger
+- 更新命令：`swag init`
+
+### 代码文档
+- 为所有公开接口添加注释
+- 使用 `godoc` 生成文档
+- 保持README文件更新
+
+### 数据库文档
+- 维护 [数据库设计说明.md](mdc:数据库设计说明.md)
+- 更新 [ER图设计.md](mdc:ER图设计.md)
+- 记录重要的数据库变更

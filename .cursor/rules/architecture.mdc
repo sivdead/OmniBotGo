@@ -1,0 +1,47 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# 项目架构指南
+
+## 整洁架构设计
+
+本项目基于整洁架构原则，采用依赖倒置设计：
+
+### 核心原则
+- 依赖方向：Controller → UseCase → Entity ← Repository
+- 业务逻辑独立于框架、数据库、外部服务
+- 使用接口进行抽象，便于测试和扩展
+
+### 目录结构
+```
+cmd/app/                    # 应用程序入口点
+internal/
+├── app/                    # 应用启动和依赖注入
+├── controller/             # 控制器层 (HTTP/gRPC/AMQP)
+├── usecase/                # 业务逻辑层
+├── entity/                 # 业务实体和领域模型
+├── repo/                   # 数据访问层接口
+└── providers/              # 依赖注入Provider函数
+pkg/                        # 公共基础设施包
+```
+
+### 依赖注入
+项目使用 Google Wire 进行编译时依赖注入：
+- Wire配置在 [internal/app/wire.go](mdc:internal/app/wire.go)
+- 生成代码在 [internal/app/wire_gen.go](mdc:internal/app/wire_gen.go)  
+- Provider函数在 [internal/providers/](mdc:internal/providers/) 目录
+
+### 消息处理流程
+1. 消息从各平台（企业微信、钉钉等）进入Controller
+2. Controller将消息传递给UseCase处理业务逻辑
+3. UseCase调用Repository进行数据持久化
+4. UseCase将处理结果返回给Controller
+5. Controller将响应发送回对应平台
+
+### 扩展新平台
+1. 在 `entity/` 中定义平台特定的消息结构
+2. 在 `controller/` 中实现平台适配器
+3. 在 `usecase/` 中添加平台特定的业务逻辑
+4. 在 `providers/` 中注册新的依赖

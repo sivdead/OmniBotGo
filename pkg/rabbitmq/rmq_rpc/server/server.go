@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/evrone/go-clean-template/pkg/logger"
-	rmqrpc "github.com/evrone/go-clean-template/pkg/rabbitmq/rmq_rpc"
 	"github.com/goccy/go-json"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/sivdead/OmniBotGo/pkg/logger"
+	rmqrpc "github.com/sivdead/OmniBotGo/pkg/rabbitmq/rmq_rpc"
 )
 
 const (
