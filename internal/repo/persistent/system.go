@@ -137,18 +137,17 @@ func (r *SystemConfigRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取SystemConfig列表（分页）
-func (r *SystemConfigRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult, error) {
+func (r *SystemConfigRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.SystemConfig], error) {
 	params = r.validateParams(params)
 
 	var configs []*entity.SystemConfig
 	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.SystemConfig{}), params)
 
-	result, err := r.paginate(ctx, query, params, &configs)
+	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &configs)
 	if err != nil {
 		return nil, r.handleError(err, "list system configs")
 	}
 
-	result.Items = configs
 	return result, nil
 }
 

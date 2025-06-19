@@ -4,7 +4,7 @@ package app
 
 import (
 	"github.com/google/wire"
-	"github.com/sivdead/OmniBotGo/config"
+	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/providers"
 )
 
@@ -12,11 +12,10 @@ import (
 func InitializeApp(cfg *config.Config) (*providers.App, error) {
 	wire.Build(
 		providers.InfrastructureSet,
+		providers.RepositorySet,
+		providers.UseCaseSet,
 		providers.ServerSet,
 		providers.AppSet,
-		// TODO: 后续当服务器路由集成UseCase时，重新添加以下provider sets:
-		// providers.RepositorySet,
-		// providers.UseCaseSet,
 	)
 	return &providers.App{}, nil
 }

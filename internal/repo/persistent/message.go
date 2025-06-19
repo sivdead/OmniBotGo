@@ -65,35 +65,41 @@ func (r *MessageRepo) GetByMessageID(ctx context.Context, messageID string) (*en
 	return &message, nil
 }
 
-// GetByChannelID 根据通道ID获取Message列表（分页）
-func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID int64, params repo.ListParams) (*repo.PaginatedResult, error) {
+// GetByChannelID 根据通道ID获取消息列表
+func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID int64, params repo.ListParams) (*repo.PaginatedResult[*entity.Message], error) {
 	params = r.validateParams(params)
 
 	var messages []*entity.Message
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Message{}).Where("channel_id = ?", channelID), params)
+	query := r.db.GetGORM().WithContext(ctx).
+		Model(&entity.Message{}).
+		Where("channel_id = ?", channelID)
 
-	result, err := r.paginate(ctx, query, params, &messages)
+	query = r.buildQuery(query, params)
+
+	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &messages)
 	if err != nil {
-		return nil, r.handleError(err, "get messages by channel id")
+		return nil, r.handleError(err, "get messages by channel ID")
 	}
 
-	result.Items = messages
 	return result, nil
 }
 
-// GetByConversationID 根据会话ID获取Message列表（分页）
-func (r *MessageRepo) GetByConversationID(ctx context.Context, conversationID string, params repo.ListParams) (*repo.PaginatedResult, error) {
+// GetByConversationID 根据会话ID获取消息列表
+func (r *MessageRepo) GetByConversationID(ctx context.Context, conversationID string, params repo.ListParams) (*repo.PaginatedResult[*entity.Message], error) {
 	params = r.validateParams(params)
 
 	var messages []*entity.Message
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Message{}).Where("conversation_id = ?", conversationID), params)
+	query := r.db.GetGORM().WithContext(ctx).
+		Model(&entity.Message{}).
+		Where("conversation_id = ?", conversationID)
 
-	result, err := r.paginate(ctx, query, params, &messages)
+	query = r.buildQuery(query, params)
+
+	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &messages)
 	if err != nil {
-		return nil, r.handleError(err, "get messages by conversation id")
+		return nil, r.handleError(err, "get messages by conversation ID")
 	}
 
-	result.Items = messages
 	return result, nil
 }
 
@@ -146,19 +152,18 @@ func (r *MessageRepo) Delete(ctx context.Context, id int64) error {
 	return r.softDelete(ctx, &entity.Message{}, id)
 }
 
-// List 获取Message列表（分页）
-func (r *MessageRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult, error) {
+// List 获取消息列表（分页）
+func (r *MessageRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.Message], error) {
 	params = r.validateParams(params)
 
 	var messages []*entity.Message
 	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Message{}), params)
 
-	result, err := r.paginate(ctx, query, params, &messages)
+	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &messages)
 	if err != nil {
 		return nil, r.handleError(err, "list messages")
 	}
 
-	result.Items = messages
 	return result, nil
 }
 

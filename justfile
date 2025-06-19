@@ -34,13 +34,9 @@ compose-down:
 swag-v1:
     swag init -g internal/controller/http/router.go
 
-# 从 proto 文件生成源代码
+# 从 proto 文件生成源代码 (已禁用 - proto文件已删除)
 proto-v1:
-    protoc --go_out=. \
-        --go_opt=paths=source_relative \
-        --go-grpc_out=. \
-        --go-grpc_opt=paths=source_relative \
-        docs/proto/v1/*.proto
+    @echo "Proto generation disabled - proto files removed"
 
 # 整理和验证依赖
 deps:
@@ -56,9 +52,20 @@ format:
     gci write . --skip-generated -s standard -s default
 
 # 运行应用 (依赖于 deps, swag-v1, proto-v1, wire)
+# 配置现在从 config.yaml 文件读取，环境变量可以覆盖配置文件中的值
 run: deps swag-v1 proto-v1 wire
-    go mod download && \
-    CGO_ENABLED=0 go run -tags migrate ./cmd/app
+    go mod download
+    $env:CGO_ENABLED="0"; go run -tags migrate ./cmd/app
+
+# 运行应用（开发模式，覆盖一些配置为开发友好值）
+run-dev: deps swag-v1 proto-v1 wire
+    go mod download
+    $env:LOG_LEVEL="debug"; $env:SWAGGER_ENABLED="true"; $env:CGO_ENABLED="0"; go run -tags migrate ./cmd/app
+
+# 运行应用（生产模式）
+run-prod: deps swag-v1 proto-v1 wire
+    go mod download
+    $env:LOG_LEVEL="info"; $env:SWAGGER_ENABLED="false"; $env:CGO_ENABLED="0"; go run ./cmd/app
 
 # 删除 docker volume
 docker-rm-volume:

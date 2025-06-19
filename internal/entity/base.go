@@ -13,10 +13,10 @@ import (
 
 // BaseEntity 包含所有数据库表的通用字段
 type BaseEntity struct {
-	ID        int64          `json:"id" gorm:"primaryKey;autoIncrement;comment:主键ID"`
-	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime;comment:创建时间"`
-	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime;comment:更新时间"`
-	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;comment:软删除时间"`
+	ID        int64          `json:"id" gorm:"primaryKey;autoIncrement;comment:主键ID" example:"1"`
+	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime;comment:创建时间" example:"2023-01-01T12:00:00Z"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime;comment:更新时间" example:"2023-01-01T12:00:00Z"`
+	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;comment:软删除时间" swaggertype:"string" format:"date-time" example:"2023-01-01T12:00:00Z"`
 }
 
 // JSONField 通用JSON字段类型，用于存储JSON格式的配置和数据

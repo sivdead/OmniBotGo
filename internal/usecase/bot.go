@@ -5,23 +5,23 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
 // botUseCase 机器人管理业务逻辑实现
 type botUseCase struct {
 	botRepo     repo.BotRepo
 	channelRepo repo.ChannelRepo
-	logger      *zerolog.Logger
+	logger      logger.Interface
 }
 
 // NewBotUseCase 创建机器人管理业务逻辑实例
 func NewBotUseCase(
 	botRepo repo.BotRepo,
 	channelRepo repo.ChannelRepo,
-	logger *zerolog.Logger,
+	logger logger.Interface,
 ) BotUseCase {
 	return &botUseCase{
 		botRepo:     botRepo,
@@ -32,19 +32,12 @@ func NewBotUseCase(
 
 // CreateBot 创建机器人
 func (uc *botUseCase) CreateBot(ctx context.Context, req CreateBotRequest) (*entity.Bot, error) {
-	log := uc.logger.With().
-		Str("method", "CreateBot").
-		Str("bot_name", req.BotName).
-		Str("bot_type", req.BotType).
-		Str("created_by", req.CreatedBy).
-		Logger()
-
-	log.Info().Msg("开始创建机器人")
+	uc.logger.Info("开始创建机器人", "method", "CreateBot", "bot_name", req.BotName, "bot_type", req.BotType, "created_by", req.CreatedBy)
 
 	// 检查机器人名称是否重复
 	existingBot, err := uc.botRepo.GetByName(ctx, req.BotName)
 	if err == nil && existingBot != nil {
-		log.Warn().Msg("机器人名称已存在")
+		uc.logger.Warn("机器人名称已存在")
 		return nil, fmt.Errorf("机器人名称已存在")
 	}
 
@@ -70,36 +63,29 @@ func (uc *botUseCase) CreateBot(ctx context.Context, req CreateBotRequest) (*ent
 
 	// 验证机器人数据
 	if err := bot.Validate(); err != nil {
-		log.Error().Err(err).Msg("机器人数据验证失败")
+		uc.logger.Error("机器人数据验证失败", "error", err)
 		return nil, fmt.Errorf("机器人数据验证失败: %w", err)
 	}
 
 	// 保存机器人到数据库
 	if err := uc.botRepo.Create(ctx, bot); err != nil {
-		log.Error().Err(err).Msg("保存机器人失败")
+		uc.logger.Error("保存机器人失败", "error", err)
 		return nil, fmt.Errorf("保存机器人失败: %w", err)
 	}
 
-	log.Info().
-		Int64("bot_id", bot.ID).
-		Msg("机器人创建成功")
+	uc.logger.Info("机器人创建成功", "bot_id", bot.ID)
 
 	return bot, nil
 }
 
 // UpdateBot 更新机器人
 func (uc *botUseCase) UpdateBot(ctx context.Context, req UpdateBotRequest) (*entity.Bot, error) {
-	log := uc.logger.With().
-		Str("method", "UpdateBot").
-		Int64("bot_id", req.ID).
-		Logger()
-
-	log.Info().Msg("开始更新机器人")
+	uc.logger.Info("开始更新机器人", "method", "UpdateBot", "bot_id", req.ID)
 
 	// 获取现有机器人
 	bot, err := uc.botRepo.GetByID(ctx, req.ID)
 	if err != nil {
-		log.Error().Err(err).Msg("获取机器人信息失败")
+		uc.logger.Error("获取机器人信息失败", "error", err)
 		return nil, fmt.Errorf("获取机器人信息失败: %w", err)
 	}
 
@@ -109,7 +95,7 @@ func (uc *botUseCase) UpdateBot(ctx context.Context, req UpdateBotRequest) (*ent
 		if *req.BotName != bot.BotName {
 			existingBot, err := uc.botRepo.GetByName(ctx, *req.BotName)
 			if err == nil && existingBot != nil {
-				log.Warn().Msg("机器人名称已存在")
+				uc.logger.Warn("机器人名称已存在")
 				return nil, fmt.Errorf("机器人名称已存在")
 			}
 		}
@@ -146,45 +132,40 @@ func (uc *botUseCase) UpdateBot(ctx context.Context, req UpdateBotRequest) (*ent
 
 	// 验证机器人数据
 	if err := bot.Validate(); err != nil {
-		log.Error().Err(err).Msg("机器人数据验证失败")
+		uc.logger.Error("机器人数据验证失败", "error", err)
 		return nil, fmt.Errorf("机器人数据验证失败: %w", err)
 	}
 
 	// 保存更新
 	if err := uc.botRepo.Update(ctx, bot); err != nil {
-		log.Error().Err(err).Msg("更新机器人失败")
+		uc.logger.Error("更新机器人失败", "error", err)
 		return nil, fmt.Errorf("更新机器人失败: %w", err)
 	}
 
-	log.Info().Msg("机器人更新成功")
+	uc.logger.Info("机器人更新成功")
 	return bot, nil
 }
 
 // DeleteBot 删除机器人
 func (uc *botUseCase) DeleteBot(ctx context.Context, id int64) error {
-	log := uc.logger.With().
-		Str("method", "DeleteBot").
-		Int64("bot_id", id).
-		Logger()
-
-	log.Info().Msg("开始删除机器人")
+	uc.logger.Info("开始删除机器人", "method", "DeleteBot", "bot_id", id)
 
 	// 获取机器人信息
 	bot, err := uc.botRepo.GetByID(ctx, id)
 	if err != nil {
-		log.Error().Err(err).Msg("获取机器人信息失败")
+		uc.logger.Error("获取机器人信息失败", "error", err)
 		return fmt.Errorf("获取机器人信息失败: %w", err)
 	}
 
 	// 检查机器人是否有活跃的通道
 	activeChannelCount, err := uc.botRepo.GetActiveChannelCount(ctx, id)
 	if err != nil {
-		log.Error().Err(err).Msg("检查活跃通道失败")
+		uc.logger.Error("检查活跃通道失败", "error", err)
 		return fmt.Errorf("检查活跃通道失败: %w", err)
 	}
 
 	if activeChannelCount > 0 {
-		log.Warn().Int64("active_channel_count", activeChannelCount).Msg("机器人存在活跃通道，无法删除")
+		uc.logger.Warn("机器人存在活跃通道，无法删除", "active_channel_count", activeChannelCount)
 		return fmt.Errorf("机器人存在 %d 个活跃通道，无法删除", activeChannelCount)
 	}
 
@@ -193,46 +174,32 @@ func (uc *botUseCase) DeleteBot(ctx context.Context, id int64) error {
 	bot.UpdatedAt = time.Now()
 
 	if err := uc.botRepo.Update(ctx, bot); err != nil {
-		log.Error().Err(err).Msg("删除机器人失败")
+		uc.logger.Error("删除机器人失败", "error", err)
 		return fmt.Errorf("删除机器人失败: %w", err)
 	}
 
-	log.Info().Msg("机器人删除成功")
+	uc.logger.Info("机器人删除成功")
 	return nil
 }
 
 // GetBot 获取机器人信息
 func (uc *botUseCase) GetBot(ctx context.Context, id int64) (*entity.Bot, error) {
-	log := uc.logger.With().
-		Str("method", "GetBot").
-		Int64("bot_id", id).
-		Logger()
-
-	log.Info().Msg("获取机器人信息")
+	uc.logger.Info("获取机器人信息", "method", "GetBot", "bot_id", id)
 
 	bot, err := uc.botRepo.GetByID(ctx, id)
 	if err != nil {
-		log.Error().Err(err).Msg("获取机器人信息失败")
+		uc.logger.Error("获取机器人信息失败", "error", err)
 		return nil, fmt.Errorf("获取机器人信息失败: %w", err)
 	}
 
-	log.Info().
-		Str("bot_name", bot.BotName).
-		Str("bot_type", bot.BotType).
-		Str("status", bot.Status.String()).
-		Str("created_by", bot.CreatedBy).
-		Msg("机器人信息获取成功")
+	uc.logger.Info("机器人信息获取成功", "bot_name", bot.BotName, "bot_type", bot.BotType, "status", bot.Status.String(), "created_by", bot.CreatedBy)
 
 	return bot, nil
 }
 
 // ListBots 获取机器人列表
-func (uc *botUseCase) ListBots(ctx context.Context, params ListBotsParams) (*ListResult[entity.Bot], error) {
-	log := uc.logger.With().
-		Str("method", "ListBots").
-		Logger()
-
-	log.Info().Msg("获取机器人列表")
+func (uc *botUseCase) ListBots(ctx context.Context, params ListBotsParams) (*BotListResult, error) {
+	uc.logger.Info("获取机器人列表", "method", "ListBots")
 
 	// 构建查询过滤器
 	filters := make(map[string]interface{})
@@ -246,34 +213,35 @@ func (uc *botUseCase) ListBots(ctx context.Context, params ListBotsParams) (*Lis
 	if params.CreatedBy != nil {
 		filters["created_by"] = *params.CreatedBy
 	}
+
 	// 查询机器人列表
-	paginatedResult, err := uc.botRepo.List(ctx, repo.ListParams{
-		Filters:  filters,
+	listParams := repo.ListParams{
 		Page:     params.Page,
 		PageSize: params.PageSize,
-		OrderBy:  "created_by",
-	})
+		Filters:  filters,
+	}
+
+	result, err := uc.botRepo.List(ctx, listParams)
 	if err != nil {
-		log.Error().Err(err).Msg("查询机器人列表失败")
+		uc.logger.Error("查询机器人列表失败", "error", err)
 		return nil, fmt.Errorf("查询机器人列表失败: %w", err)
 	}
 
-	// 计算总页数
-	totalPages := int((total + int64(params.PageSize) - 1) / int64(params.PageSize))
-
-	result := &BotListResult{
-		Items:      bots,
-		Total:      total,
-		Page:       params.Page,
-		PageSize:   params.PageSize,
-		TotalPages: totalPages,
+	// 转换指针切片为值切片
+	botValues := make([]entity.Bot, len(result.Items))
+	for i, bot := range result.Items {
+		botValues[i] = *bot
 	}
 
-	log.Info().
-		Int64("total", total).
-		Int("page", params.Page).
-		Int("page_size", params.PageSize).
-		Msg("机器人列表查询完成")
+	botResult := &BotListResult{
+		Items:      botValues,
+		Total:      result.Total,
+		Page:       result.Page,
+		PageSize:   result.PageSize,
+		TotalPages: result.TotalPages,
+	}
 
-	return result, nil
+	uc.logger.Info("机器人列表查询完成", "total", result.Total, "page", result.Page, "page_size", result.PageSize)
+
+	return botResult, nil
 }

@@ -7,7 +7,7 @@
 package app
 
 import (
-	"github.com/sivdead/OmniBotGo/config"
+	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/providers"
 )
 
@@ -15,17 +15,30 @@ import (
 
 // InitializeApp 使用Wire进行依赖注入，初始化整个应用程序
 func InitializeApp(cfg *config.Config) (*providers.App, error) {
+	commonDB, err := providers.NewDatabase(cfg)
+	if err != nil {
+		return nil, err
+	}
+	messageRepo := providers.NewMessageRepo(commonDB)
+	channelRepo := providers.NewChannelRepo(commonDB)
+	manager := providers.NewAdapterManager()
+	messageRoutingRuleRepo := providers.NewMessageRoutingRuleRepo(commonDB)
+	messageProcessorRepo := providers.NewMessageProcessorRepo(commonDB)
 	loggerInterface := providers.NewLogger(cfg)
-	server := providers.NewHTTPServer(cfg, loggerInterface)
+	routingUseCase := providers.NewRoutingUseCase(messageRoutingRuleRepo, messageProcessorRepo, channelRepo, loggerInterface)
+	messageUseCase := providers.NewMessageUseCase(messageRepo, channelRepo, manager, routingUseCase, loggerInterface)
+	botRepo := providers.NewBotRepo(commonDB)
+	channelUseCase := providers.NewChannelUseCase(channelRepo, messageRepo, botRepo, loggerInterface)
+	botUseCase := providers.NewBotUseCase(botRepo, channelRepo, loggerInterface)
+	server := providers.NewHTTPServer(cfg, messageUseCase, channelUseCase, botUseCase, loggerInterface)
 	grpcserverServer := providers.NewGRPCServer(cfg, loggerInterface)
 	serverServer, err := providers.NewRMQServer(cfg, loggerInterface)
 	if err != nil {
 		return nil, err
 	}
-	commonDB, err := providers.NewDatabase(cfg)
-	if err != nil {
-		return nil, err
-	}
-	app := providers.NewApp(server, grpcserverServer, serverServer, commonDB, loggerInterface)
+	logger := providers.NewZerologLogger(cfg)
+	messageHandler := providers.NewStreamMessageHandler(messageUseCase)
+	connectionManager := providers.NewConnectionManager(logger, channelRepo, manager, messageHandler)
+	app := providers.NewApp(server, grpcserverServer, serverServer, connectionManager, commonDB, loggerInterface)
 	return app, nil
 }

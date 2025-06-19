@@ -2,7 +2,9 @@ package providers
 
 import (
 	"github.com/google/wire"
-	"github.com/sivdead/OmniBotGo/config"
+	"github.com/sivdead/OmniBotGo/internal/config"
+	"github.com/sivdead/OmniBotGo/internal/controller/http"
+	"github.com/sivdead/OmniBotGo/internal/usecase"
 	"github.com/sivdead/OmniBotGo/pkg/grpcserver"
 	"github.com/sivdead/OmniBotGo/pkg/httpserver"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
@@ -16,9 +18,12 @@ var ServerSet = wire.NewSet(
 	NewRMQServer,
 )
 
-// NewHTTPServer 创建HTTP服务器（基础版本，暂时没有路由）
+// NewHTTPServer 创建HTTP服务器并设置路由
 func NewHTTPServer(
 	cfg *config.Config,
+	messageUC usecase.MessageUseCase,
+	channelUC usecase.ChannelUseCase,
+	botUC usecase.BotUseCase,
 	l logger.Interface,
 ) *httpserver.Server {
 	httpSrv := httpserver.New(
@@ -26,8 +31,8 @@ func NewHTTPServer(
 		httpserver.Prefork(cfg.HTTP.UsePreforkMode),
 	)
 
-	// TODO: 后续添加OmniBotGo的路由
-	// http.NewRouter(httpSrv.App, cfg, useCases, l)
+	// 设置路由
+	http.NewRouter(httpSrv.App, cfg, messageUC, channelUC, botUC, l)
 
 	return httpSrv
 }

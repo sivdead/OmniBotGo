@@ -7,8 +7,8 @@ import (
 	"github.com/ansrivas/fiberprometheus/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/swagger"
-	"github.com/sivdead/OmniBotGo/config"
 	_ "github.com/sivdead/OmniBotGo/docs" // Swagger docs.
+	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/controller/http/middleware"
 	v1 "github.com/sivdead/OmniBotGo/internal/controller/http/v1"
 	"github.com/sivdead/OmniBotGo/internal/usecase"
@@ -17,12 +17,19 @@ import (
 
 // NewRouter -.
 // Swagger spec:
-// @title       Go Clean Template API
-// @description Using a translation service as an example
+// @title       OmniBotGo API
+// @description 统一消息机器人管理平台API
 // @version     1.0
 // @host        localhost:8080
-// @BasePath    /v1
-func NewRouter(app *fiber.App, cfg *config.Config, t usecase.Translation, l logger.Interface) {
+// @BasePath    /api/v1
+func NewRouter(
+	app *fiber.App,
+	cfg *config.Config,
+	messageUC usecase.MessageUseCase,
+	channelUC usecase.ChannelUseCase,
+	botUC usecase.BotUseCase,
+	l logger.Interface,
+) {
 	// Options
 	app.Use(middleware.Logger(l))
 	app.Use(middleware.Recovery(l))
@@ -43,8 +50,11 @@ func NewRouter(app *fiber.App, cfg *config.Config, t usecase.Translation, l logg
 	app.Get("/healthz", func(ctx *fiber.Ctx) error { return ctx.SendStatus(http.StatusOK) })
 
 	// Routers
-	apiV1Group := app.Group("/v1")
+	apiV1Group := app.Group("/api/v1")
 	{
-		v1.NewTranslationRoutes(apiV1Group, t, l)
+		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, l)
 	}
+
+	// Webhook路由（在根路径下）
+	v1.NewWebhookRoutes(app, messageUC, channelUC, botUC, l)
 }

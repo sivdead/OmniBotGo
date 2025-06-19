@@ -1,17 +1,17 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Using a translation service as an example",
-        "title": "Go Clean Template API",
+        "description": "统一消息机器人管理平台API",
+        "title": "OmniBotGo API",
         "contact": {},
         "version": "1.0"
     },
     "host": "localhost:8080",
-    "basePath": "/v1",
+    "basePath": "/api/v1",
     "paths": {
-        "/translation/do-translate": {
-            "post": {
-                "description": "Translate a text",
+        "/api/v1/bots": {
+            "get": {
+                "description": "根据条件查询机器人列表，支持分页和过滤",
                 "consumes": [
                     "application/json"
                 ],
@@ -19,46 +19,134 @@
                     "application/json"
                 ],
                 "tags": [
-                    "translation"
+                    "bots"
                 ],
-                "summary": "Translate",
-                "operationId": "do-translate",
+                "summary": "获取机器人列表",
                 "parameters": [
                     {
-                        "description": "Set up translation",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/request.Translate"
-                        }
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ],
+                        "type": "string",
+                        "description": "状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "每页数量，默认20",
+                        "name": "page_size",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "获取成功",
                         "schema": {
-                            "$ref": "#/definitions/entity.Translation"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/v1.StandardResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/usecase.BotListResult"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "请求参数错误",
                         "schema": {
-                            "$ref": "#/definitions/response.Error"
+                            "$ref": "#/definitions/v1.StandardResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "内部服务器错误",
                         "schema": {
-                            "$ref": "#/definitions/response.Error"
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的机器人配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bots"
+                ],
+                "summary": "创建新的机器人",
+                "parameters": [
+                    {
+                        "description": "创建机器人请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/usecase.CreateBotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/v1.StandardResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/entity.Bot"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "机器人名称已存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
                         }
                     }
                 }
             }
         },
-        "/translation/history": {
+        "/api/v1/bots/{id}": {
             "get": {
-                "description": "Show all translation history",
+                "description": "根据ID获取指定机器人的详细信息",
                 "consumes": [
                     "application/json"
                 ],
@@ -66,21 +154,767 @@
                     "application/json"
                 ],
                 "tags": [
-                    "translation"
+                    "bots"
                 ],
-                "summary": "Show history",
-                "operationId": "history",
+                "summary": "获取机器人详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "机器人ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "获取成功",
                         "schema": {
-                            "$ref": "#/definitions/entity.TranslationHistory"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/v1.StandardResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/entity.Bot"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "机器人不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "内部服务器错误",
                         "schema": {
-                            "$ref": "#/definitions/response.Error"
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新指定机器人的配置信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bots"
+                ],
+                "summary": "更新机器人配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "机器人ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新机器人请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/usecase.UpdateBotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/v1.StandardResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/entity.Bot"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "机器人不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "机器人名称已存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定的机器人配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bots"
+                ],
+                "summary": "删除机器人",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "机器人ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "机器人不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/channels": {
+            "get": {
+                "description": "根据条件查询通道列表，支持分页和过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "获取通道列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "机器人ID",
+                        "name": "bot_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "平台类型",
+                        "name": "platform_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "状态",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码，默认1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "每页数量，默认20",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/v1.StandardResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/usecase.ChannelListResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "为指定机器人创建新的平台通道",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "创建新的通道",
+                "parameters": [
+                    {
+                        "description": "创建通道请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/usecase.CreateChannelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/v1.StandardResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/entity.Channel"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "通道已存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/channels/{id}": {
+            "get": {
+                "description": "根据ID获取指定通道的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "获取通道详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "通道ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/v1.StandardResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/entity.Channel"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "通道不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "更新指定通道的配置信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "更新通道配置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "通道ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新通道请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/usecase.UpdateChannelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/v1.StandardResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/entity.Channel"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "通道不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "通道名称已存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "删除指定的通道配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "删除通道",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "通道ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除成功",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "通道不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/channels/{id}/refresh-token": {
+            "post": {
+                "description": "刷新指定通道的访问令牌",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "刷新通道访问令牌",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "通道ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "刷新成功",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "通道不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/channels/{id}/status": {
+            "patch": {
+                "description": "更新指定通道的连接状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "更新通道连接状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "通道ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新状态请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/v1.UpdateChannelStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新成功",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "通道不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/webhook/{platform}/{channel_id}": {
+            "get": {
+                "description": "获取指定通道的Webhook配置信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhook"
+                ],
+                "summary": "获取Webhook配置信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "平台类型",
+                        "name": "platform",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "通道ID",
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/v1.StandardResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/v1.WebhookInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "通道不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "接收并处理来自各个平台的消息回调",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhook"
+                ],
+                "summary": "处理平台Webhook回调",
+                "parameters": [
+                    {
+                        "enum": [
+                            "wecom",
+                            "dingtalk",
+                            "wechat_official",
+                            "feishu"
+                        ],
+                        "type": "string",
+                        "description": "平台类型",
+                        "name": "platform",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "通道ID",
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "签名",
+                        "name": "signature",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "时间戳",
+                        "name": "timestamp",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "随机数",
+                        "name": "nonce",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "验证字符串",
+                        "name": "echostr",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "处理成功",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "通道不存在",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/v1.StandardResponse"
                         }
                     }
                 }
@@ -88,66 +922,811 @@
         }
     },
     "definitions": {
-        "entity.Translation": {
+        "entity.APICallLog": {
             "type": "object",
             "properties": {
-                "destination": {
-                    "type": "string",
-                    "example": "en"
+                "channel": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.Channel"
+                        }
+                    ]
                 },
-                "original": {
-                    "type": "string",
-                    "example": "текст для перевода"
+                "channel_id": {
+                    "type": "integer"
                 },
-                "source": {
+                "created_at": {
                     "type": "string",
-                    "example": "auto"
+                    "example": "2023-01-01T12:00:00Z"
                 },
-                "translation": {
+                "deleted_at": {
                     "type": "string",
-                    "example": "text for translation"
+                    "format": "date-time",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "duration_ms": {
+                    "type": "integer"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "method": {
+                    "type": "string"
+                },
+                "processor": {
+                    "$ref": "#/definitions/entity.MessageProcessor"
+                },
+                "processor_id": {
+                    "type": "integer"
+                },
+                "request_body": {
+                    "type": "string"
+                },
+                "request_headers": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "response_body": {
+                    "type": "string"
+                },
+                "response_headers": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "response_status": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
         },
-        "entity.TranslationHistory": {
+        "entity.Bot": {
             "type": "object",
             "properties": {
-                "history": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "bot_name": {
+                    "type": "string"
+                },
+                "bot_type": {
+                    "type": "string"
+                },
+                "channels": {
+                    "description": "关联关系",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/entity.Translation"
+                        "$ref": "#/definitions/entity.Channel"
                     }
+                },
+                "config": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "status": {
+                    "$ref": "#/definitions/entity.Status"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
                 }
             }
         },
-        "request.Translate": {
+        "entity.Channel": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "access_token_expires_at": {
+                    "type": "string"
+                },
+                "api_call_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.APICallLog"
+                    }
+                },
+                "bot": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.Bot"
+                        }
+                    ]
+                },
+                "bot_id": {
+                    "type": "integer"
+                },
+                "channel_name": {
+                    "type": "string"
+                },
+                "config": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "connection_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.ConnectionLog"
+                    }
+                },
+                "connection_status": {
+                    "$ref": "#/definitions/entity.ConnectionStatus"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "deleted_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "last_connected_at": {
+                    "type": "string"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.Message"
+                    }
+                },
+                "platform_type": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/entity.Status"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "webhook_path": {
+                    "type": "string"
+                }
+            }
+        },
+        "entity.ConnectionLog": {
+            "type": "object",
+            "properties": {
+                "channel": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.Channel"
+                        }
+                    ]
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "deleted_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "details": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "error_code": {
+                    "type": "string"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "event_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "status": {
+                    "$ref": "#/definitions/entity.Status"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                }
+            }
+        },
+        "entity.ConnectionStatus": {
+            "type": "integer",
+            "enum": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "x-enum-comments": {
+                "ConnectionStatusConnected": "已连接",
+                "ConnectionStatusConnecting": "连接中",
+                "ConnectionStatusDisconnected": "断开连接",
+                "ConnectionStatusError": "连接错误"
+            },
+            "x-enum-varnames": [
+                "ConnectionStatusDisconnected",
+                "ConnectionStatusConnected",
+                "ConnectionStatusConnecting",
+                "ConnectionStatusError"
+            ]
+        },
+        "entity.JSONField": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "entity.Message": {
+            "type": "object",
+            "properties": {
+                "backend_request_id": {
+                    "type": "string"
+                },
+                "channel": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.Channel"
+                        }
+                    ]
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "content_type": {
+                    "type": "string"
+                },
+                "conversation_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "deleted_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "direction": {
+                    "$ref": "#/definitions/entity.MessageDirection"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "media_url": {
+                    "type": "string"
+                },
+                "message_id": {
+                    "type": "string"
+                },
+                "message_status": {
+                    "$ref": "#/definitions/entity.MessageStatus"
+                },
+                "message_type": {
+                    "type": "string"
+                },
+                "parent_message": {
+                    "$ref": "#/definitions/entity.Message"
+                },
+                "parent_message_id": {
+                    "type": "integer"
+                },
+                "platform_message_id": {
+                    "type": "string"
+                },
+                "platform_timestamp": {
+                    "type": "string"
+                },
+                "processed_at": {
+                    "type": "string"
+                },
+                "raw_content": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "received_at": {
+                    "type": "string"
+                },
+                "receiver_id": {
+                    "type": "string"
+                },
+                "receiver_name": {
+                    "type": "string"
+                },
+                "receiver_type": {
+                    "type": "string"
+                },
+                "replies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.Message"
+                    }
+                },
+                "retry_count": {
+                    "type": "integer"
+                },
+                "sender_id": {
+                    "type": "string"
+                },
+                "sender_name": {
+                    "type": "string"
+                },
+                "sender_type": {
+                    "type": "string"
+                },
+                "sent_at": {
+                    "type": "string"
+                },
+                "unified_content": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                }
+            }
+        },
+        "entity.MessageDirection": {
+            "type": "integer",
+            "enum": [
+                1,
+                2
+            ],
+            "x-enum-comments": {
+                "MessageDirectionInbound": "入站消息",
+                "MessageDirectionOutbound": "出站消息"
+            },
+            "x-enum-varnames": [
+                "MessageDirectionInbound",
+                "MessageDirectionOutbound"
+            ]
+        },
+        "entity.MessageProcessor": {
+            "type": "object",
+            "properties": {
+                "api_call_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.APICallLog"
+                    }
+                },
+                "config": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "deleted_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "processor_name": {
+                    "type": "string"
+                },
+                "processor_type": {
+                    "type": "string"
+                },
+                "routing_rules": {
+                    "description": "关联关系",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.MessageRoutingRule"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/entity.Status"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                }
+            }
+        },
+        "entity.MessageRoutingRule": {
+            "type": "object",
+            "properties": {
+                "bot_ids": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "channel_ids": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "condition_logic": {
+                    "type": "string"
+                },
+                "content_patterns": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "deleted_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2023-01-01T12:00:00Z"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "is_fallback": {
+                    "type": "boolean"
+                },
+                "message_processor": {
+                    "description": "关联关系",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.MessageProcessor"
+                        }
+                    ]
+                },
+                "message_types": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "platform_types": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "processor_id": {
+                    "type": "integer"
+                },
+                "route_type": {
+                    "$ref": "#/definitions/entity.RouteType"
+                },
+                "rule_description": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "sender_patterns": {
+                    "$ref": "#/definitions/entity.JSONField"
+                },
+                "status": {
+                    "$ref": "#/definitions/entity.Status"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T12:00:00Z"
+                }
+            }
+        },
+        "entity.MessageStatus": {
+            "type": "integer",
+            "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+            ],
+            "x-enum-comments": {
+                "MessageStatusExpired": "已过期",
+                "MessageStatusFailed": "处理失败",
+                "MessageStatusPending": "待处理",
+                "MessageStatusProcessed": "已处理",
+                "MessageStatusProcessing": "处理中",
+                "MessageStatusSent": "已发送"
+            },
+            "x-enum-varnames": [
+                "MessageStatusPending",
+                "MessageStatusProcessing",
+                "MessageStatusProcessed",
+                "MessageStatusSent",
+                "MessageStatusFailed",
+                "MessageStatusExpired"
+            ]
+        },
+        "entity.RouteType": {
+            "type": "integer",
+            "enum": [
+                1,
+                2,
+                3,
+                4
+            ],
+            "x-enum-comments": {
+                "RouteTypeBroadcast": "广播路由",
+                "RouteTypeConditional": "条件路由",
+                "RouteTypeDirect": "直接路由",
+                "RouteTypeForward": "转发路由"
+            },
+            "x-enum-varnames": [
+                "RouteTypeDirect",
+                "RouteTypeForward",
+                "RouteTypeBroadcast",
+                "RouteTypeConditional"
+            ]
+        },
+        "entity.Status": {
+            "type": "integer",
+            "enum": [
+                0,
+                1,
+                2,
+                3
+            ],
+            "x-enum-comments": {
+                "StatusActive": "激活/启用",
+                "StatusDeleted": "已删除",
+                "StatusInactive": "未激活/禁用",
+                "StatusSuspended": "暂停"
+            },
+            "x-enum-varnames": [
+                "StatusInactive",
+                "StatusActive",
+                "StatusDeleted",
+                "StatusSuspended"
+            ]
+        },
+        "usecase.BotListResult": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.Bot"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "usecase.ChannelListResult": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.Channel"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "usecase.CreateBotRequest": {
             "type": "object",
             "required": [
-                "destination",
-                "original",
-                "source"
+                "bot_name",
+                "bot_type"
             ],
             "properties": {
-                "destination": {
-                    "type": "string",
-                    "example": "en"
+                "avatar_url": {
+                    "type": "string"
                 },
-                "original": {
-                    "type": "string",
-                    "example": "текст для перевода"
+                "bot_name": {
+                    "type": "string"
                 },
-                "source": {
-                    "type": "string",
-                    "example": "auto"
+                "bot_type": {
+                    "type": "string"
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
                 }
             }
         },
-        "response.Error": {
+        "usecase.CreateChannelRequest": {
+            "type": "object",
+            "required": [
+                "bot_id",
+                "channel_name",
+                "platform_type"
+            ],
+            "properties": {
+                "bot_id": {
+                    "type": "integer"
+                },
+                "channel_name": {
+                    "type": "string"
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "platform_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "usecase.UpdateBotRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "bot_name": {
+                    "type": "string"
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/entity.Status"
+                }
+            }
+        },
+        "usecase.UpdateChannelRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "channel_name": {
+                    "type": "string"
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/entity.Status"
+                }
+            }
+        },
+        "v1.StandardResponse": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "data": {},
                 "error": {
-                    "type": "string",
-                    "example": "message"
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "v1.UpdateChannelStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "$ref": "#/definitions/entity.ConnectionStatus"
+                }
+            }
+        },
+        "v1.WebhookInfo": {
+            "type": "object",
+            "properties": {
+                "channel_id": {
+                    "type": "integer"
+                },
+                "channel_name": {
+                    "type": "string"
+                },
+                "connection_status": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "webhook_path": {
+                    "type": "string"
+                },
+                "webhook_url": {
+                    "type": "string"
                 }
             }
         }

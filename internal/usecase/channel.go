@@ -5,26 +5,29 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
 // channelUseCase 通道管理业务逻辑实现
 type channelUseCase struct {
 	channelRepo repo.ChannelRepo
+	messageRepo repo.MessageRepo
 	botRepo     repo.BotRepo
-	logger      *zerolog.Logger
+	logger      logger.Interface
 }
 
 // NewChannelUseCase 创建通道管理业务逻辑实例
 func NewChannelUseCase(
 	channelRepo repo.ChannelRepo,
+	messageRepo repo.MessageRepo,
 	botRepo repo.BotRepo,
-	logger *zerolog.Logger,
+	logger logger.Interface,
 ) ChannelUseCase {
 	return &channelUseCase{
 		channelRepo: channelRepo,
+		messageRepo: messageRepo,
 		botRepo:     botRepo,
 		logger:      logger,
 	}
@@ -32,32 +35,32 @@ func NewChannelUseCase(
 
 // CreateChannel 创建通道
 func (uc *channelUseCase) CreateChannel(ctx context.Context, req CreateChannelRequest) (*entity.Channel, error) {
-	log := uc.logger.With().
-		Str("method", "CreateChannel").
-		Int64("bot_id", req.BotID).
-		Str("platform_type", req.PlatformType).
-		Str("channel_name", req.ChannelName).
-		Logger()
-
-	log.Info().Msg("开始创建通道")
+	uc.logger.Info("开始创建通道", "method", "CreateChannel", "bot_id", req.BotID, "platform_type", req.PlatformType, "channel_name", req.ChannelName)
 
 	// 验证机器人是否存在且活跃
 	bot, err := uc.botRepo.GetByID(ctx, req.BotID)
 	if err != nil {
-		log.Error().Err(err).Msg("获取机器人信息失败")
+		uc.logger.Error("获取机器人信息失败", "error", err)
 		return nil, fmt.Errorf("获取机器人信息失败: %w", err)
 	}
 
 	if !bot.IsActive() {
-		log.Warn().Msg("机器人未激活，无法创建通道")
+		uc.logger.Warn("机器人未激活，无法创建通道")
 		return nil, fmt.Errorf("机器人未激活")
 	}
 
 	// 检查通道名称是否重复
-	existingChannel, err := uc.channelRepo.GetByName(ctx, req.BotID, req.ChannelName)
-	if err == nil && existingChannel != nil {
-		log.Warn().Msg("通道名称已存在")
-		return nil, fmt.Errorf("通道名称已存在")
+	existingChannels, err := uc.channelRepo.GetByBotID(ctx, req.BotID)
+	if err != nil {
+		uc.logger.Error("获取机器人通道列表失败", "error", err)
+		return nil, fmt.Errorf("获取机器人通道列表失败: %w", err)
+	}
+
+	for _, ch := range existingChannels {
+		if ch.ChannelName == req.ChannelName && ch.Status != entity.StatusDeleted {
+			uc.logger.Warn("通道名称已存在")
+			return nil, fmt.Errorf("通道名称已存在")
+		}
 	}
 
 	// 创建通道实体
@@ -84,37 +87,29 @@ func (uc *channelUseCase) CreateChannel(ctx context.Context, req CreateChannelRe
 
 	// 验证通道数据
 	if err := channel.Validate(); err != nil {
-		log.Error().Err(err).Msg("通道数据验证失败")
+		uc.logger.Error("通道数据验证失败", "error", err)
 		return nil, fmt.Errorf("通道数据验证失败: %w", err)
 	}
 
 	// 保存通道到数据库
 	if err := uc.channelRepo.Create(ctx, channel); err != nil {
-		log.Error().Err(err).Msg("保存通道失败")
+		uc.logger.Error("保存通道失败", "error", err)
 		return nil, fmt.Errorf("保存通道失败: %w", err)
 	}
 
-	log.Info().
-		Int64("channel_id", channel.ID).
-		Str("webhook_path", channel.WebhookPath).
-		Msg("通道创建成功")
+	uc.logger.Info("通道创建成功", "channel_id", channel.ID, "webhook_path", channel.WebhookPath)
 
 	return channel, nil
 }
 
 // UpdateChannel 更新通道
 func (uc *channelUseCase) UpdateChannel(ctx context.Context, req UpdateChannelRequest) (*entity.Channel, error) {
-	log := uc.logger.With().
-		Str("method", "UpdateChannel").
-		Int64("channel_id", req.ID).
-		Logger()
-
-	log.Info().Msg("开始更新通道")
+	uc.logger.Info("开始更新通道", "method", "UpdateChannel", "channel_id", req.ID)
 
 	// 获取现有通道
 	channel, err := uc.channelRepo.GetByID(ctx, req.ID)
 	if err != nil {
-		log.Error().Err(err).Msg("获取通道信息失败")
+		uc.logger.Error("获取通道信息失败", "error", err)
 		return nil, fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
@@ -122,10 +117,17 @@ func (uc *channelUseCase) UpdateChannel(ctx context.Context, req UpdateChannelRe
 	if req.ChannelName != nil {
 		// 检查新名称是否重复
 		if *req.ChannelName != channel.ChannelName {
-			existingChannel, err := uc.channelRepo.GetByName(ctx, channel.BotID, *req.ChannelName)
-			if err == nil && existingChannel != nil {
-				log.Warn().Msg("通道名称已存在")
-				return nil, fmt.Errorf("通道名称已存在")
+			existingChannels, err := uc.channelRepo.GetByBotID(ctx, channel.BotID)
+			if err != nil {
+				uc.logger.Error("获取机器人通道列表失败", "error", err)
+				return nil, fmt.Errorf("获取机器人通道列表失败: %w", err)
+			}
+
+			for _, ch := range existingChannels {
+				if ch.ChannelName == *req.ChannelName && ch.ID != channel.ID && ch.Status != entity.StatusDeleted {
+					uc.logger.Warn("通道名称已存在")
+					return nil, fmt.Errorf("通道名称已存在")
+				}
 			}
 		}
 		channel.ChannelName = *req.ChannelName
@@ -151,46 +153,50 @@ func (uc *channelUseCase) UpdateChannel(ctx context.Context, req UpdateChannelRe
 
 	// 验证通道数据
 	if err := channel.Validate(); err != nil {
-		log.Error().Err(err).Msg("通道数据验证失败")
+		uc.logger.Error("通道数据验证失败", "error", err)
 		return nil, fmt.Errorf("通道数据验证失败: %w", err)
 	}
 
 	// 保存更新
 	if err := uc.channelRepo.Update(ctx, channel); err != nil {
-		log.Error().Err(err).Msg("更新通道失败")
+		uc.logger.Error("更新通道失败", "error", err)
 		return nil, fmt.Errorf("更新通道失败: %w", err)
 	}
 
-	log.Info().Msg("通道更新成功")
+	uc.logger.Info("通道更新成功")
 	return channel, nil
 }
 
 // DeleteChannel 删除通道
 func (uc *channelUseCase) DeleteChannel(ctx context.Context, id int64) error {
-	log := uc.logger.With().
-		Str("method", "DeleteChannel").
-		Int64("channel_id", id).
-		Logger()
-
-	log.Info().Msg("开始删除通道")
+	uc.logger.Info("开始删除通道", "method", "DeleteChannel", "channel_id", id)
 
 	// 获取通道信息
 	channel, err := uc.channelRepo.GetByID(ctx, id)
 	if err != nil {
-		log.Error().Err(err).Msg("获取通道信息失败")
+		uc.logger.Error("获取通道信息失败", "error", err)
 		return fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
 	// 检查通道是否有未处理的消息
-	pendingCount, err := uc.channelRepo.GetPendingMessageCount(ctx, id)
+	messageParams := repo.ListParams{
+		Page:     1,
+		PageSize: 1,
+		Filters: map[string]interface{}{
+			"channel_id":     id,
+			"message_status": entity.MessageStatusPending,
+		},
+	}
+
+	pendingResult, err := uc.messageRepo.GetByChannelID(ctx, id, messageParams)
 	if err != nil {
-		log.Error().Err(err).Msg("检查待处理消息失败")
+		uc.logger.Error("检查待处理消息失败", "error", err)
 		return fmt.Errorf("检查待处理消息失败: %w", err)
 	}
 
-	if pendingCount > 0 {
-		log.Warn().Int64("pending_count", pendingCount).Msg("通道存在待处理消息，无法删除")
-		return fmt.Errorf("通道存在 %d 条待处理消息，无法删除", pendingCount)
+	if pendingResult.Total > 0 {
+		uc.logger.Warn("通道存在待处理消息，无法删除", "pending_count", pendingResult.Total)
+		return fmt.Errorf("通道存在 %d 条待处理消息，无法删除", pendingResult.Total)
 	}
 
 	// 软删除通道（标记为已删除状态）
@@ -198,46 +204,32 @@ func (uc *channelUseCase) DeleteChannel(ctx context.Context, id int64) error {
 	channel.UpdatedAt = time.Now()
 
 	if err := uc.channelRepo.Update(ctx, channel); err != nil {
-		log.Error().Err(err).Msg("删除通道失败")
+		uc.logger.Error("删除通道失败", "error", err)
 		return fmt.Errorf("删除通道失败: %w", err)
 	}
 
-	log.Info().Msg("通道删除成功")
+	uc.logger.Info("通道删除成功")
 	return nil
 }
 
 // GetChannel 获取通道信息
 func (uc *channelUseCase) GetChannel(ctx context.Context, id int64) (*entity.Channel, error) {
-	log := uc.logger.With().
-		Str("method", "GetChannel").
-		Int64("channel_id", id).
-		Logger()
-
-	log.Info().Msg("获取通道信息")
+	uc.logger.Info("获取通道信息", "method", "GetChannel", "channel_id", id)
 
 	channel, err := uc.channelRepo.GetByID(ctx, id)
 	if err != nil {
-		log.Error().Err(err).Msg("获取通道信息失败")
+		uc.logger.Error("获取通道信息失败", "error", err)
 		return nil, fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
-	log.Info().
-		Str("channel_name", channel.ChannelName).
-		Str("platform_type", channel.PlatformType).
-		Str("status", channel.Status.String()).
-		Str("connection_status", channel.ConnectionStatus.String()).
-		Msg("通道信息获取成功")
+	uc.logger.Info("通道信息获取成功", "channel_name", channel.ChannelName, "platform_type", channel.PlatformType, "status", channel.Status.String(), "connection_status", channel.ConnectionStatus.String())
 
 	return channel, nil
 }
 
 // ListChannels 获取通道列表
 func (uc *channelUseCase) ListChannels(ctx context.Context, params ListChannelsParams) (*ChannelListResult, error) {
-	log := uc.logger.With().
-		Str("method", "ListChannels").
-		Logger()
-
-	log.Info().Msg("获取通道列表")
+	uc.logger.Info("获取通道列表", "method", "ListChannels")
 
 	// 构建查询过滤器
 	filters := make(map[string]interface{})
@@ -252,50 +244,46 @@ func (uc *channelUseCase) ListChannels(ctx context.Context, params ListChannelsP
 		filters["status"] = *params.Status
 	}
 
-	// 计算偏移量
-	offset := (params.Page - 1) * params.PageSize
-
 	// 查询通道列表
-	channels, total, err := uc.channelRepo.ListWithPagination(ctx, filters, offset, params.PageSize)
+	listParams := repo.ListParams{
+		Page:     params.Page,
+		PageSize: params.PageSize,
+		Filters:  filters,
+	}
+
+	result, err := uc.channelRepo.List(ctx, listParams)
 	if err != nil {
-		log.Error().Err(err).Msg("查询通道列表失败")
+		uc.logger.Error("查询通道列表失败", "error", err)
 		return nil, fmt.Errorf("查询通道列表失败: %w", err)
 	}
 
-	// 计算总页数
-	totalPages := int((total + int64(params.PageSize) - 1) / int64(params.PageSize))
-
-	result := &ChannelListResult{
-		Items:      channels,
-		Total:      total,
-		Page:       params.Page,
-		PageSize:   params.PageSize,
-		TotalPages: totalPages,
+	// 转换指针切片为值切片
+	channelValues := make([]entity.Channel, len(result.Items))
+	for i, ch := range result.Items {
+		channelValues[i] = *ch
 	}
 
-	log.Info().
-		Int64("total", total).
-		Int("page", params.Page).
-		Int("page_size", params.PageSize).
-		Msg("通道列表查询完成")
+	channelResult := &ChannelListResult{
+		Items:      channelValues,
+		Total:      result.Total,
+		Page:       result.Page,
+		PageSize:   result.PageSize,
+		TotalPages: result.TotalPages,
+	}
 
-	return result, nil
+	uc.logger.Info("通道列表查询完成", "total", result.Total, "page", result.Page, "page_size", result.PageSize)
+
+	return channelResult, nil
 }
 
 // UpdateChannelStatus 更新通道状态
 func (uc *channelUseCase) UpdateChannelStatus(ctx context.Context, id int64, status entity.ConnectionStatus) error {
-	log := uc.logger.With().
-		Str("method", "UpdateChannelStatus").
-		Int64("channel_id", id).
-		Str("status", status.String()).
-		Logger()
-
-	log.Info().Msg("更新通道连接状态")
+	uc.logger.Info("更新通道连接状态", "method", "UpdateChannelStatus", "channel_id", id, "status", status.String())
 
 	// 获取通道信息
 	channel, err := uc.channelRepo.GetByID(ctx, id)
 	if err != nil {
-		log.Error().Err(err).Msg("获取通道信息失败")
+		uc.logger.Error("获取通道信息失败", "error", err)
 		return fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
@@ -305,27 +293,22 @@ func (uc *channelUseCase) UpdateChannelStatus(ctx context.Context, id int64, sta
 
 	// 保存更新
 	if err := uc.channelRepo.Update(ctx, channel); err != nil {
-		log.Error().Err(err).Msg("更新通道状态失败")
+		uc.logger.Error("更新通道状态失败", "error", err)
 		return fmt.Errorf("更新通道状态失败: %w", err)
 	}
 
-	log.Info().Msg("通道连接状态更新成功")
+	uc.logger.Info("通道连接状态更新成功")
 	return nil
 }
 
 // RefreshChannelToken 刷新通道令牌
 func (uc *channelUseCase) RefreshChannelToken(ctx context.Context, id int64) error {
-	log := uc.logger.With().
-		Str("method", "RefreshChannelToken").
-		Int64("channel_id", id).
-		Logger()
-
-	log.Info().Msg("刷新通道令牌")
+	uc.logger.Info("刷新通道令牌", "method", "RefreshChannelToken", "channel_id", id)
 
 	// 获取通道信息
 	channel, err := uc.channelRepo.GetByID(ctx, id)
 	if err != nil {
-		log.Error().Err(err).Msg("获取通道信息失败")
+		uc.logger.Error("获取通道信息失败", "error", err)
 		return fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
@@ -342,14 +325,11 @@ func (uc *channelUseCase) RefreshChannelToken(ctx context.Context, id int64) err
 
 	// 保存更新
 	if err := uc.channelRepo.Update(ctx, channel); err != nil {
-		log.Error().Err(err).Msg("保存令牌更新失败")
+		uc.logger.Error("保存令牌更新失败", "error", err)
 		return fmt.Errorf("保存令牌更新失败: %w", err)
 	}
 
-	log.Info().
-		Str("new_token", "***").
-		Time("expires_at", expiresAt).
-		Msg("通道令牌刷新成功")
+	uc.logger.Info("通道令牌刷新成功", "new_token", "***", "expires_at", expiresAt)
 
 	return nil
 }

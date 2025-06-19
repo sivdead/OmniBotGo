@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"github.com/sivdead/OmniBotGo/config"
 	"github.com/sivdead/OmniBotGo/internal/app"
+	"github.com/sivdead/OmniBotGo/internal/config"
 )
 
 func main() {

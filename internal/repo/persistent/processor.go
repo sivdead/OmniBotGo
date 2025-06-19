@@ -95,18 +95,17 @@ func (r *MessageProcessorRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取MessageProcessor列表（分页）
-func (r *MessageProcessorRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult, error) {
+func (r *MessageProcessorRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.MessageProcessor], error) {
 	params = r.validateParams(params)
 
 	var processors []*entity.MessageProcessor
 	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageProcessor{}), params)
 
-	result, err := r.paginate(ctx, query, params, &processors)
+	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &processors)
 	if err != nil {
-		return nil, r.handleError(err, "list processors")
+		return nil, r.handleError(err, "list message processors")
 	}
 
-	result.Items = processors
 	return result, nil
 }
 
@@ -262,18 +261,17 @@ func (r *MessageRoutingRuleRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取MessageRoutingRule列表（分页）
-func (r *MessageRoutingRuleRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult, error) {
+func (r *MessageRoutingRuleRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.MessageRoutingRule], error) {
 	params = r.validateParams(params)
 
 	var rules []*entity.MessageRoutingRule
 	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageRoutingRule{}), params)
 
-	result, err := r.paginate(ctx, query, params, &rules)
+	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &rules)
 	if err != nil {
 		return nil, r.handleError(err, "list routing rules")
 	}
 
-	result.Items = rules
 	return result, nil
 }
 
