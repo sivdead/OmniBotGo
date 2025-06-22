@@ -3,13 +3,14 @@ package port
 import (
 	"context"
 
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 )
 
 // MessageSender 发送消息的能力接口
 type MessageSender interface {
 	// SendMessage 发送消息
-	SendMessage(ctx context.Context, message *entity.UnifiedMessage, config map[string]interface{}, accessToken string) error
+	SendMessage(ctx context.Context, message *dto.UnifiedMessage, config map[string]interface{}, accessToken string) error
 }
 
 // WebhookProcessor Webhook处理的能力接口
@@ -17,7 +18,7 @@ type WebhookProcessor interface {
 	// VerifyWebhook 验证Webhook请求
 	VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error
 	// ParseInboundMessage 解析入站消息
-	ParseInboundMessage(ctx context.Context, body []byte, config map[string]interface{}) (*entity.UnifiedMessage, error)
+	ParseInboundMessage(ctx context.Context, body []byte, config map[string]interface{}) (*dto.UnifiedMessage, error)
 	// BuildWebhookPath 构建Webhook路径
 	BuildWebhookPath(channelID int64) string
 }
@@ -25,9 +26,9 @@ type WebhookProcessor interface {
 // TokenManager Token管理的能力接口
 type TokenManager interface {
 	// GetAccessToken 获取访问令牌
-	GetAccessToken(ctx context.Context, config map[string]interface{}) (*entity.AccessTokenResponse, error)
+	GetAccessToken(ctx context.Context, config map[string]interface{}) (*dto.AccessTokenResponse, error)
 	// RefreshAccessToken 刷新访问令牌
-	RefreshAccessToken(ctx context.Context, config map[string]interface{}, oldToken string) (*entity.AccessTokenResponse, error)
+	RefreshAccessToken(ctx context.Context, config map[string]interface{}, oldToken string) (*dto.AccessTokenResponse, error)
 }
 
 // StreamAdapter Stream连接适配器接口（用于钉钉Stream等主动连接模式）
@@ -41,7 +42,7 @@ type StreamAdapter interface {
 }
 
 // MessageHandler Stream消息处理回调函数
-type MessageHandler func(ctx context.Context, message *entity.UnifiedMessage) error
+type MessageHandler func(ctx context.Context, message *dto.UnifiedMessage) error
 
 // ConfigValidator 配置验证能力接口
 type ConfigValidator interface {

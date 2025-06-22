@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 )
 
@@ -17,8 +17,8 @@ type ChannelRepo struct {
 	*BaseRepo
 }
 
-// NewChannelRepo 创建Channel Repository实例
-func NewChannelRepo(db database.CommonDB) repo.ChannelRepo {
+// NewChannelRepository 创建Channel Repository实例
+func NewChannelRepository(db database.CommonDB) port.ChannelRepository {
 	return &ChannelRepo{
 		BaseRepo: NewBaseRepo(db),
 	}
@@ -121,13 +121,14 @@ func (r *ChannelRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取Channel列表（分页）
-func (r *ChannelRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.Channel], error) {
-	params = r.validateParams(params)
+func (r *ChannelRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.Channel], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var channels []*entity.Channel
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Channel{}), params)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Channel{}), internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &channels)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &channels)
 	if err != nil {
 		return nil, r.handleError(err, "list channels")
 	}
@@ -212,3 +213,6 @@ func (r *ChannelRepo) GetPendingMessageCount(ctx context.Context, channelID int6
 	}
 	return count, nil
 }
+
+// 确保 ChannelRepo 实现了 port.ChannelRepository 接口
+var _ port.ChannelRepository = (*ChannelRepo)(nil)

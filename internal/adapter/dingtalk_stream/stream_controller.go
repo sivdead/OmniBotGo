@@ -9,6 +9,8 @@ import (
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/client"
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/logger"
 	"github.com/rs/zerolog"
+	"github.com/sivdead/OmniBotGo/internal/config"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 )
 
@@ -22,7 +24,7 @@ type StreamController struct {
 	messageHandler MessageHandler
 	logger         zerolog.Logger
 	client         *client.StreamClient
-	config         *DingtalkStreamConfig
+	config         *config.DingtalkStreamConfig
 	channelID      int64
 	isRunning      bool
 }
@@ -31,7 +33,7 @@ type StreamController struct {
 func NewStreamController(
 	messageHandler MessageHandler,
 	logger zerolog.Logger,
-	config *DingtalkStreamConfig,
+	config *config.DingtalkStreamConfig,
 	channelID int64,
 ) *StreamController {
 	return &StreamController{
@@ -160,8 +162,8 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 }
 
 // convertToUnifiedMessage 直接转换钉钉数据模型为统一消息格式
-func (c *StreamController) convertToUnifiedMessage(data *chatbot.BotCallbackDataModel) (*entity.UnifiedMessage, error) {
-	unifiedMsg := &entity.UnifiedMessage{
+func (c *StreamController) convertToUnifiedMessage(data *chatbot.BotCallbackDataModel) (*dto.UnifiedMessage, error) {
+	unifiedMsg := &dto.UnifiedMessage{
 		MessageID:         data.MsgId,
 		MessageType:       data.Msgtype,
 		SenderID:          data.SenderId,

@@ -1,4 +1,7 @@
 // Package repo implements application outer layer logic. Each logic group in own file.
+//
+// DEPRECATED: 这些接口定义是旧的实现，新的接口定义已经迁移到 internal/usecase/port 包中。
+// 为了保持向后兼容性，暂时保留这些接口。后续将逐步迁移所有实现到新接口。
 package repo
 
 import (

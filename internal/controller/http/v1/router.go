@@ -3,6 +3,7 @@ package v1
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/sivdead/OmniBotGo/internal/adapter"
+	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/usecase"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
@@ -13,9 +14,16 @@ func NewAPIRoutes(
 	messageUC usecase.MessageUseCase,
 	channelUC usecase.ChannelUseCase,
 	botUC usecase.BotUseCase,
+	systemConfigUC usecase.SystemConfigUseCase,
+	platformUC usecase.PlatformUseCase,
+	monitorUC usecase.MonitorUseCase,
+	logUC usecase.LogUseCase,
+	queueUC usecase.QueueUseCase,
+	processorUC usecase.ProcessorUseCase,
 	l logger.Interface,
+	cfg *config.Config,
 ) {
-	v1 := NewV1Controller(messageUC, channelUC, botUC, l)
+	v1 := NewV1Controller(messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
 
 	// 消息相关路由
 	messagesGroup := apiV1Group.Group("/messages")
@@ -23,7 +31,7 @@ func NewAPIRoutes(
 		messagesGroup.Post("/send", v1.SendMessage)
 		messagesGroup.Get("/", v1.GetMessageHistory)
 		messagesGroup.Get("/:id", v1.GetMessage)
-		messagesGroup.Post("/:id/retry", v1.RetryFailedMessage)
+		messagesGroup.Post("/:id/retry", v1.RetryMessage)
 	}
 
 	// 通道相关路由
@@ -112,9 +120,10 @@ func NewAPIRoutes(
 	// 监控和统计路由
 	monitorGroup := apiV1Group.Group("/monitor")
 	{
-		monitorGroup.Get("/overview", v1.GetSystemOverview)
-		monitorGroup.Get("/metrics", v1.GetSystemMetrics)
-		monitorGroup.Get("/health-detailed", v1.GetDetailedHealth)
+		monitorGroup.Get("/status", v1.GetSystemStatus)
+		monitorGroup.Get("/platforms", v1.GetPlatformConnectionStatus)
+		monitorGroup.Get("/messages/stats", v1.GetMessageStatistics)
+		monitorGroup.Get("/health", v1.GetHealthStatus)
 	}
 }
 

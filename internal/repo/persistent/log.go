@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 )
 
@@ -16,8 +16,8 @@ type ConnectionLogRepo struct {
 	*BaseRepo
 }
 
-// NewConnectionLogRepo 创建ConnectionLog Repository实例
-func NewConnectionLogRepo(db database.CommonDB) repo.ConnectionLogRepo {
+// NewConnectionLogRepository 创建ConnectionLog Repository实例
+func NewConnectionLogRepository(db database.CommonDB) port.ConnectionLogRepository {
 	return &ConnectionLogRepo{
 		BaseRepo: NewBaseRepo(db),
 	}
@@ -36,17 +36,18 @@ func (r *ConnectionLogRepo) Create(ctx context.Context, log *entity.ConnectionLo
 }
 
 // GetByChannelID 根据通道ID获取ConnectionLog列表（分页）
-func (r *ConnectionLogRepo) GetByChannelID(ctx context.Context, channelID int64, params repo.ListParams) (*repo.PaginatedResult[*entity.ConnectionLog], error) {
-	params = r.validateParams(params)
+func (r *ConnectionLogRepo) GetByChannelID(ctx context.Context, channelID int64, params port.ListParams) (*port.PaginatedResult[*entity.ConnectionLog], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var logs []*entity.ConnectionLog
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.ConnectionLog{}).
 		Where("channel_id = ?", channelID)
 
-	query = r.buildQuery(query, params)
+	query = r.buildQuery(query, internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &logs)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "get connection logs by channel id")
 	}
@@ -95,13 +96,14 @@ func (r *ConnectionLogRepo) GetErrorLogs(ctx context.Context, channelID int64, l
 }
 
 // List 获取ConnectionLog列表（分页）
-func (r *ConnectionLogRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.ConnectionLog], error) {
-	params = r.validateParams(params)
+func (r *ConnectionLogRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.ConnectionLog], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var logs []*entity.ConnectionLog
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.ConnectionLog{}), params)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.ConnectionLog{}), internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &logs)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "list connection logs")
 	}
@@ -120,13 +122,16 @@ func (r *ConnectionLogRepo) DeleteOldLogs(ctx context.Context, beforeDays int) e
 	return r.hardDelete(ctx, &entity.ConnectionLog{}, "created_at < ?", cutoffTime)
 }
 
+// 确保 ConnectionLogRepo 实现了 port.ConnectionLogRepository 接口
+var _ port.ConnectionLogRepository = (*ConnectionLogRepo)(nil)
+
 // APICallLogRepo APICallLog相关的数据访问层实现
 type APICallLogRepo struct {
 	*BaseRepo
 }
 
-// NewAPICallLogRepo 创建APICallLog Repository实例
-func NewAPICallLogRepo(db database.CommonDB) repo.APICallLogRepo {
+// NewAPICallLogRepository 创建APICallLog Repository实例
+func NewAPICallLogRepository(db database.CommonDB) port.APICallLogRepository {
 	return &APICallLogRepo{
 		BaseRepo: NewBaseRepo(db),
 	}
@@ -159,17 +164,18 @@ func (r *APICallLogRepo) GetByRequestID(ctx context.Context, requestID string) (
 }
 
 // GetByChannelID 根据通道ID获取APICallLog列表（分页）
-func (r *APICallLogRepo) GetByChannelID(ctx context.Context, channelID int64, params repo.ListParams) (*repo.PaginatedResult[*entity.APICallLog], error) {
-	params = r.validateParams(params)
+func (r *APICallLogRepo) GetByChannelID(ctx context.Context, channelID int64, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var logs []*entity.APICallLog
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.APICallLog{}).
 		Where("channel_id = ?", channelID)
 
-	query = r.buildQuery(query, params)
+	query = r.buildQuery(query, internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &logs)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "get api call logs by channel id")
 	}
@@ -178,17 +184,18 @@ func (r *APICallLogRepo) GetByChannelID(ctx context.Context, channelID int64, pa
 }
 
 // GetByProcessorID 根据处理器ID获取APICallLog列表（分页）
-func (r *APICallLogRepo) GetByProcessorID(ctx context.Context, processorID int64, params repo.ListParams) (*repo.PaginatedResult[*entity.APICallLog], error) {
-	params = r.validateParams(params)
+func (r *APICallLogRepo) GetByProcessorID(ctx context.Context, processorID int64, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var logs []*entity.APICallLog
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.APICallLog{}).
 		Where("processor_id = ?", processorID)
 
-	query = r.buildQuery(query, params)
+	query = r.buildQuery(query, internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &logs)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "get api call logs by processor id")
 	}
@@ -256,13 +263,14 @@ func (r *APICallLogRepo) GetRecentCalls(ctx context.Context, limit int) ([]*enti
 }
 
 // List 获取APICallLog列表（分页）
-func (r *APICallLogRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.APICallLog], error) {
-	params = r.validateParams(params)
+func (r *APICallLogRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var logs []*entity.APICallLog
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.APICallLog{}), params)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.APICallLog{}), internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &logs)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "list api call logs")
 	}
@@ -282,8 +290,8 @@ func (r *APICallLogRepo) DeleteOldLogs(ctx context.Context, beforeDays int) erro
 }
 
 // GetStatistics 获取API调用统计信息
-func (r *APICallLogRepo) GetStatistics(ctx context.Context, channelID *int64, processorID *int64) (*repo.CallStatistics, error) {
-	var stats repo.CallStatistics
+func (r *APICallLogRepo) GetStatistics(ctx context.Context, channelID *int64, processorID *int64) (*port.CallStatistics, error) {
+	var stats port.CallStatistics
 
 	query := r.db.GetGORM().WithContext(ctx).Model(&entity.APICallLog{})
 
@@ -331,3 +339,6 @@ func (r *APICallLogRepo) GetStatistics(ctx context.Context, channelID *int64, pr
 
 	return &stats, nil
 }
+
+// 确保 APICallLogRepo 实现了 port.APICallLogRepository 接口
+var _ port.APICallLogRepository = (*APICallLogRepo)(nil)

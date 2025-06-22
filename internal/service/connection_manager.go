@@ -6,18 +6,18 @@ import (
 	"sync"
 
 	"github.com/rs/zerolog"
-	"github.com/sivdead/OmniBotGo/internal/adapter"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
 
 // ConnectionManager 连接管理器，负责管理所有主动连接型适配器的生命周期
 type ConnectionManager struct {
 	logger         zerolog.Logger
-	channelRepo    repo.ChannelRepo
-	adapterManager *adapter.Manager
-	messageHandler port.MessageHandler
+	channelRepo    port.ChannelRepository
+	adapterManager port.AdapterManager
+	messageUseCase usecase.MessageUseCase
 	connections    map[int64]ConnectionInfo // channelID -> ConnectionInfo
 	mu             sync.RWMutex
 	ctx            context.Context
@@ -36,9 +36,9 @@ type ConnectionInfo struct {
 // NewConnectionManager 创建连接管理器
 func NewConnectionManager(
 	logger zerolog.Logger,
-	channelRepo repo.ChannelRepo,
-	adapterManager *adapter.Manager,
-	messageHandler port.MessageHandler,
+	channelRepo port.ChannelRepository,
+	adapterManager port.AdapterManager,
+	messageUseCase usecase.MessageUseCase,
 ) *ConnectionManager {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -46,7 +46,7 @@ func NewConnectionManager(
 		logger:         logger,
 		channelRepo:    channelRepo,
 		adapterManager: adapterManager,
-		messageHandler: messageHandler,
+		messageUseCase: messageUseCase,
 		connections:    make(map[int64]ConnectionInfo),
 		ctx:            ctx,
 		cancel:         cancel,
@@ -138,8 +138,18 @@ func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel
 		IsConnected:   false,
 	}
 
-	// 启动Stream连接
-	if err := streamAdapter.Start(cm.ctx, cm.messageHandler, channel.Config); err != nil {
+	// 创建该通道专用的消息处理器
+	messageHandler := cm.createChannelMessageHandler(channel.ID)
+
+	// 确保config中包含channel_id，方便适配器内部使用
+	configWithChannelID := make(map[string]interface{})
+	for k, v := range channel.Config {
+		configWithChannelID[k] = v
+	}
+	configWithChannelID["channel_id"] = float64(channel.ID) // JSON数字默认解析为float64
+
+	// 启动Stream连接，传递包含channel_id的配置
+	if err := streamAdapter.Start(cm.ctx, messageHandler, configWithChannelID); err != nil {
 		return fmt.Errorf("failed to start stream connection: %w", err)
 	}
 
@@ -156,6 +166,26 @@ func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel
 		Msg("stream connection started")
 
 	return nil
+}
+
+// createChannelMessageHandler 创建带有channelID的消息处理器
+func (cm *ConnectionManager) createChannelMessageHandler(channelID int64) port.MessageHandler {
+	// 创建基础处理器
+	baseHandler := cm.messageUseCase.CreateStreamMessageHandler()
+
+	// 包装处理器，确保消息中包含channelID
+	return func(ctx context.Context, message *dto.UnifiedMessage) error {
+		// 确保RawContent存在
+		if message.RawContent == nil {
+			message.RawContent = make(map[string]interface{})
+		}
+
+		// 注入channelID到消息中
+		message.RawContent["channel_id"] = float64(channelID)
+
+		// 调用原始处理器
+		return baseHandler(ctx, message)
+	}
 }
 
 // GetConnectionStatus 获取连接状态
@@ -191,8 +221,18 @@ func (cm *ConnectionManager) RestartConnection(ctx context.Context, channelID in
 		}
 	}
 
+	// 创建新的消息处理器
+	messageHandler := cm.createChannelMessageHandler(channelID)
+
+	// 确保config中包含channel_id
+	configWithChannelID := make(map[string]interface{})
+	for k, v := range connInfo.Config {
+		configWithChannelID[k] = v
+	}
+	configWithChannelID["channel_id"] = float64(channelID)
+
 	// 重新启动连接
-	if err := connInfo.StreamAdapter.Start(cm.ctx, cm.messageHandler, connInfo.Config); err != nil {
+	if err := connInfo.StreamAdapter.Start(cm.ctx, messageHandler, configWithChannelID); err != nil {
 		connInfo.IsConnected = false
 		cm.connections[channelID] = connInfo
 		return fmt.Errorf("failed to restart stream connection: %w", err)

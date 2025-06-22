@@ -7,6 +7,7 @@ import (
 
 	"github.com/sivdead/OmniBotGo/pkg/mysql"
 	"github.com/sivdead/OmniBotGo/pkg/postgres"
+	"github.com/sivdead/OmniBotGo/pkg/sqlite"
 	"gorm.io/gorm/logger"
 )
 
@@ -17,6 +18,7 @@ const (
 	MySQL      DatabaseType = "mysql"
 	PostgreSQL DatabaseType = "postgres"
 	PostgresQL DatabaseType = "postgresql" // alias for postgres
+	SQLite     DatabaseType = "sqlite"
 )
 
 // DatabaseConfig holds database configuration
@@ -68,7 +70,15 @@ func NewDatabase(config DatabaseConfig) (CommonDB, error) {
 			postgres.SlowThreshold(config.SlowThreshold),
 		)
 
+	case SQLite:
+		return sqlite.New(
+			config.DSN,
+			sqlite.MaxConnections(config.MaxConnections),
+			sqlite.LogLevel(logLevel),
+			sqlite.SlowThreshold(config.SlowThreshold),
+		)
+
 	default:
-		return nil, fmt.Errorf("unsupported database type: %s. Supported types: mysql, postgres", config.Type)
+		return nil, fmt.Errorf("unsupported database type: %s. Supported types: mysql, postgres, sqlite", config.Type)
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sivdead/OmniBotGo/internal/config"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
@@ -33,28 +35,13 @@ func (w *WecomAdapter) GetPlatformType() entity.PlatformType {
 }
 
 // ValidateConfig 验证平台配置
-func (w *WecomAdapter) ValidateConfig(config map[string]interface{}) error {
-	corpID, ok := config["corp_id"].(string)
-	if !ok || corpID == "" {
-		return fmt.Errorf("corp_id is required")
-	}
-
-	agentID, ok := config["agent_id"].(string)
-	if !ok || agentID == "" {
-		return fmt.Errorf("agent_id is required")
-	}
-
-	secret, ok := config["secret"].(string)
-	if !ok || secret == "" {
-		return fmt.Errorf("secret is required")
-	}
-
-	return nil
+func (w *WecomAdapter) ValidateConfig(cfg map[string]interface{}) error {
+	return config.ValidatePlatformConfig(entity.PlatformTypeWecom, cfg)
 }
 
 // SendMessage 发送消息
-func (w *WecomAdapter) SendMessage(ctx context.Context, message *entity.UnifiedMessage, config map[string]interface{}, accessToken string) error {
-	agentID := config["agent_id"].(string)
+func (w *WecomAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, conf map[string]interface{}, accessToken string) error {
+	agentID := conf["agent_id"].(string)
 
 	// 构建企业微信消息格式
 	sendMsg := WecomSendMessage{
@@ -65,18 +52,95 @@ func (w *WecomAdapter) SendMessage(ctx context.Context, message *entity.UnifiedM
 
 	// 根据消息类型设置内容
 	switch message.MessageType {
-	case "text":
+	case entity.MessageTypeText:
 		sendMsg.Text = &WecomTextMessage{
 			Content: message.Content,
 		}
-	case "markdown":
-		sendMsg.Markdown = &WecomMarkdownMessage{
-			Content: message.Content,
+
+	case entity.MessageTypeMarkdown:
+		// 优先使用结构化内容
+		if message.MarkdownContent != nil {
+			sendMsg.Markdown = &WecomMarkdownMessage{
+				Content: message.MarkdownContent.Content,
+			}
+		} else {
+			sendMsg.Markdown = &WecomMarkdownMessage{
+				Content: message.Content,
+			}
 		}
-	case "image":
+
+	case entity.MessageTypeImage:
 		sendMsg.Image = &WecomImageMessage{
 			MediaID: message.MediaURL,
 		}
+
+	case entity.MessageTypeVideo:
+		sendMsg.Video = &WecomVideoMessage{
+			MediaID: message.MediaURL,
+		}
+
+	case entity.MessageTypeFile:
+		// 优先使用结构化内容
+		if message.FileContent != nil {
+			sendMsg.File = &WecomFileMessage{
+				MediaID: message.FileContent.FileURL,
+			}
+		} else {
+			sendMsg.File = &WecomFileMessage{
+				MediaID: message.MediaURL,
+			}
+		}
+
+	case entity.MessageTypeCard:
+		// 转换为文本卡片消息
+		if message.CardContent != nil {
+			sendMsg.MsgType = "textcard"
+			sendMsg.TextCard = &WecomTextCardMessage{
+				Title:       message.CardContent.Title,
+				Description: message.CardContent.Content,
+			}
+			// 如果有按钮，使用第一个按钮的URL
+			if len(message.CardContent.Buttons) > 0 {
+				sendMsg.TextCard.URL = message.CardContent.Buttons[0].ActionURL
+				sendMsg.TextCard.BtnTxt = message.CardContent.Buttons[0].Title
+			}
+		}
+
+	case entity.MessageTypeNews:
+		// 图文消息
+		if message.NewsContent != nil {
+			sendMsg.MsgType = "news"
+			articles := make([]WecomArticle, 0, len(message.NewsContent.Articles))
+			for _, article := range message.NewsContent.Articles {
+				articles = append(articles, WecomArticle{
+					Title:       article.Title,
+					Description: article.Description,
+					URL:         article.URL,
+					PicURL:      article.PicURL,
+				})
+			}
+			sendMsg.News = &WecomNewsMessage{
+				Articles: articles,
+			}
+		}
+
+	case entity.MessageTypeTemplate:
+		// 模板卡片消息
+		if message.TemplateContent != nil {
+			sendMsg.MsgType = "template_card"
+			// 这里可以根据模板内容构建更复杂的模板卡片
+			sendMsg.TemplateCard = &WecomTemplateCard{
+				CardType: "text_notice",
+				MainTitle: &WecomTemplateCardMainTitle{
+					Title: "通知",
+				},
+			}
+		}
+
+	case entity.MessageTypeEvent:
+		// 事件消息通常不发送，而是接收
+		return fmt.Errorf("不支持发送事件类型消息")
+
 	default:
 		// 默认作为文本消息处理
 		sendMsg.Text = &WecomTextMessage{
@@ -126,56 +190,25 @@ func (w *WecomAdapter) SendMessage(ctx context.Context, message *entity.UnifiedM
 // mapToWecomMessageType 映射消息类型到企业微信格式
 func mapToWecomMessageType(msgType string) string {
 	switch msgType {
-	case "text":
+	case entity.MessageTypeText:
 		return "text"
-	case "markdown":
+	case entity.MessageTypeMarkdown:
 		return "markdown"
-	case "image":
+	case entity.MessageTypeImage:
 		return "image"
-	case "voice":
+	case entity.MessageTypeAudio:
 		return "voice"
-	case "video":
+	case entity.MessageTypeVideo:
 		return "video"
-	case "file":
+	case entity.MessageTypeFile:
 		return "file"
+	case entity.MessageTypeCard:
+		return "textcard"
+	case entity.MessageTypeNews:
+		return "news"
 	default:
 		return "text"
 	}
-}
-
-// ParseWecomConfig 解析企业微信配置
-func ParseWecomConfig(config map[string]interface{}) (*WecomConfig, error) {
-	corpID, ok := config["corp_id"].(string)
-	if !ok || corpID == "" {
-		return nil, fmt.Errorf("corp_id is required")
-	}
-
-	agentID, ok := config["agent_id"].(string)
-	if !ok || agentID == "" {
-		return nil, fmt.Errorf("agent_id is required")
-	}
-
-	secret, ok := config["secret"].(string)
-	if !ok || secret == "" {
-		return nil, fmt.Errorf("secret is required")
-	}
-
-	token, _ := config["token"].(string)
-
-	return &WecomConfig{
-		CorpID:  corpID,
-		AgentID: agentID,
-		Secret:  secret,
-		Token:   token,
-	}, nil
-}
-
-// WecomConfig 企业微信配置
-type WecomConfig struct {
-	CorpID  string `json:"corp_id"`
-	AgentID string `json:"agent_id"`
-	Secret  string `json:"secret"`
-	Token   string `json:"token"`
 }
 
 // 确保 WecomAdapter 实现了所需的接口

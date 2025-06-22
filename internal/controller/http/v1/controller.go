@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
@@ -27,8 +28,10 @@ type (
 
 // V1 HTTP控制器结构体
 type V1 struct {
-	l logger.Interface
-	v *validator.Validate
+	l         logger.Interface
+	v         *validator.Validate
+	startTime time.Time
+	cfg       *config.Config
 
 	// 业务逻辑接口
 	messageUC      MessageUseCase
@@ -54,6 +57,7 @@ func NewV1Controller(
 	queueUC QueueUseCase,
 	processorUC ProcessorUseCase,
 	l logger.Interface,
+	cfg *config.Config,
 ) *V1 {
 	return &V1{
 		messageUC:      messageUC,
@@ -67,6 +71,8 @@ func NewV1Controller(
 		processorUC:    processorUC,
 		l:              l,
 		v:              validator.New(),
+		startTime:      time.Now(),
+		cfg:            cfg,
 	}
 }
 

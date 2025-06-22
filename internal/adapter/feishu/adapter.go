@@ -7,6 +7,8 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	"github.com/sivdead/OmniBotGo/internal/config"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
@@ -27,23 +29,13 @@ func (f *FeishuAdapter) GetPlatformType() entity.PlatformType {
 }
 
 // ValidateConfig 验证平台配置
-func (f *FeishuAdapter) ValidateConfig(config map[string]interface{}) error {
-	appID, ok := config["app_id"].(string)
-	if !ok || appID == "" {
-		return fmt.Errorf("app_id is required")
-	}
-
-	appSecret, ok := config["app_secret"].(string)
-	if !ok || appSecret == "" {
-		return fmt.Errorf("app_secret is required")
-	}
-
-	return nil
+func (f *FeishuAdapter) ValidateConfig(cfg map[string]interface{}) error {
+	return config.ValidatePlatformConfig(entity.PlatformTypeFeishu, cfg)
 }
 
 // SendMessage 发送消息
-func (f *FeishuAdapter) SendMessage(ctx context.Context, message *entity.UnifiedMessage, config map[string]interface{}, accessToken string) error {
-	client, err := f.getClient(config)
+func (f *FeishuAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, cfg map[string]interface{}, accessToken string) error {
+	client, err := f.getClient(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to get feishu client: %w", err)
 	}
@@ -77,7 +69,7 @@ func (f *FeishuAdapter) SendMessage(ctx context.Context, message *entity.Unified
 }
 
 // buildMessageContent 构建消息内容
-func (f *FeishuAdapter) buildMessageContent(message *entity.UnifiedMessage) (string, error) {
+func (f *FeishuAdapter) buildMessageContent(message *dto.UnifiedMessage) (string, error) {
 	switch message.MessageType {
 	case "text":
 		return fmt.Sprintf(`{"text":"%s"}`, message.Content), nil
@@ -114,53 +106,19 @@ func (f *FeishuAdapter) mapToFeishuMessageType(msgType string) string {
 }
 
 // getClient 获取飞书客户端
-func (f *FeishuAdapter) getClient(config map[string]interface{}) (*lark.Client, error) {
+func (f *FeishuAdapter) getClient(cfg map[string]interface{}) (*lark.Client, error) {
 	if f.client != nil {
 		return f.client, nil
 	}
 
-	appID := config["app_id"].(string)
-	appSecret := config["app_secret"].(string)
+	appID := cfg["app_id"].(string)
+	appSecret := cfg["app_secret"].(string)
 
 	// 创建飞书客户端
 	client := lark.NewClient(appID, appSecret, lark.WithLogLevel(larkcore.LogLevelError))
 
 	f.client = client
 	return client, nil
-}
-
-// ParseFeishuConfig 解析飞书配置
-func ParseFeishuConfig(config map[string]interface{}) (*FeishuConfig, error) {
-	appID, ok := config["app_id"].(string)
-	if !ok || appID == "" {
-		return nil, fmt.Errorf("app_id is required")
-	}
-
-	appSecret, ok := config["app_secret"].(string)
-	if !ok || appSecret == "" {
-		return nil, fmt.Errorf("app_secret is required")
-	}
-
-	webhookURL, _ := config["webhook_url"].(string)
-	encryptKey, _ := config["encrypt_key"].(string)
-	verificationToken, _ := config["verification_token"].(string)
-
-	return &FeishuConfig{
-		AppID:             appID,
-		AppSecret:         appSecret,
-		WebhookURL:        webhookURL,
-		EncryptKey:        encryptKey,
-		VerificationToken: verificationToken,
-	}, nil
-}
-
-// FeishuConfig 飞书配置
-type FeishuConfig struct {
-	AppID             string `json:"app_id"`
-	AppSecret         string `json:"app_secret"`
-	WebhookURL        string `json:"webhook_url"`
-	EncryptKey        string `json:"encrypt_key"`
-	VerificationToken string `json:"verification_token"`
 }
 
 // 确保 FeishuAdapter 实现了所需的接口

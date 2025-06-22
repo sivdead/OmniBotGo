@@ -43,6 +43,10 @@ type (
 		UpdateChannelStatus(ctx context.Context, id int64, status entity.ConnectionStatus) error
 		// RefreshChannelToken 刷新通道令牌
 		RefreshChannelToken(ctx context.Context, id int64) error
+		// GetActiveChannels 获取所有活跃的通道
+		GetActiveChannels(ctx context.Context) ([]*entity.Channel, error)
+		// IsChannelConnected 检查通道是否已连接
+		IsChannelConnected(ctx context.Context, id int64) bool
 	}
 
 	// BotUseCase 机器人管理业务逻辑
@@ -338,6 +342,9 @@ type SystemOverviewResult struct {
 type GetSystemMetricsParams struct {
 	MetricType *string `json:"metric_type,omitempty"`
 	TimeRange  *string `json:"time_range,omitempty"`
+	StartTime  *string `json:"start_time,omitempty"`
+	EndTime    *string `json:"end_time,omitempty"`
+	Interval   string  `json:"interval,omitempty"`
 }
 
 // SystemMetricsResult 系统指标结果
@@ -430,6 +437,12 @@ type CleanCompletedMessagesParams struct {
 	BeforeDays int `json:"before_days" validate:"min=1"`
 }
 
+// ClearFailedMessagesParams 清理失败消息参数
+type ClearFailedMessagesParams struct {
+	Before    *string `json:"before,omitempty"`
+	BatchSize int     `json:"batch_size,omitempty"`
+}
+
 // 处理器相关
 
 // CreateProcessorRequest 创建处理器请求
@@ -467,6 +480,7 @@ type UpdateProcessorRequest struct {
 
 // UpdateProcessorStatusRequest 更新处理器状态请求
 type UpdateProcessorStatusRequest struct {
+	ID     int64         `json:"id" validate:"required"`
 	Status entity.Status `json:"status" validate:"required"`
 }
 
@@ -494,6 +508,7 @@ type ListRoutingRulesParams struct {
 // UpdateRoutingRuleRequest 更新路由规则请求
 type UpdateRoutingRuleRequest struct {
 	ID           int64                  `json:"id" validate:"required"`
+	ProcessorID  *int64                 `json:"processor_id,omitempty"`
 	RuleName     *string                `json:"rule_name,omitempty"`
 	PlatformType *string                `json:"platform_type,omitempty"`
 	MessageType  *string                `json:"message_type,omitempty"`

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/sivdead/OmniBotGo/internal/config"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
@@ -37,18 +39,12 @@ func (a *DingtalkStreamAdapter) GetPlatformType() entity.PlatformType {
 }
 
 // ValidateConfig 实现ConfigValidator接口
-func (a *DingtalkStreamAdapter) ValidateConfig(config map[string]interface{}) error {
-	requiredFields := []string{"client_id", "client_secret"}
-	for _, field := range requiredFields {
-		if value, ok := config[field].(string); !ok || value == "" {
-			return fmt.Errorf("field %s is required", field)
-		}
-	}
-	return nil
+func (a *DingtalkStreamAdapter) ValidateConfig(cfg map[string]interface{}) error {
+	return config.ValidatePlatformConfig(entity.PlatformTypeDingtalk, cfg)
 }
 
 // SendMessage 实现MessageSender接口
-func (a *DingtalkStreamAdapter) SendMessage(ctx context.Context, message *entity.UnifiedMessage, config map[string]interface{}, accessToken string) error {
+func (a *DingtalkStreamAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, config map[string]interface{}, accessToken string) error {
 	// 从统一消息体中获取sessionWebhook
 	sessionWebhook, ok := message.RawContent["sessionWebhook"].(string)
 	if !ok || sessionWebhook == "" {
@@ -59,49 +55,127 @@ func (a *DingtalkStreamAdapter) SendMessage(ctx context.Context, message *entity
 	var requestBody interface{}
 
 	switch message.MessageType {
-	case "text":
+	case entity.MessageTypeText:
 		requestBody = map[string]interface{}{
 			"msgtype": "text",
 			"text": map[string]interface{}{
 				"content": message.Content,
 			},
 		}
-	case "markdown":
+
+	case entity.MessageTypeMarkdown:
 		title := "消息"
-		if titleValue, ok := message.RawContent["title"].(string); ok {
-			title = titleValue
+		// 优先使用结构化内容
+		if message.MarkdownContent != nil {
+			title = message.MarkdownContent.Title
+			if title == "" {
+				title = "Markdown消息"
+			}
+			requestBody = map[string]interface{}{
+				"msgtype": "markdown",
+				"markdown": map[string]interface{}{
+					"title": title,
+					"text":  message.MarkdownContent.Content,
+				},
+			}
+		} else {
+			if titleValue, ok := message.RawContent["title"].(string); ok {
+				title = titleValue
+			}
+			requestBody = map[string]interface{}{
+				"msgtype": "markdown",
+				"markdown": map[string]interface{}{
+					"title": title,
+					"text":  message.Content,
+				},
+			}
+		}
+
+	case entity.MessageTypeCard:
+		// 转换为ActionCard
+		if message.CardContent != nil {
+			actionCard := map[string]interface{}{
+				"msgtype": "actionCard",
+				"actionCard": map[string]interface{}{
+					"title": message.CardContent.Title,
+					"text":  message.CardContent.Content,
+				},
+			}
+
+			// 处理按钮
+			if len(message.CardContent.Buttons) == 1 {
+				// 单个按钮
+				actionCard["actionCard"].(map[string]interface{})["singleTitle"] = message.CardContent.Buttons[0].Title
+				actionCard["actionCard"].(map[string]interface{})["singleURL"] = message.CardContent.Buttons[0].ActionURL
+			} else if len(message.CardContent.Buttons) > 1 {
+				// 多个按钮
+				btns := make([]map[string]interface{}, 0, len(message.CardContent.Buttons))
+				for _, btn := range message.CardContent.Buttons {
+					btns = append(btns, map[string]interface{}{
+						"title":     btn.Title,
+						"actionURL": btn.ActionURL,
+					})
+				}
+				actionCard["actionCard"].(map[string]interface{})["btns"] = btns
+				actionCard["actionCard"].(map[string]interface{})["btnOrientation"] = "0" // 竖向排列
+			}
+
+			requestBody = actionCard
+		} else {
+			// 兼容旧格式
+			requestBody = a.buildLegacyActionCard(message)
+		}
+
+	case entity.MessageTypeLink:
+		// 链接消息
+		linkData := map[string]interface{}{
+			"msgtype": "link",
+			"link": map[string]interface{}{
+				"title":      message.Content,
+				"text":       "",
+				"messageUrl": "",
+				"picUrl":     "",
+			},
+		}
+
+		// 从RawContent中提取链接信息
+		if title, ok := message.RawContent["title"].(string); ok {
+			linkData["link"].(map[string]interface{})["title"] = title
+		}
+		if text, ok := message.RawContent["text"].(string); ok {
+			linkData["link"].(map[string]interface{})["text"] = text
+		}
+		if messageUrl, ok := message.RawContent["messageUrl"].(string); ok {
+			linkData["link"].(map[string]interface{})["messageUrl"] = messageUrl
+		}
+		if picUrl, ok := message.RawContent["picUrl"].(string); ok {
+			linkData["link"].(map[string]interface{})["picUrl"] = picUrl
+		}
+
+		requestBody = linkData
+
+	case entity.MessageTypeFile:
+		// 文件消息 - 钉钉Stream模式不直接支持发送文件，转为文本提示
+		fileName := "文件"
+		if message.FileContent != nil {
+			fileName = message.FileContent.FileName
 		}
 		requestBody = map[string]interface{}{
-			"msgtype": "markdown",
-			"markdown": map[string]interface{}{
-				"title": title,
-				"text":  message.Content,
-			},
-		}
-	case "actionCard":
-		actionCard := map[string]interface{}{
-			"msgtype": "actionCard",
-			"actionCard": map[string]interface{}{
-				"title": message.RawContent["title"],
-				"text":  message.Content,
+			"msgtype": "text",
+			"text": map[string]interface{}{
+				"content": fmt.Sprintf("[文件] %s", fileName),
 			},
 		}
 
-		// 添加可选字段
-		if singleTitle, ok := message.RawContent["singleTitle"].(string); ok {
-			actionCard["actionCard"].(map[string]interface{})["singleTitle"] = singleTitle
-		}
-		if singleURL, ok := message.RawContent["singleURL"].(string); ok {
-			actionCard["actionCard"].(map[string]interface{})["singleURL"] = singleURL
-		}
-		if btnOrientation, ok := message.RawContent["btnOrientation"].(string); ok {
-			actionCard["actionCard"].(map[string]interface{})["btnOrientation"] = btnOrientation
-		}
-		if btns, ok := message.RawContent["btns"].([]interface{}); ok {
-			actionCard["actionCard"].(map[string]interface{})["btns"] = btns
+	case entity.MessageTypeImage:
+		// 图片消息 - 钉钉Stream模式不直接支持发送图片，转为文本提示
+		requestBody = map[string]interface{}{
+			"msgtype": "text",
+			"text": map[string]interface{}{
+				"content": "[图片]",
+			},
 		}
 
-		requestBody = actionCard
 	default:
 		// 默认发送文本消息
 		requestBody = map[string]interface{}{
@@ -157,8 +231,35 @@ func (a *DingtalkStreamAdapter) SendMessage(ctx context.Context, message *entity
 	return nil
 }
 
+// buildLegacyActionCard 构建旧格式的ActionCard（向后兼容）
+func (a *DingtalkStreamAdapter) buildLegacyActionCard(message *dto.UnifiedMessage) map[string]interface{} {
+	actionCard := map[string]interface{}{
+		"msgtype": "actionCard",
+		"actionCard": map[string]interface{}{
+			"title": message.RawContent["title"],
+			"text":  message.Content,
+		},
+	}
+
+	// 添加可选字段
+	if singleTitle, ok := message.RawContent["singleTitle"].(string); ok {
+		actionCard["actionCard"].(map[string]interface{})["singleTitle"] = singleTitle
+	}
+	if singleURL, ok := message.RawContent["singleURL"].(string); ok {
+		actionCard["actionCard"].(map[string]interface{})["singleURL"] = singleURL
+	}
+	if btnOrientation, ok := message.RawContent["btnOrientation"].(string); ok {
+		actionCard["actionCard"].(map[string]interface{})["btnOrientation"] = btnOrientation
+	}
+	if btns, ok := message.RawContent["btns"].([]interface{}); ok {
+		actionCard["actionCard"].(map[string]interface{})["btns"] = btns
+	}
+
+	return actionCard
+}
+
 // Start 实现StreamAdapter接口 - 启动Stream连接
-func (a *DingtalkStreamAdapter) Start(ctx context.Context, messageHandler port.MessageHandler, config map[string]interface{}) error {
+func (a *DingtalkStreamAdapter) Start(ctx context.Context, messageHandler port.MessageHandler, cfg map[string]interface{}) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -167,15 +268,15 @@ func (a *DingtalkStreamAdapter) Start(ctx context.Context, messageHandler port.M
 	}
 
 	// 保存配置
-	a.config = config
+	a.config = cfg
 
 	// 验证配置
-	if err := a.ValidateConfig(config); err != nil {
+	if err := a.ValidateConfig(cfg); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 
 	// 解析配置
-	streamConfig, err := ParseDingtalkStreamConfig(config)
+	streamConfig, err := config.ParseDingtalkStreamConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to parse dingtalk stream config: %w", err)
 	}
@@ -188,7 +289,7 @@ func (a *DingtalkStreamAdapter) Start(ctx context.Context, messageHandler port.M
 
 	// 创建Stream控制器（假设channelID从config中获取）
 	channelID := int64(1) // 这里应该从config中获取，或者作为参数传入
-	if channelIDValue, ok := config["channel_id"].(float64); ok {
+	if channelIDValue, ok := cfg["channel_id"].(float64); ok {
 		channelID = int64(channelIDValue)
 	}
 
@@ -252,8 +353,8 @@ type MessageHandlerAdapter struct {
 
 // ProcessInboundMessage 实现StreamController的MessageHandler接口
 func (m *MessageHandlerAdapter) ProcessInboundMessage(ctx context.Context, message *entity.Message) error {
-	// 将entity.Message转换为entity.UnifiedMessage
-	unifiedMessage := &entity.UnifiedMessage{
+	// 将entity.Message转换为dto.UnifiedMessage
+	unifiedMessage := &dto.UnifiedMessage{
 		MessageID:         message.MessageID,
 		MessageType:       message.MessageType,
 		SenderID:          message.SenderID,

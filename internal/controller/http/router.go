@@ -28,6 +28,12 @@ func NewRouter(
 	messageUC usecase.MessageUseCase,
 	channelUC usecase.ChannelUseCase,
 	botUC usecase.BotUseCase,
+	systemConfigUC usecase.SystemConfigUseCase,
+	platformUC usecase.PlatformUseCase,
+	monitorUC usecase.MonitorUseCase,
+	logUC usecase.LogUseCase,
+	queueUC usecase.QueueUseCase,
+	processorUC usecase.ProcessorUseCase,
 	l logger.Interface,
 ) {
 	// Options
@@ -50,12 +56,12 @@ func NewRouter(
 	app.Get("/healthz", func(ctx *fiber.Ctx) error { return ctx.SendStatus(http.StatusOK) })
 
 	// 创建V1控制器实例（避免重复创建）
-	v1Controller := v1.NewV1Controller(messageUC, channelUC, botUC, l)
+	v1Controller := v1.NewV1Controller(messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
 
 	// API路由
 	apiV1Group := app.Group("/api/v1")
 	{
-		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, l)
+		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
 	}
 
 	// Webhook路由（在根路径下）

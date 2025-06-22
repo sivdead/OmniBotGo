@@ -195,9 +195,31 @@ swaggerEnabled := config.GetBool("swagger.enabled")
 3. **依赖注入**: 通过 Wire 注入配置，便于测试
 4. **类型安全**: 强类型配置结构体，编译时检查
 
+## 安全注意事项
+
+⚠️ **重要安全提示**：
+- **不要将包含敏感信息的 `config.yaml` 提交到版本控制系统**
+- 生产环境配置应该通过环境变量或安全的配置管理系统提供
+- 确保配置文件的文件权限设置正确（建议 600 权限）
+- 使用 `.gitignore` 排除所有包含实际配置的文件
+- 密钥、Token等敏感信息必须加密存储或使用密钥管理服务
+
+### 最佳实践
+```bash
+# 设置配置文件权限
+chmod 600 config/config.yaml
+
+# 使用环境变量传递敏感信息
+export DB_PASSWORD="your_secure_password"
+export WECOM_SECRET="your_secret_key"
+
+# 或使用密钥管理服务（如 Vault、AWS Secrets Manager等）
+```
+
 ## 故障排除
 
 1. **配置文件未找到**: 系统会显示警告并使用环境变量和默认值
 2. **必需配置缺失**: 启动时会显示详细的验证错误
 3. **环境变量格式**: 确保环境变量使用正确的命名格式（大写，下划线分隔）
-4. **导入路径**: 确保使用 `github.com/sivdead/OmniBotGo/internal/config` 导入配置包 
+4. **导入路径**: 确保使用 `github.com/sivdead/OmniBotGo/internal/config` 导入配置包
+5. **权限问题**: 确保应用有权限读取配置文件 

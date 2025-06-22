@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sivdead/OmniBotGo/internal/config"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
@@ -35,27 +37,12 @@ func (w *WechatOfficialAdapter) GetPlatformType() entity.PlatformType {
 }
 
 // ValidateConfig 验证平台配置
-func (w *WechatOfficialAdapter) ValidateConfig(config map[string]interface{}) error {
-	appID, ok := config["app_id"].(string)
-	if !ok || appID == "" {
-		return fmt.Errorf("app_id is required")
-	}
-
-	appSecret, ok := config["app_secret"].(string)
-	if !ok || appSecret == "" {
-		return fmt.Errorf("app_secret is required")
-	}
-
-	token, ok := config["token"].(string)
-	if !ok || token == "" {
-		return fmt.Errorf("token is required")
-	}
-
-	return nil
+func (w *WechatOfficialAdapter) ValidateConfig(cfg map[string]interface{}) error {
+	return config.ValidatePlatformConfig(entity.PlatformTypeWechatOfficial, cfg)
 }
 
 // SendMessage 发送消息
-func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *entity.UnifiedMessage, config map[string]interface{}, accessToken string) error {
+func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, config map[string]interface{}, accessToken string) error {
 	// 构建微信公众号消息格式
 	sendMsg := WechatOfficialSendMessage{
 		ToUser:  message.ReceiverID,
@@ -146,7 +133,7 @@ func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *entity
 }
 
 // GetAccessToken 获取访问令牌
-func (w *WechatOfficialAdapter) GetAccessToken(ctx context.Context, config map[string]interface{}) (*entity.AccessTokenResponse, error) {
+func (w *WechatOfficialAdapter) GetAccessToken(ctx context.Context, config map[string]interface{}) (*dto.AccessTokenResponse, error) {
 	appID := config["app_id"].(string)
 	appSecret := config["app_secret"].(string)
 
@@ -179,7 +166,7 @@ func (w *WechatOfficialAdapter) GetAccessToken(ctx context.Context, config map[s
 
 	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 
-	return &entity.AccessTokenResponse{
+	return &dto.AccessTokenResponse{
 		AccessToken: tokenResp.AccessToken,
 		ExpiresIn:   tokenResp.ExpiresIn,
 		ExpiresAt:   &expiresAt,
@@ -187,7 +174,7 @@ func (w *WechatOfficialAdapter) GetAccessToken(ctx context.Context, config map[s
 }
 
 // RefreshAccessToken 刷新访问令牌
-func (w *WechatOfficialAdapter) RefreshAccessToken(ctx context.Context, config map[string]interface{}, oldToken string) (*entity.AccessTokenResponse, error) {
+func (w *WechatOfficialAdapter) RefreshAccessToken(ctx context.Context, config map[string]interface{}, oldToken string) (*dto.AccessTokenResponse, error) {
 	// 微信公众号的access_token刷新就是重新获取
 	return w.GetAccessToken(ctx, config)
 }
@@ -213,14 +200,14 @@ func (w *WechatOfficialAdapter) VerifyWebhook(ctx context.Context, signature str
 }
 
 // ParseInboundMessage 解析入站消息
-func (w *WechatOfficialAdapter) ParseInboundMessage(ctx context.Context, body []byte, config map[string]interface{}) (*entity.UnifiedMessage, error) {
+func (w *WechatOfficialAdapter) ParseInboundMessage(ctx context.Context, body []byte, config map[string]interface{}) (*dto.UnifiedMessage, error) {
 	var wechatMsg WechatOfficialMessage
 	if err := json.Unmarshal(body, &wechatMsg); err != nil {
 		return nil, fmt.Errorf("failed to parse wechat official message: %w", err)
 	}
 
 	// 构建统一消息格式
-	unifiedMsg := &entity.UnifiedMessage{
+	unifiedMsg := &dto.UnifiedMessage{
 		MessageID:         fmt.Sprintf("wechat_official_%d", wechatMsg.MsgID),
 		PlatformMessageID: fmt.Sprintf("%d", wechatMsg.MsgID),
 		MessageType:       mapFromWechatOfficialMessageType(wechatMsg.MsgType),

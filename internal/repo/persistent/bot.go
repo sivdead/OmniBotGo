@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 )
 
@@ -16,15 +16,8 @@ type BotRepo struct {
 	*BaseRepo
 }
 
-func (r *BotRepo) GetActiveChannelCount(ctx context.Context, id int64) (int64, error) {
-
-	var count int64
-	r.db.GetGORM().WithContext(ctx).Model(&entity.Channel{}).Where("bot_id = ? AND status = ?", id, entity.StatusActive).Count(&count)
-	return count, nil
-}
-
-// NewBotRepo 创建Bot Repository实例
-func NewBotRepo(db database.CommonDB) repo.BotRepo {
+// NewBotRepository 创建Bot Repository实例
+func NewBotRepository(db database.CommonDB) port.BotRepository {
 	return &BotRepo{
 		BaseRepo: NewBaseRepo(db),
 	}
@@ -84,13 +77,14 @@ func (r *BotRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取Bot列表（分页）
-func (r *BotRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.Bot], error) {
-	params = r.validateParams(params)
+func (r *BotRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.Bot], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var bots []*entity.Bot
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Bot{}), params)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Bot{}), internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &bots)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &bots)
 	if err != nil {
 		return nil, r.handleError(err, "list bots")
 	}
@@ -119,3 +113,19 @@ func (r *BotRepo) Exists(ctx context.Context, id int64) (bool, error) {
 func (r *BotRepo) ExistsByName(ctx context.Context, name string) (bool, error) {
 	return r.exists(ctx, &entity.Bot{}, "bot_name = ?", name)
 }
+
+// GetActiveChannelCount 获取Bot的活跃通道数量
+func (r *BotRepo) GetActiveChannelCount(ctx context.Context, id int64) (int64, error) {
+	var count int64
+	err := r.db.GetGORM().WithContext(ctx).
+		Model(&entity.Channel{}).
+		Where("bot_id = ? AND status = ?", id, entity.StatusActive).
+		Count(&count).Error
+	if err != nil {
+		return 0, r.handleError(err, "get active channel count")
+	}
+	return count, nil
+}
+
+// 确保 BotRepo 实现了 port.BotRepository 接口
+var _ port.BotRepository = (*BotRepo)(nil)

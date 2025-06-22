@@ -3,13 +3,8 @@ package adapter
 import (
 	"context"
 	"fmt"
-	"os"
 
-	"github.com/rs/zerolog"
-	"github.com/sivdead/OmniBotGo/internal/adapter/dingtalk_stream"
-	"github.com/sivdead/OmniBotGo/internal/adapter/feishu"
-	"github.com/sivdead/OmniBotGo/internal/adapter/wechat_official"
-	"github.com/sivdead/OmniBotGo/internal/adapter/wecom"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
@@ -19,26 +14,17 @@ type Manager struct {
 	adapters map[entity.PlatformType]interface{}
 }
 
-// NewManager 创建适配器管理器实例
+// NewManager 创建适配器管理器实例（兼容旧代码，建议使用NewManagerWithRegistry）
 func NewManager() *Manager {
-	adapters := make(map[entity.PlatformType]interface{})
-
-	// 注册企业微信适配器
-	adapters[entity.PlatformTypeWecom] = wecom.NewWecomAdapter()
-
-	// 注册钉钉Stream适配器
-	adapters[entity.PlatformTypeDingtalk] = dingtalk_stream.NewAdapter(zerolog.New(os.Stdout))
-
-	// 注册微信公众号适配器
-	adapters[entity.PlatformTypeWechatOfficial] = wechat_official.NewWechatOfficialAdapter()
-
-	// 注册飞书适配器
-	adapters[entity.PlatformTypeFeishu] = feishu.NewFeishuAdapter()
-
-	// 可以继续注册其他平台适配器
-
 	return &Manager{
-		adapters: adapters,
+		adapters: make(map[entity.PlatformType]interface{}),
+	}
+}
+
+// NewManagerWithRegistry 使用适配器注册表创建管理器
+func NewManagerWithRegistry(registry map[entity.PlatformType]interface{}) *Manager {
+	return &Manager{
+		adapters: registry,
 	}
 }
 
@@ -140,7 +126,7 @@ func (m *Manager) ValidateConfig(platformType entity.PlatformType, config map[st
 }
 
 // SendMessage 发送消息
-func (m *Manager) SendMessage(ctx context.Context, platformType entity.PlatformType, message *entity.UnifiedMessage, config map[string]interface{}, accessToken string) error {
+func (m *Manager) SendMessage(ctx context.Context, platformType entity.PlatformType, message *dto.UnifiedMessage, config map[string]interface{}, accessToken string) error {
 	sender, err := m.GetMessageSender(platformType)
 	if err != nil {
 		return err
@@ -148,28 +134,8 @@ func (m *Manager) SendMessage(ctx context.Context, platformType entity.PlatformT
 	return sender.SendMessage(ctx, message, config, accessToken)
 }
 
-// 以下是为了保持向后兼容性的方法，逐步迁移后可以删除
-
-// GetAccessToken 获取访问令牌（兼容性方法）
-func (m *Manager) GetAccessToken(ctx context.Context, platformType entity.PlatformType, config map[string]interface{}) (*entity.AccessTokenResponse, error) {
-	tokenManager, err := m.GetTokenManager(platformType)
-	if err != nil {
-		return nil, err
-	}
-	return tokenManager.GetAccessToken(ctx, config)
-}
-
-// RefreshAccessToken 刷新访问令牌（兼容性方法）
-func (m *Manager) RefreshAccessToken(ctx context.Context, platformType entity.PlatformType, config map[string]interface{}, oldToken string) (*entity.AccessTokenResponse, error) {
-	tokenManager, err := m.GetTokenManager(platformType)
-	if err != nil {
-		return nil, err
-	}
-	return tokenManager.RefreshAccessToken(ctx, config, oldToken)
-}
-
-// VerifyWebhook 验证Webhook请求（兼容性方法）
-func (m *Manager) VerifyWebhook(ctx context.Context, platformType entity.PlatformType, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error {
+// VerifyWebhook 验证Webhook签名
+func (m *Manager) VerifyWebhook(ctx context.Context, platformType entity.PlatformType, signature, timestamp, nonce string, body []byte, config entity.JSONField) error {
 	processor, err := m.GetWebhookProcessor(platformType)
 	if err != nil {
 		return err
@@ -177,8 +143,8 @@ func (m *Manager) VerifyWebhook(ctx context.Context, platformType entity.Platfor
 	return processor.VerifyWebhook(ctx, signature, timestamp, nonce, body, config)
 }
 
-// ParseInboundMessage 解析入站消息（兼容性方法）
-func (m *Manager) ParseInboundMessage(ctx context.Context, platformType entity.PlatformType, body []byte, config map[string]interface{}) (*entity.UnifiedMessage, error) {
+// ParseInboundMessage 解析入站消息
+func (m *Manager) ParseInboundMessage(ctx context.Context, platformType entity.PlatformType, body []byte, config entity.JSONField) (*dto.UnifiedMessage, error) {
 	processor, err := m.GetWebhookProcessor(platformType)
 	if err != nil {
 		return nil, err
@@ -186,11 +152,7 @@ func (m *Manager) ParseInboundMessage(ctx context.Context, platformType entity.P
 	return processor.ParseInboundMessage(ctx, body, config)
 }
 
-// BuildWebhookPath 构建Webhook路径（兼容性方法）
+// BuildWebhookPath 构建Webhook路径
 func (m *Manager) BuildWebhookPath(platformType entity.PlatformType, channelID int64) (string, error) {
-	processor, err := m.GetWebhookProcessor(platformType)
-	if err != nil {
-		return "", err
-	}
-	return processor.BuildWebhookPath(channelID), nil
+	return fmt.Sprintf("/webhook/%s/%d", string(platformType), channelID), nil
 }

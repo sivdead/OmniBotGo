@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 )
 
@@ -17,8 +17,8 @@ type MessageRepo struct {
 	*BaseRepo
 }
 
-// NewMessageRepo 创建Message Repository实例
-func NewMessageRepo(db database.CommonDB) repo.MessageRepo {
+// NewMessageRepository 创建Message Repository实例
+func NewMessageRepository(db database.CommonDB) port.MessageRepository {
 	return &MessageRepo{
 		BaseRepo: NewBaseRepo(db),
 	}
@@ -26,14 +26,18 @@ func NewMessageRepo(db database.CommonDB) repo.MessageRepo {
 
 // Create 创建新的Message
 func (r *MessageRepo) Create(ctx context.Context, message *entity.Message) error {
-	if err := message.Validate(); err != nil {
-		return fmt.Errorf("message validation failed: %w", err)
+	// 简单的数据验证
+	if message.MessageID == "" {
+		return fmt.Errorf("消息ID不能为空")
+	}
+	if message.ChannelID <= 0 {
+		return fmt.Errorf("通道ID必须大于0")
+	}
+	if message.MessageType == "" {
+		return fmt.Errorf("消息类型不能为空")
 	}
 
-	if err := r.db.GetGORM().WithContext(ctx).Create(message).Error; err != nil {
-		return r.handleError(err, "create message")
-	}
-	return nil
+	return r.db.GetGORM().WithContext(ctx).Create(message).Error
 }
 
 // GetByID 根据ID获取Message
@@ -66,17 +70,19 @@ func (r *MessageRepo) GetByMessageID(ctx context.Context, messageID string) (*en
 }
 
 // GetByChannelID 根据通道ID获取消息列表
-func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID int64, params repo.ListParams) (*repo.PaginatedResult[*entity.Message], error) {
-	params = r.validateParams(params)
+func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID int64, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
+	// 转换参数类型为内部使用的类型
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var messages []*entity.Message
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.Message{}).
 		Where("channel_id = ?", channelID)
 
-	query = r.buildQuery(query, params)
+	query = r.buildQuery(query, internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &messages)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &messages)
 	if err != nil {
 		return nil, r.handleError(err, "get messages by channel ID")
 	}
@@ -85,17 +91,18 @@ func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID int64, param
 }
 
 // GetByConversationID 根据会话ID获取消息列表
-func (r *MessageRepo) GetByConversationID(ctx context.Context, conversationID string, params repo.ListParams) (*repo.PaginatedResult[*entity.Message], error) {
-	params = r.validateParams(params)
+func (r *MessageRepo) GetByConversationID(ctx context.Context, conversationID string, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var messages []*entity.Message
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.Message{}).
 		Where("conversation_id = ?", conversationID)
 
-	query = r.buildQuery(query, params)
+	query = r.buildQuery(query, internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &messages)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &messages)
 	if err != nil {
 		return nil, r.handleError(err, "get messages by conversation ID")
 	}
@@ -133,18 +140,18 @@ func (r *MessageRepo) GetFailedMessages(ctx context.Context, limit int) ([]*enti
 
 // Update 更新Message
 func (r *MessageRepo) Update(ctx context.Context, message *entity.Message) error {
-	if err := message.Validate(); err != nil {
-		return fmt.Errorf("message validation failed: %w", err)
+	// 简单的数据验证
+	if message.MessageID == "" {
+		return fmt.Errorf("消息ID不能为空")
+	}
+	if message.ChannelID <= 0 {
+		return fmt.Errorf("通道ID必须大于0")
+	}
+	if message.MessageType == "" {
+		return fmt.Errorf("消息类型不能为空")
 	}
 
-	result := r.db.GetGORM().WithContext(ctx).Save(message)
-	if result.Error != nil {
-		return r.handleError(result.Error, "update message")
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return r.db.GetGORM().WithContext(ctx).Save(message).Error
 }
 
 // Delete 删除Message（软删除）
@@ -153,13 +160,14 @@ func (r *MessageRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取消息列表（分页）
-func (r *MessageRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.Message], error) {
-	params = r.validateParams(params)
+func (r *MessageRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var messages []*entity.Message
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Message{}), params)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Message{}), internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &messages)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &messages)
 	if err != nil {
 		return nil, r.handleError(err, "list messages")
 	}
@@ -273,3 +281,6 @@ func (r *MessageRepo) Exists(ctx context.Context, id int64) (bool, error) {
 func (r *MessageRepo) ExistsByMessageID(ctx context.Context, messageID string) (bool, error) {
 	return r.exists(ctx, &entity.Message{}, "message_id = ?", messageID)
 }
+
+// 确保 MessageRepo 实现了 port.MessageRepository 接口
+var _ port.MessageRepository = (*MessageRepo)(nil)

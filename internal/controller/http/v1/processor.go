@@ -367,7 +367,10 @@ func (v *V1) GetRoutingRules(c *fiber.Ctx) error {
 	// }
 
 	// 临时返回空结果
-	result := []interface{}{}
+	result := map[string]interface{}{
+		"processor_id": processorID,
+		"rules":        []interface{}{},
+	}
 
 	return NewSuccessResponse(c, result)
 }
@@ -417,7 +420,7 @@ func (v *V1) UpdateRoutingRule(c *fiber.Ctx) error {
 
 	// 设置ID
 	req.ID = ruleID
-	req.ProcessorID = processorID
+	req.ProcessorID = &processorID
 
 	// TODO: 调用usecase更新路由规则
 	// result, err := v.processorUC.UpdateRoutingRule(c.Context(), req)

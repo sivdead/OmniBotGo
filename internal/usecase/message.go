@@ -5,27 +5,28 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sivdead/OmniBotGo/internal/adapter"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
+	"github.com/sivdead/OmniBotGo/internal/usecase/service"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
 // messageUseCase 消息处理业务逻辑实现
 type messageUseCase struct {
-	messageRepo    repo.MessageRepo
-	channelRepo    repo.ChannelRepo
-	adapterManager *adapter.Manager
+	messageRepo    port.MessageRepository
+	channelRepo    port.ChannelRepository
+	adapterManager port.AdapterManager
 	routingUC      RoutingUseCase
+	msgService     *service.MessageService
 	logger         logger.Interface
 }
 
 // NewMessageUseCase 创建消息处理业务逻辑实例
 func NewMessageUseCase(
-	messageRepo repo.MessageRepo,
-	channelRepo repo.ChannelRepo,
-	adapterManager *adapter.Manager,
+	messageRepo port.MessageRepository,
+	channelRepo port.ChannelRepository,
+	adapterManager port.AdapterManager,
 	routingUC RoutingUseCase,
 	logger logger.Interface,
 ) MessageUseCase {
@@ -34,13 +35,14 @@ func NewMessageUseCase(
 		channelRepo:    channelRepo,
 		adapterManager: adapterManager,
 		routingUC:      routingUC,
+		msgService:     service.NewMessageService(),
 		logger:         logger,
 	}
 }
 
 // CreateStreamMessageHandler 创建用于Stream适配器的消息处理回调函数
 func (uc *messageUseCase) CreateStreamMessageHandler() port.MessageHandler {
-	return func(ctx context.Context, unifiedMessage *entity.UnifiedMessage) error {
+	return func(ctx context.Context, unifiedMessage *dto.UnifiedMessage) error {
 		uc.logger.Info("Stream消息处理回调", "message_id", unifiedMessage.MessageID, "sender_id", unifiedMessage.SenderID)
 
 		// 创建消息实体
@@ -84,8 +86,8 @@ func (uc *messageUseCase) CreateStreamMessageHandler() port.MessageHandler {
 func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity.Message) error {
 	uc.logger.Info("开始处理入站消息", "method", "ProcessInboundMessage", "message_id", msg.MessageID, "channel_id", msg.ChannelID)
 
-	// 验证消息数据
-	if err := msg.Validate(); err != nil {
+	// 使用service验证消息数据
+	if err := uc.msgService.ValidateMessage(msg); err != nil {
 		uc.logger.Error("消息验证失败", "error", err)
 		return fmt.Errorf("消息验证失败: %w", err)
 	}
@@ -118,8 +120,8 @@ func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity
 		return fmt.Errorf("保存消息失败: %w", err)
 	}
 
-	// 标记消息为处理中
-	msg.MarkAsProcessing()
+	// 使用service标记消息为处理中
+	uc.msgService.MarkAsProcessing(msg)
 	if err := uc.messageRepo.Update(ctx, msg); err != nil {
 		uc.logger.Error("更新消息状态失败", "error", err)
 		return fmt.Errorf("更新消息状态失败: %w", err)
@@ -128,8 +130,8 @@ func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity
 	// 进行消息路由处理
 	if err := uc.routeAndProcessMessage(ctx, msg); err != nil {
 		uc.logger.Error("消息路由处理失败", "error", err)
-		// 标记消息为失败，但不返回错误，避免影响消息保存
-		msg.MarkAsFailed(err.Error())
+		// 使用service标记消息为失败，但不返回错误，避免影响消息保存
+		uc.msgService.MarkAsFailed(msg, err.Error())
 		if updateErr := uc.messageRepo.Update(ctx, msg); updateErr != nil {
 			uc.logger.Error("更新消息状态失败", "error", updateErr)
 		}
@@ -143,8 +145,8 @@ func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity
 func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) error {
 	uc.logger.Info("开始发送消息", "method", "SendMessage", "message_id", msg.MessageID, "channel_id", msg.ChannelID)
 
-	// 验证消息数据
-	if err := msg.Validate(); err != nil {
+	// 使用service验证消息数据
+	if err := uc.msgService.ValidateMessage(msg); err != nil {
 		uc.logger.Error("消息验证失败", "error", err)
 		return fmt.Errorf("消息验证失败: %w", err)
 	}
@@ -176,8 +178,8 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 		return fmt.Errorf("保存消息失败: %w", err)
 	}
 
-	// 标记消息为处理中
-	msg.MarkAsProcessing()
+	// 使用service标记消息为处理中
+	uc.msgService.MarkAsProcessing(msg)
 	if err := uc.messageRepo.Update(ctx, msg); err != nil {
 		uc.logger.Error("更新消息状态失败", "error", err)
 		return fmt.Errorf("更新消息状态失败: %w", err)
@@ -185,8 +187,8 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 
 	// 调用平台适配器发送消息
 	if err := uc.sendMessageToPlatform(ctx, msg, channel); err != nil {
-		// 发送失败，标记消息为失败状态
-		msg.MarkAsFailed(err.Error())
+		// 发送失败，使用service标记消息为失败状态
+		uc.msgService.MarkAsFailed(msg, err.Error())
 		if updateErr := uc.messageRepo.Update(ctx, msg); updateErr != nil {
 			uc.logger.Error("更新消息失败状态失败", "error", updateErr)
 		}
@@ -194,8 +196,8 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 		return fmt.Errorf("发送消息失败: %w", err)
 	}
 
-	// 发送成功，标记消息为已发送
-	msg.MarkAsSent()
+	// 发送成功，使用service标记消息为已发送
+	uc.msgService.MarkAsSent(msg)
 	if err := uc.messageRepo.Update(ctx, msg); err != nil {
 		uc.logger.Error("更新消息发送状态失败", "error", err)
 		return fmt.Errorf("更新消息发送状态失败: %w", err)
@@ -231,7 +233,7 @@ func (uc *messageUseCase) sendMessageToPlatform(ctx context.Context, msg *entity
 	}
 
 	// 转换为统一消息格式
-	unifiedMessage := &entity.UnifiedMessage{
+	unifiedMessage := &dto.UnifiedMessage{
 		MessageID:         msg.MessageID,
 		MessageType:       msg.MessageType,
 		SenderID:          msg.SenderID,
@@ -316,7 +318,7 @@ func (uc *messageUseCase) GetMessageHistory(ctx context.Context, params GetMessa
 	}
 
 	// 查询消息列表
-	listParams := repo.ListParams{
+	listParams := port.ListParams{
 		Page:     params.Page,
 		PageSize: params.PageSize,
 		Filters:  filters,
@@ -409,8 +411,8 @@ func (uc *messageUseCase) routeAndProcessMessage(ctx context.Context, msg *entit
 		}
 	}
 
-	// 标记消息为已处理
-	msg.MarkAsProcessed()
+	// 使用service标记消息为已处理
+	uc.msgService.MarkAsProcessed(msg)
 	if err := uc.messageRepo.Update(ctx, msg); err != nil {
 		return fmt.Errorf("更新消息状态失败: %w", err)
 	}

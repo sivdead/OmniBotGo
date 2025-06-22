@@ -9,6 +9,7 @@ package app
 import (
 	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/providers"
+	"github.com/sivdead/OmniBotGo/internal/repo/persistent"
 )
 
 // Injectors from wire.go:
@@ -19,26 +20,42 @@ func InitializeApp(cfg *config.Config) (*providers.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	messageRepo := providers.NewMessageRepo(commonDB)
-	channelRepo := providers.NewChannelRepo(commonDB)
-	manager := providers.NewAdapterManager()
-	messageRoutingRuleRepo := providers.NewMessageRoutingRuleRepo(commonDB)
-	messageProcessorRepo := providers.NewMessageProcessorRepo(commonDB)
+	messageRepository := persistent.NewMessageRepository(commonDB)
+	channelRepository := persistent.NewChannelRepository(commonDB)
+	wecomAdapter := providers.NewWecomAdapter()
+	dingtalkStreamAdapter := providers.NewDingtalkStreamAdapter()
+	dingtalkEnterpriseAdapter := providers.NewDingtalkEnterpriseAdapter()
+	dingtalkProxyAdapter := providers.NewDingtalkProxyAdapter(dingtalkStreamAdapter, dingtalkEnterpriseAdapter)
+	wechatOfficialAdapter := providers.NewWechatOfficialAdapter()
+	feishuAdapter := providers.NewFeishuAdapter()
+	adapterRegistry := providers.NewAdapterRegistry(wecomAdapter, dingtalkProxyAdapter, wechatOfficialAdapter, feishuAdapter)
+	manager := providers.NewAdapterManager(adapterRegistry)
+	messageRoutingRuleRepository := persistent.NewMessageRoutingRuleRepository(commonDB)
+	messageProcessorRepository := persistent.NewMessageProcessorRepository(commonDB)
 	loggerInterface := providers.NewLogger(cfg)
-	routingUseCase := providers.NewRoutingUseCase(messageRoutingRuleRepo, messageProcessorRepo, channelRepo, loggerInterface)
-	messageUseCase := providers.NewMessageUseCase(messageRepo, channelRepo, manager, routingUseCase, loggerInterface)
-	botRepo := providers.NewBotRepo(commonDB)
-	channelUseCase := providers.NewChannelUseCase(channelRepo, messageRepo, botRepo, loggerInterface)
-	botUseCase := providers.NewBotUseCase(botRepo, channelRepo, loggerInterface)
-	server := providers.NewHTTPServer(cfg, messageUseCase, channelUseCase, botUseCase, loggerInterface)
+	routingUseCase := providers.NewRoutingUseCase(messageRoutingRuleRepository, messageProcessorRepository, channelRepository, loggerInterface)
+	messageUseCase := providers.NewMessageUseCase(messageRepository, channelRepository, manager, routingUseCase, loggerInterface)
+	botRepository := persistent.NewBotRepository(commonDB)
+	channelUseCase := providers.NewChannelUseCase(channelRepository, botRepository, manager, loggerInterface)
+	botUseCase := providers.NewBotUseCase(botRepository, channelRepository, loggerInterface)
+	systemConfigRepository := persistent.NewSystemConfigRepository(commonDB)
+	systemConfigUseCase := providers.NewSystemConfigUseCase(systemConfigRepository, loggerInterface)
+	platformUseCase := providers.NewPlatformUseCase(manager, loggerInterface)
+	monitorUseCase := providers.NewMonitorUseCase(loggerInterface)
+	connectionLogRepository := persistent.NewConnectionLogRepository(commonDB)
+	apiCallLogRepository := persistent.NewAPICallLogRepository(commonDB)
+	logUseCase := providers.NewLogUseCase(connectionLogRepository, apiCallLogRepository, loggerInterface)
+	messageQueueRepository := persistent.NewMessageQueueRepository(commonDB)
+	queueUseCase := providers.NewQueueUseCase(messageQueueRepository, loggerInterface)
+	processorUseCase := providers.NewProcessorUseCase(messageProcessorRepository, messageRoutingRuleRepository, loggerInterface)
+	server := providers.NewHTTPServer(cfg, messageUseCase, channelUseCase, botUseCase, systemConfigUseCase, platformUseCase, monitorUseCase, logUseCase, queueUseCase, processorUseCase, loggerInterface)
 	grpcserverServer := providers.NewGRPCServer(cfg, loggerInterface)
 	serverServer, err := providers.NewRMQServer(cfg, loggerInterface)
 	if err != nil {
 		return nil, err
 	}
 	logger := providers.NewZerologLogger(cfg)
-	messageHandler := providers.NewStreamMessageHandler(messageUseCase)
-	connectionManager := providers.NewConnectionManager(logger, channelRepo, manager, messageHandler)
+	connectionManager := providers.NewConnectionManager(logger, channelRepository, manager, messageUseCase)
 	app := providers.NewApp(server, grpcserverServer, serverServer, connectionManager, commonDB, loggerInterface)
 	return app, nil
 }

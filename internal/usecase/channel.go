@@ -6,30 +6,30 @@ import (
 	"time"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
 // channelUseCase 通道管理业务逻辑实现
 type channelUseCase struct {
-	channelRepo repo.ChannelRepo
-	messageRepo repo.MessageRepo
-	botRepo     repo.BotRepo
-	logger      logger.Interface
+	channelRepo    port.ChannelRepository
+	botRepo        port.BotRepository
+	adapterManager port.AdapterManager
+	logger         logger.Interface
 }
 
 // NewChannelUseCase 创建通道管理业务逻辑实例
 func NewChannelUseCase(
-	channelRepo repo.ChannelRepo,
-	messageRepo repo.MessageRepo,
-	botRepo repo.BotRepo,
+	channelRepo port.ChannelRepository,
+	botRepo port.BotRepository,
+	adapterManager port.AdapterManager,
 	logger logger.Interface,
 ) ChannelUseCase {
 	return &channelUseCase{
-		channelRepo: channelRepo,
-		messageRepo: messageRepo,
-		botRepo:     botRepo,
-		logger:      logger,
+		channelRepo:    channelRepo,
+		botRepo:        botRepo,
+		adapterManager: adapterManager,
+		logger:         logger,
 	}
 }
 
@@ -178,25 +178,10 @@ func (uc *channelUseCase) DeleteChannel(ctx context.Context, id int64) error {
 		return fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
-	// 检查通道是否有未处理的消息
-	messageParams := repo.ListParams{
-		Page:     1,
-		PageSize: 1,
-		Filters: map[string]interface{}{
-			"channel_id":     id,
-			"message_status": entity.MessageStatusPending,
-		},
-	}
-
-	pendingResult, err := uc.messageRepo.GetByChannelID(ctx, id, messageParams)
-	if err != nil {
-		uc.logger.Error("检查待处理消息失败", "error", err)
-		return fmt.Errorf("检查待处理消息失败: %w", err)
-	}
-
-	if pendingResult.Total > 0 {
-		uc.logger.Warn("通道存在待处理消息，无法删除", "pending_count", pendingResult.Total)
-		return fmt.Errorf("通道存在 %d 条待处理消息，无法删除", pendingResult.Total)
+	// 检查通道是否正在连接中
+	if channel.IsConnected() {
+		uc.logger.Warn("通道正在连接中，无法删除")
+		return fmt.Errorf("通道正在连接中，请先断开连接")
 	}
 
 	// 软删除通道（标记为已删除状态）
@@ -245,7 +230,7 @@ func (uc *channelUseCase) ListChannels(ctx context.Context, params ListChannelsP
 	}
 
 	// 查询通道列表
-	listParams := repo.ListParams{
+	listParams := port.ListParams{
 		Page:     params.Page,
 		PageSize: params.PageSize,
 		Filters:  filters,
@@ -332,4 +317,43 @@ func (uc *channelUseCase) RefreshChannelToken(ctx context.Context, id int64) err
 	uc.logger.Info("通道令牌刷新成功", "new_token", "***", "expires_at", expiresAt)
 
 	return nil
+}
+
+// GetActiveChannels 获取所有活跃的通道
+func (uc *channelUseCase) GetActiveChannels(ctx context.Context) ([]*entity.Channel, error) {
+	uc.logger.Info("获取活跃通道列表", "method", "GetActiveChannels")
+
+	// 查询所有状态为激活的通道
+	filters := map[string]interface{}{
+		"status": entity.StatusActive,
+	}
+
+	listParams := port.ListParams{
+		Filters:  filters,
+		Page:     1,
+		PageSize: 1000, // 获取所有活跃通道，设置一个较大的值
+	}
+
+	result, err := uc.channelRepo.List(ctx, listParams)
+	if err != nil {
+		uc.logger.Error("获取活跃通道列表失败", "error", err)
+		return nil, fmt.Errorf("获取活跃通道列表失败: %w", err)
+	}
+
+	return result.Items, nil
+}
+
+// IsChannelConnected 检查通道是否已连接
+func (uc *channelUseCase) IsChannelConnected(ctx context.Context, id int64) bool {
+	uc.logger.Debug("检查通道连接状态", "method", "IsChannelConnected", "channel_id", id)
+
+	// 获取通道信息
+	channel, err := uc.channelRepo.GetByID(ctx, id)
+	if err != nil {
+		uc.logger.Error("获取通道信息失败", "error", err, "channel_id", id)
+		return false
+	}
+
+	// 检查通道是否激活且已连接
+	return channel.IsActive() && channel.IsConnected()
 }

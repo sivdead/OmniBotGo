@@ -6,21 +6,21 @@ import (
 	"time"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
 // botUseCase 机器人管理业务逻辑实现
 type botUseCase struct {
-	botRepo     repo.BotRepo
-	channelRepo repo.ChannelRepo
+	botRepo     port.BotRepository
+	channelRepo port.ChannelRepository
 	logger      logger.Interface
 }
 
 // NewBotUseCase 创建机器人管理业务逻辑实例
 func NewBotUseCase(
-	botRepo repo.BotRepo,
-	channelRepo repo.ChannelRepo,
+	botRepo port.BotRepository,
+	channelRepo port.ChannelRepository,
 	logger logger.Interface,
 ) BotUseCase {
 	return &botUseCase{
@@ -215,7 +215,7 @@ func (uc *botUseCase) ListBots(ctx context.Context, params ListBotsParams) (*Bot
 	}
 
 	// 查询机器人列表
-	listParams := repo.ListParams{
+	listParams := port.ListParams{
 		Page:     params.Page,
 		PageSize: params.PageSize,
 		Filters:  filters,

@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 )
 
@@ -16,8 +16,8 @@ type SystemConfigRepo struct {
 	*BaseRepo
 }
 
-// NewSystemConfigRepo 创建SystemConfig Repository实例
-func NewSystemConfigRepo(db database.CommonDB) repo.SystemConfigRepo {
+// NewSystemConfigRepository 创建SystemConfig Repository实例
+func NewSystemConfigRepository(db database.CommonDB) port.SystemConfigRepository {
 	return &SystemConfigRepo{
 		BaseRepo: NewBaseRepo(db),
 	}
@@ -137,13 +137,14 @@ func (r *SystemConfigRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取SystemConfig列表（分页）
-func (r *SystemConfigRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.SystemConfig], error) {
-	params = r.validateParams(params)
+func (r *SystemConfigRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.SystemConfig], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var configs []*entity.SystemConfig
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.SystemConfig{}), params)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.SystemConfig{}), internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &configs)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &configs)
 	if err != nil {
 		return nil, r.handleError(err, "list system configs")
 	}
@@ -155,3 +156,6 @@ func (r *SystemConfigRepo) List(ctx context.Context, params repo.ListParams) (*r
 func (r *SystemConfigRepo) Exists(ctx context.Context, key string) (bool, error) {
 	return r.exists(ctx, &entity.SystemConfig{}, "config_key = ?", key)
 }
+
+// 确保 SystemConfigRepo 实现了 port.SystemConfigRepository 接口
+var _ port.SystemConfigRepository = (*SystemConfigRepo)(nil)

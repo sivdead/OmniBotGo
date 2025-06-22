@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 )
 
@@ -16,8 +16,8 @@ type MessageProcessorRepo struct {
 	*BaseRepo
 }
 
-// NewMessageProcessorRepo 创建MessageProcessor Repository实例
-func NewMessageProcessorRepo(db database.CommonDB) repo.MessageProcessorRepo {
+// NewMessageProcessorRepository 创建MessageProcessor Repository实例
+func NewMessageProcessorRepository(db database.CommonDB) port.MessageProcessorRepository {
 	return &MessageProcessorRepo{
 		BaseRepo: NewBaseRepo(db),
 	}
@@ -95,13 +95,14 @@ func (r *MessageProcessorRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取MessageProcessor列表（分页）
-func (r *MessageProcessorRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.MessageProcessor], error) {
-	params = r.validateParams(params)
+func (r *MessageProcessorRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.MessageProcessor], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var processors []*entity.MessageProcessor
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageProcessor{}), params)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageProcessor{}), internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &processors)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &processors)
 	if err != nil {
 		return nil, r.handleError(err, "list message processors")
 	}
@@ -144,13 +145,16 @@ func (r *MessageProcessorRepo) ExistsByName(ctx context.Context, name string) (b
 	return r.exists(ctx, &entity.MessageProcessor{}, "processor_name = ?", name)
 }
 
+// 确保 MessageProcessorRepo 实现了 port.MessageProcessorRepository 接口
+var _ port.MessageProcessorRepository = (*MessageProcessorRepo)(nil)
+
 // MessageRoutingRuleRepo MessageRoutingRule相关的数据访问层实现
 type MessageRoutingRuleRepo struct {
 	*BaseRepo
 }
 
-// NewMessageRoutingRuleRepo 创建MessageRoutingRule Repository实例
-func NewMessageRoutingRuleRepo(db database.CommonDB) repo.MessageRoutingRuleRepo {
+// NewMessageRoutingRuleRepository 创建MessageRoutingRule Repository实例
+func NewMessageRoutingRuleRepository(db database.CommonDB) port.MessageRoutingRuleRepository {
 	return &MessageRoutingRuleRepo{
 		BaseRepo: NewBaseRepo(db),
 	}
@@ -261,13 +265,14 @@ func (r *MessageRoutingRuleRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取MessageRoutingRule列表（分页）
-func (r *MessageRoutingRuleRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.MessageRoutingRule], error) {
-	params = r.validateParams(params)
+func (r *MessageRoutingRuleRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.MessageRoutingRule], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var rules []*entity.MessageRoutingRule
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageRoutingRule{}), params)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageRoutingRule{}), internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &rules)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &rules)
 	if err != nil {
 		return nil, r.handleError(err, "list routing rules")
 	}
@@ -293,3 +298,6 @@ func (r *MessageRoutingRuleRepo) ListByPriority(ctx context.Context) ([]*entity.
 func (r *MessageRoutingRuleRepo) Exists(ctx context.Context, id int64) (bool, error) {
 	return r.exists(ctx, &entity.MessageRoutingRule{}, "id = ?", id)
 }
+
+// 确保 MessageRoutingRuleRepo 实现了 port.MessageRoutingRuleRepository 接口
+var _ port.MessageRoutingRuleRepository = (*MessageRoutingRuleRepo)(nil)

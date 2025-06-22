@@ -12,6 +12,7 @@ import (
 func InitializeApp(cfg *config.Config) (*providers.App, error) {
 	wire.Build(
 		providers.InfrastructureSet,
+		providers.AdapterSet,
 		providers.RepositorySet,
 		providers.UseCaseSet,
 		providers.ServerSet,

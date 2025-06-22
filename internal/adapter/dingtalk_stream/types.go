@@ -3,6 +3,7 @@ package dingtalk_stream
 import (
 	"time"
 
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 )
 
@@ -29,6 +30,11 @@ const (
 	DingtalkEventTypeCallback     DingtalkEventType = "callback"
 	DingtalkEventTypeNotification DingtalkEventType = "notification"
 	DingtalkEventTypeSysMessage   DingtalkEventType = "sys_message"
+	// 机器人相关事件
+	DingtalkEventTypeRobotAdded   DingtalkEventType = "robot_added"
+	DingtalkEventTypeRobotRemoved DingtalkEventType = "robot_removed"
+	DingtalkEventTypeGroupJoin    DingtalkEventType = "group_join"
+	DingtalkEventTypeGroupLeave   DingtalkEventType = "group_leave"
 )
 
 // DingtalkConversationType 钉钉会话类型
@@ -49,25 +55,29 @@ type DingtalkStreamMessage struct {
 
 // DingtalkCallbackMessage 钉钉回调消息
 type DingtalkCallbackMessage struct {
-	MsgType                   DingtalkMessageType         `json:"msgtype"`
-	ConversationType          DingtalkConversationType    `json:"conversationType"`
-	ConversationID            string                      `json:"conversationId"`
-	ChatbotCorpID             string                      `json:"chatbotCorpId"`
-	ChatbotUserID             string                      `json:"chatbotUserId"`
-	MsgID                     string                      `json:"msgId"`
-	SenderNick                string                      `json:"senderNick"`
-	SenderID                  string                      `json:"senderId"`
-	SenderCorpID              string                      `json:"senderCorpId"`
-	SessionWebhook            string                      `json:"sessionWebhook"`
-	SessionWebhookExpiredTime int64                       `json:"sessionWebhookExpiredTime"`
-	CreateAt                  int64                       `json:"createAt"`
-	SenderStaffID             string                      `json:"senderStaffId"`
-	Text                      *DingtalkTextMessage        `json:"text,omitempty"`
-	File                      *DingtalkFileMessage        `json:"file,omitempty"`
-	Picture                   *DingtalkPictureMessage     `json:"picture,omitempty"`
-	Audio                     *DingtalkAudioMessage       `json:"audio,omitempty"`
-	Video                     *DingtalkVideoMessage       `json:"video,omitempty"`
-	Interactive               *DingtalkInteractiveMessage `json:"interactive,omitempty"`
+	MsgType                   DingtalkMessageType      `json:"msgtype"`
+	ConversationType          DingtalkConversationType `json:"conversationType"`
+	ConversationID            string                   `json:"conversationId"`
+	ChatbotCorpID             string                   `json:"chatbotCorpId"`
+	ChatbotUserID             string                   `json:"chatbotUserId"`
+	MsgID                     string                   `json:"msgId"`
+	SenderNick                string                   `json:"senderNick"`
+	SenderID                  string                   `json:"senderId"`
+	SenderCorpID              string                   `json:"senderCorpId"`
+	SessionWebhook            string                   `json:"sessionWebhook"`
+	SessionWebhookExpiredTime int64                    `json:"sessionWebhookExpiredTime"`
+	CreateAt                  int64                    `json:"createAt"`
+	SenderStaffID             string                   `json:"senderStaffId"`
+	// 消息内容
+	Text        *DingtalkTextMessage        `json:"text,omitempty"`
+	File        *DingtalkFileMessage        `json:"file,omitempty"`
+	Picture     *DingtalkPictureMessage     `json:"picture,omitempty"`
+	Audio       *DingtalkAudioMessage       `json:"audio,omitempty"`
+	Video       *DingtalkVideoMessage       `json:"video,omitempty"`
+	Interactive *DingtalkInteractiveMessage `json:"interactive,omitempty"`
+	// 事件相关
+	EventType DingtalkEventType      `json:"eventType,omitempty"`
+	EventData map[string]interface{} `json:"eventData,omitempty"`
 }
 
 // DingtalkTextMessage 钉钉文本消息
@@ -147,55 +157,14 @@ type DingtalkActionCardButton struct {
 	ActionURL string `json:"actionURL"`
 }
 
-// DingtalkConfig 钉钉平台配置
-type DingtalkStreamConfig struct {
-	AppKey         string `json:"app_key" validate:"required"`
-	AppSecret      string `json:"app_secret" validate:"required"`
-	ClientID       string `json:"client_id" validate:"required"`
-	ClientSecret   string `json:"client_secret" validate:"required"`
-	SubscriptionID string `json:"subscription_id,omitempty"`
-	Topic          string `json:"topic,omitempty"`
-}
-
-// ParseDingtalkStreamConfig 解析钉钉Stream配置
-func ParseDingtalkStreamConfig(config map[string]interface{}) (*DingtalkStreamConfig, error) {
-	streamConfig := &DingtalkStreamConfig{}
-
-	if clientID, ok := config["client_id"].(string); ok {
-		streamConfig.ClientID = clientID
-	}
-
-	if clientSecret, ok := config["client_secret"].(string); ok {
-		streamConfig.ClientSecret = clientSecret
-	}
-
-	if appKey, ok := config["app_key"].(string); ok {
-		streamConfig.AppKey = appKey
-	}
-
-	if appSecret, ok := config["app_secret"].(string); ok {
-		streamConfig.AppSecret = appSecret
-	}
-
-	if subscriptionID, ok := config["subscription_id"].(string); ok {
-		streamConfig.SubscriptionID = subscriptionID
-	}
-
-	if topic, ok := config["topic"].(string); ok {
-		streamConfig.Topic = topic
-	}
-
-	return streamConfig, nil
-}
-
 // ToUnifiedMessage 转换为统一消息格式
-func (msg *DingtalkCallbackMessage) ToUnifiedMessage() *entity.UnifiedMessage {
-	unifiedMsg := &entity.UnifiedMessage{
+func (msg *DingtalkCallbackMessage) ToUnifiedMessage() *dto.UnifiedMessage {
+	unifiedMsg := &dto.UnifiedMessage{
 		MessageID:         msg.MsgID,
-		MessageType:       string(msg.MsgType),
+		MessageType:       mapDingtalkMessageType(msg.MsgType),
 		SenderID:          msg.SenderID,
 		SenderName:        msg.SenderNick,
-		SenderType:        "user",
+		SenderType:        entity.SenderTypeUser,
 		ConversationID:    msg.ConversationID,
 		PlatformMessageID: msg.MsgID,
 		PlatformTimestamp: time.Unix(msg.CreateAt/1000, 0),
@@ -205,55 +174,80 @@ func (msg *DingtalkCallbackMessage) ToUnifiedMessage() *entity.UnifiedMessage {
 	// 设置接收者信息
 	if msg.ConversationType == DingtalkConversationTypeSingle {
 		unifiedMsg.ReceiverID = msg.ChatbotUserID
-		unifiedMsg.ReceiverType = "bot"
+		unifiedMsg.ReceiverType = entity.ReceiverTypeUser
 	} else {
 		unifiedMsg.ReceiverID = msg.ConversationID
-		unifiedMsg.ReceiverType = "group"
+		unifiedMsg.ReceiverType = entity.ReceiverTypeGroup
 	}
 
-	// 根据消息类型设置内容
-	switch msg.MsgType {
-	case DingtalkMessageTypeText:
-		if msg.Text != nil {
-			unifiedMsg.Content = msg.Text.Content
+	// 处理事件消息
+	if msg.EventType != "" {
+		unifiedMsg.MessageType = entity.MessageTypeEvent
+		eventType := mapDingtalkEventType(msg.EventType)
+		unifiedMsg.EventContent = &entity.EventMessage{
+			EventType: eventType,
+			EventKey:  string(msg.EventType),
+			EventData: msg.EventData,
 		}
-	case DingtalkMessageTypePicture:
-		if msg.Picture != nil {
-			unifiedMsg.Content = "[图片]"
-			unifiedMsg.MediaType = "image"
-			unifiedMsg.RawContent["downloadCode"] = msg.Picture.DownloadCode
-			unifiedMsg.RawContent["pictureType"] = msg.Picture.PictureType
-		}
-	case DingtalkMessageTypeAudio:
-		if msg.Audio != nil {
-			unifiedMsg.Content = "[语音]"
-			unifiedMsg.MediaType = "audio"
-			unifiedMsg.RawContent["downloadCode"] = msg.Audio.DownloadCode
-			unifiedMsg.RawContent["duration"] = msg.Audio.Duration
-			unifiedMsg.RawContent["recognition"] = msg.Audio.Recognition
-		}
-	case DingtalkMessageTypeVideo:
-		if msg.Video != nil {
-			unifiedMsg.Content = "[视频]"
-			unifiedMsg.MediaType = "video"
-			unifiedMsg.RawContent["downloadCode"] = msg.Video.DownloadCode
-			unifiedMsg.RawContent["duration"] = msg.Video.Duration
-			unifiedMsg.RawContent["videoType"] = msg.Video.VideoType
-		}
-	case DingtalkMessageTypeFile:
-		if msg.File != nil {
-			unifiedMsg.Content = "[文件] " + msg.File.FileName
-			unifiedMsg.MediaType = "file"
-			unifiedMsg.RawContent["downloadCode"] = msg.File.DownloadCode
-			unifiedMsg.RawContent["fileName"] = msg.File.FileName
-			unifiedMsg.RawContent["fileType"] = msg.File.FileType
-		}
-	case DingtalkMessageTypeInteractive:
-		if msg.Interactive != nil {
-			unifiedMsg.Content = msg.Interactive.Title
-			unifiedMsg.RawContent["actionCardId"] = msg.Interactive.ActionCardID
-			unifiedMsg.RawContent["title"] = msg.Interactive.Title
-			unifiedMsg.RawContent["content"] = msg.Interactive.Content
+		unifiedMsg.Content = "[事件] " + eventType
+	} else {
+		// 根据消息类型设置内容
+		switch msg.MsgType {
+		case DingtalkMessageTypeText:
+			if msg.Text != nil {
+				unifiedMsg.Content = msg.Text.Content
+			}
+
+		case DingtalkMessageTypePicture:
+			if msg.Picture != nil {
+				unifiedMsg.Content = "[图片]"
+				unifiedMsg.MediaType = entity.MediaTypeImage
+				unifiedMsg.RawContent["downloadCode"] = msg.Picture.DownloadCode
+				unifiedMsg.RawContent["pictureType"] = msg.Picture.PictureType
+			}
+
+		case DingtalkMessageTypeAudio:
+			if msg.Audio != nil {
+				unifiedMsg.Content = "[语音]"
+				unifiedMsg.MediaType = entity.MediaTypeVoice
+				unifiedMsg.RawContent["downloadCode"] = msg.Audio.DownloadCode
+				unifiedMsg.RawContent["duration"] = msg.Audio.Duration
+				unifiedMsg.RawContent["recognition"] = msg.Audio.Recognition
+			}
+
+		case DingtalkMessageTypeVideo:
+			if msg.Video != nil {
+				unifiedMsg.Content = "[视频]"
+				unifiedMsg.MediaType = entity.MediaTypeVideo
+				unifiedMsg.RawContent["downloadCode"] = msg.Video.DownloadCode
+				unifiedMsg.RawContent["duration"] = msg.Video.Duration
+				unifiedMsg.RawContent["videoType"] = msg.Video.VideoType
+			}
+
+		case DingtalkMessageTypeFile:
+			if msg.File != nil {
+				unifiedMsg.Content = "[文件] " + msg.File.FileName
+				unifiedMsg.MediaType = entity.MediaTypeFile
+				unifiedMsg.FileContent = &entity.FileMessage{
+					FileName: msg.File.FileName,
+					FileType: msg.File.FileType,
+				}
+				unifiedMsg.RawContent["downloadCode"] = msg.File.DownloadCode
+				unifiedMsg.RawContent["fileName"] = msg.File.FileName
+				unifiedMsg.RawContent["fileType"] = msg.File.FileType
+			}
+
+		case DingtalkMessageTypeInteractive:
+			if msg.Interactive != nil {
+				unifiedMsg.MessageType = entity.MessageTypeCard
+				unifiedMsg.Content = msg.Interactive.Title
+				unifiedMsg.CardContent = &entity.CardMessage{
+					CardType: entity.CardTypeInteractive,
+					Title:    msg.Interactive.Title,
+					Content:  msg.Interactive.Content,
+				}
+				unifiedMsg.RawContent["actionCardId"] = msg.Interactive.ActionCardID
+			}
 		}
 	}
 
@@ -266,4 +260,44 @@ func (msg *DingtalkCallbackMessage) ToUnifiedMessage() *entity.UnifiedMessage {
 	unifiedMsg.RawContent["sessionWebhookExpiredTime"] = msg.SessionWebhookExpiredTime
 
 	return unifiedMsg
+}
+
+// mapDingtalkMessageType 映射钉钉消息类型到统一消息类型
+func mapDingtalkMessageType(msgType DingtalkMessageType) string {
+	switch msgType {
+	case DingtalkMessageTypeText:
+		return entity.MessageTypeText
+	case DingtalkMessageTypeMarkdown:
+		return entity.MessageTypeMarkdown
+	case DingtalkMessageTypeActionCard, DingtalkMessageTypeInteractive:
+		return entity.MessageTypeCard
+	case DingtalkMessageTypeLink:
+		return entity.MessageTypeLink
+	case DingtalkMessageTypePicture:
+		return entity.MessageTypeImage
+	case DingtalkMessageTypeAudio:
+		return entity.MessageTypeAudio
+	case DingtalkMessageTypeVideo:
+		return entity.MessageTypeVideo
+	case DingtalkMessageTypeFile:
+		return entity.MessageTypeFile
+	default:
+		return entity.MessageTypeText
+	}
+}
+
+// mapDingtalkEventType 映射钉钉事件类型到统一事件类型
+func mapDingtalkEventType(eventType DingtalkEventType) string {
+	switch eventType {
+	case DingtalkEventTypeRobotAdded:
+		return entity.EventTypeUserSubscribe
+	case DingtalkEventTypeRobotRemoved:
+		return entity.EventTypeUserUnsubscribe
+	case DingtalkEventTypeGroupJoin:
+		return entity.EventTypeGroupJoin
+	case DingtalkEventTypeGroupLeave:
+		return entity.EventTypeGroupLeave
+	default:
+		return entity.EventTypeCustom
+	}
 }

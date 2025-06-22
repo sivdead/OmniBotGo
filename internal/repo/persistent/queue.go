@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 )
 
@@ -17,8 +17,8 @@ type MessageQueueRepo struct {
 	*BaseRepo
 }
 
-// NewMessageQueueRepo 创建MessageQueue Repository实例
-func NewMessageQueueRepo(db database.CommonDB) repo.MessageQueueRepo {
+// NewMessageQueueRepository 创建MessageQueue Repository实例
+func NewMessageQueueRepository(db database.CommonDB) port.MessageQueueRepository {
 	return &MessageQueueRepo{
 		BaseRepo: NewBaseRepo(db),
 	}
@@ -123,13 +123,14 @@ func (r *MessageQueueRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // List 获取MessageQueue列表（分页）
-func (r *MessageQueueRepo) List(ctx context.Context, params repo.ListParams) (*repo.PaginatedResult[*entity.MessageQueue], error) {
-	params = r.validateParams(params)
+func (r *MessageQueueRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.MessageQueue], error) {
+	internalParams := convertToInternalParams(params)
+	internalParams = r.validateParams(internalParams)
 
 	var queues []*entity.MessageQueue
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageQueue{}), params)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageQueue{}), internalParams)
 
-	result, err := PaginateTyped(r.db.GetGORM(), ctx, query, params, &queues)
+	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &queues)
 	if err != nil {
 		return nil, r.handleError(err, "list message queues")
 	}
@@ -253,3 +254,6 @@ func (r *MessageQueueRepo) MarkAsCancelled(ctx context.Context, id int64) error 
 func (r *MessageQueueRepo) Exists(ctx context.Context, id int64) (bool, error) {
 	return r.exists(ctx, &entity.MessageQueue{}, "id = ?", id)
 }
+
+// 确保 MessageQueueRepo 实现了 port.MessageQueueRepository 接口
+var _ port.MessageQueueRepository = (*MessageQueueRepo)(nil)

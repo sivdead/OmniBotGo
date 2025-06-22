@@ -24,6 +24,12 @@ func NewHTTPServer(
 	messageUC usecase.MessageUseCase,
 	channelUC usecase.ChannelUseCase,
 	botUC usecase.BotUseCase,
+	systemConfigUC usecase.SystemConfigUseCase,
+	platformUC usecase.PlatformUseCase,
+	monitorUC usecase.MonitorUseCase,
+	logUC usecase.LogUseCase,
+	queueUC usecase.QueueUseCase,
+	processorUC usecase.ProcessorUseCase,
 	l logger.Interface,
 ) *httpserver.Server {
 	httpSrv := httpserver.New(
@@ -32,7 +38,7 @@ func NewHTTPServer(
 	)
 
 	// 设置路由
-	http.NewRouter(httpSrv.App, cfg, messageUC, channelUC, botUC, l)
+	http.NewRouter(httpSrv.App, cfg, messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l)
 
 	return httpSrv
 }

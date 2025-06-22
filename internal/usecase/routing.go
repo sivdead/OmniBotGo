@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
-	"github.com/sivdead/OmniBotGo/internal/repo"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
@@ -39,26 +39,26 @@ type RoutingRuleFilters struct {
 	PageSize     int            `json:"page_size"`
 }
 
-// routingUseCase 消息路由业务逻辑实现
+// routingUseCase 路由业务逻辑实现
 type routingUseCase struct {
-	routingRuleRepo repo.MessageRoutingRuleRepo
-	processorRepo   repo.MessageProcessorRepo
-	channelRepo     repo.ChannelRepo
-	logger          logger.Interface
+	routingRuleRepo      port.MessageRoutingRuleRepository
+	messageProcessorRepo port.MessageProcessorRepository
+	channelRepo          port.ChannelRepository
+	logger               logger.Interface
 }
 
-// NewRoutingUseCase 创建消息路由业务逻辑实例
+// NewRoutingUseCase 创建路由业务逻辑实例
 func NewRoutingUseCase(
-	routingRuleRepo repo.MessageRoutingRuleRepo,
-	processorRepo repo.MessageProcessorRepo,
-	channelRepo repo.ChannelRepo,
+	routingRuleRepo port.MessageRoutingRuleRepository,
+	messageProcessorRepo port.MessageProcessorRepository,
+	channelRepo port.ChannelRepository,
 	logger logger.Interface,
 ) RoutingUseCase {
 	return &routingUseCase{
-		routingRuleRepo: routingRuleRepo,
-		processorRepo:   processorRepo,
-		channelRepo:     channelRepo,
-		logger:          logger,
+		routingRuleRepo:      routingRuleRepo,
+		messageProcessorRepo: messageProcessorRepo,
+		channelRepo:          channelRepo,
+		logger:               logger,
 	}
 }
 
@@ -86,7 +86,7 @@ func (uc *routingUseCase) RouteMessage(ctx context.Context, message *entity.Mess
 	// 获取对应的处理器
 	processors := make([]*entity.MessageProcessor, 0, len(rules))
 	for _, rule := range rules {
-		processor, err := uc.processorRepo.GetByID(ctx, rule.ProcessorID)
+		processor, err := uc.messageProcessorRepo.GetByID(ctx, rule.ProcessorID)
 		if err != nil {
 			uc.logger.Error("获取处理器失败", "processor_id", rule.ProcessorID, "error", err)
 			continue
@@ -273,7 +273,7 @@ func (uc *routingUseCase) CreateRoutingRule(ctx context.Context, rule *entity.Me
 	}
 
 	// 检查处理器是否存在
-	processor, err := uc.processorRepo.GetByID(ctx, rule.ProcessorID)
+	processor, err := uc.messageProcessorRepo.GetByID(ctx, rule.ProcessorID)
 	if err != nil {
 		return fmt.Errorf("处理器不存在: %w", err)
 	}
@@ -307,7 +307,7 @@ func (uc *routingUseCase) UpdateRoutingRule(ctx context.Context, rule *entity.Me
 	}
 
 	// 检查处理器是否存在
-	processor, err := uc.processorRepo.GetByID(ctx, rule.ProcessorID)
+	processor, err := uc.messageProcessorRepo.GetByID(ctx, rule.ProcessorID)
 	if err != nil {
 		return fmt.Errorf("处理器不存在: %w", err)
 	}
@@ -373,7 +373,7 @@ func (uc *routingUseCase) GetRoutingRules(ctx context.Context, filters RoutingRu
 	}
 
 	// 构建查询参数
-	listParams := repo.ListParams{
+	listParams := port.ListParams{
 		Page:     filters.Page,
 		PageSize: filters.PageSize,
 		Filters:  conditions,
