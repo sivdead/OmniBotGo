@@ -2,9 +2,13 @@ package wecom
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/xml"
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sivdead/OmniBotGo/internal/dto"
@@ -14,8 +18,31 @@ import (
 
 // VerifyWebhook 验证Webhook签名
 func (w *WecomAdapter) VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error {
-	// TODO: 实现企业微信的签名验证逻辑
-	// 需要使用配置中的token和encodingAESKey进行验证
+	// 实现企业微信的签名验证逻辑
+	// 获取配置中的token
+	token, ok := config["token"].(string)
+	if !ok || token == "" {
+		return fmt.Errorf("token is required for webhook verification")
+	}
+
+	// 企业微信的签名验证算法
+	// 1. 将token、timestamp、nonce三个参数进行字典序排序
+	// 2. 将三个参数字符串拼接成一个字符串进行sha1哈希
+	// 3. 开发者获得加密后的字符串可与signature对比，标识该请求来源于微信
+	
+	params := []string{token, timestamp, nonce}
+	sort.Strings(params)
+	
+	// 拼接成字符串并进行sha1哈希
+	data := strings.Join(params, "")
+	h := sha1.New()
+	h.Write([]byte(data))
+	hash := hex.EncodeToString(h.Sum(nil))
+	
+	if hash != signature {
+		return fmt.Errorf("webhook signature verification failed")
+	}
+
 	return nil
 }
 

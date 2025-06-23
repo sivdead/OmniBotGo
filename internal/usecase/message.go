@@ -1,8 +1,12 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	"github.com/sivdead/OmniBotGo/internal/dto"
@@ -519,10 +523,48 @@ func (uc *messageUseCase) processWebhookForwarder(ctx context.Context, msg *enti
 		return uc.enqueueWebhookMessage(ctx, msg, processor, url)
 	}
 
-	// TODO: 实现Webhook转发逻辑
-	// 1. 构建要发送的数据
-	// 2. 发送HTTP POST请求到目标URL
-	// 3. 处理响应并记录日志
+	// 实现Webhook转发逻辑
+	// 构建要发送的数据
+	payload := map[string]interface{}{
+		"message_id":   msg.MessageID,
+		"channel_id":   msg.ChannelID,
+		"sender_id":    msg.SenderID,
+		"sender_name":  msg.SenderName,
+		"content":      msg.Content,
+		"message_type": msg.MessageType,
+		"timestamp":    msg.ReceivedAt,
+		"raw_content":  msg.RawContent,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("构建Webhook数据失败: %w", err)
+	}
+
+	// 发送HTTP POST请求到目标URL
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("创建Webhook请求失败: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "OmniBotGo/1.0")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("发送Webhook请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 处理响应并记录日志
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		uc.logger.Info("Webhook转发成功", "url", url, "message_id", msg.MessageID, "status_code", resp.StatusCode)
+	} else {
+		body, _ := io.ReadAll(resp.Body)
+		uc.logger.Error("Webhook转发失败", "url", url, "message_id", msg.MessageID, "status_code", resp.StatusCode, "response", string(body))
+		return fmt.Errorf("Webhook响应错误: %d", resp.StatusCode)
+	}
 
 	uc.logger.Info("Webhook转发处理完成", "url", url, "message_id", msg.MessageID)
 	return nil
@@ -607,12 +649,125 @@ func (uc *messageUseCase) processAutoReply(ctx context.Context, msg *entity.Mess
 
 // processAIChat 处理AI聊天
 func (uc *messageUseCase) processAIChat(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor) error {
-	// TODO: 实现AI聊天逻辑
-	// 1. 调用AI API（如OpenAI、Claude等）
-	// 2. 获取AI回复
-	// 3. 发送回复消息
+	// 获取AI配置
+	apiURL := processor.GetConfigValue("api_url")
+	apiKey := processor.GetConfigValue("api_key")
+	model := processor.GetConfigValue("model")
+	
+	if apiURL == nil || apiKey == nil {
+		return fmt.Errorf("AI聊天处理器缺少必要配置：api_url 或 api_key")
+	}
 
-	uc.logger.Info("AI聊天处理完成（暂未实现）", "message_id", msg.MessageID)
+	url, ok := apiURL.(string)
+	if !ok || url == "" {
+		return fmt.Errorf("无效的api_url配置")
+	}
+
+	key, ok := apiKey.(string)
+	if !ok || key == "" {
+		return fmt.Errorf("无效的api_key配置")
+	}
+
+	modelName := "gpt-3.5-turbo" // 默认模型
+	if model != nil {
+		if m, ok := model.(string); ok && m != "" {
+			modelName = m
+		}
+	}
+
+	// 构建AI请求
+	aiRequest := map[string]interface{}{
+		"model": modelName,
+		"messages": []map[string]interface{}{
+			{
+				"role":    "user",
+				"content": msg.Content,
+			},
+		},
+		"max_tokens":  1000,
+		"temperature": 0.7,
+	}
+
+	jsonData, err := json.Marshal(aiRequest)
+	if err != nil {
+		return fmt.Errorf("构建AI请求数据失败: %w", err)
+	}
+
+	// 发送请求到AI API
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("创建AI请求失败: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("User-Agent", "OmniBotGo/1.0")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("发送AI请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		uc.logger.Error("AI API请求失败", "status_code", resp.StatusCode, "response", string(body))
+		return fmt.Errorf("AI API响应错误: %d", resp.StatusCode)
+	}
+
+	// 解析AI响应
+	var aiResponse struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&aiResponse); err != nil {
+		return fmt.Errorf("解析AI响应失败: %w", err)
+	}
+
+	if aiResponse.Error.Message != "" {
+		return fmt.Errorf("AI API错误: %s", aiResponse.Error.Message)
+	}
+
+	if len(aiResponse.Choices) == 0 {
+		return fmt.Errorf("AI响应为空")
+	}
+
+	aiReply := aiResponse.Choices[0].Message.Content
+	if aiReply == "" {
+		return fmt.Errorf("AI回复内容为空")
+	}
+
+	// 构建回复消息
+	replyMsg := &entity.Message{
+		MessageID:       uc.generateMessageID(),
+		ChannelID:       msg.ChannelID,
+		Direction:       entity.MessageDirectionOutbound,
+		MessageType:     entity.MessageTypeText,
+		SenderID:        msg.ReceiverID, // AI回复者变成发送者
+		SenderName:      msg.ReceiverName,
+		SenderType:      entity.SenderTypeBot,
+		ReceiverID:      msg.SenderID, // 原发送者变成接收者
+		ReceiverName:    msg.SenderName,
+		ReceiverType:    msg.SenderType,
+		Content:         aiReply,
+		ConversationID:  msg.ConversationID,
+		ParentMessageID: &msg.ID, // 设置父消息ID
+	}
+
+	// 发送AI回复消息
+	if err := uc.SendMessage(ctx, replyMsg); err != nil {
+		return fmt.Errorf("发送AI回复失败: %w", err)
+	}
+
+	uc.logger.Info("AI聊天处理完成", "reply_message_id", replyMsg.MessageID, "original_message_id", msg.MessageID, "model", modelName)
 	return nil
 }
 

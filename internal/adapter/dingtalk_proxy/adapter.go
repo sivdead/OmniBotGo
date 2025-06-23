@@ -2,9 +2,13 @@ package dingtalk_proxy
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/adapter/dingtalk_enterprise"
@@ -94,7 +98,18 @@ func (a *DingtalkProxyAdapter) VerifyWebhook(ctx context.Context, signature, tim
 	}
 
 	// 企业应用模式验证
-	// TODO: 实现企业应用的Webhook验证
+	// 实现企业应用的Webhook验证
+	// 获取app_secret从配置中进行签名验证
+	appSecret, ok := cfg["app_secret"].(string)
+	if !ok || appSecret == "" {
+		return fmt.Errorf("app_secret is required for webhook verification")
+	}
+	
+	// 使用企业应用适配器的验证逻辑
+	if !verifySignature(timestamp, nonce, appSecret, signature) {
+		return fmt.Errorf("webhook signature verification failed")
+	}
+	
 	return nil
 }
 
@@ -143,4 +158,26 @@ func isStreamMode(config map[string]interface{}) bool {
 	clientSecret, hasClientSecret := config["client_secret"].(string)
 
 	return hasClientID && hasClientSecret && clientID != "" && clientSecret != ""
+}
+
+// verifySignature 验证钉钉签名
+func verifySignature(timestamp, nonce, token, signature string) bool {
+	if token == "" || signature == "" {
+		return false
+	}
+	
+	// 将timestamp、nonce、token按字典序排序
+	params := []string{timestamp, nonce, token}
+	sort.Strings(params)
+	
+	// 拼接成字符串
+	data := strings.Join(params, "")
+	
+	// 进行sha256加密
+	h := sha256.New()
+	h.Write([]byte(data))
+	hash := hex.EncodeToString(h.Sum(nil))
+	
+	// 将加密结果与signature对比
+	return hash == signature
 }
