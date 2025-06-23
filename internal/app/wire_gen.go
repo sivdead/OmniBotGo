@@ -15,10 +15,11 @@ import (
 // Injectors from wire.go:
 
 // InitializeApp 使用Wire进行依赖注入，初始化整个应用程序
-func InitializeApp(cfg *config.Config) (*providers.App, error) {
+func InitializeApp(cfg *config.Config) (*providers.App, func(), error) {
+	loggerInterface := providers.NewLogger(cfg)
 	commonDB, err := providers.NewDatabase(cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	messageRepository := persistent.NewMessageRepository(commonDB)
 	channelRepository := persistent.NewChannelRepository(commonDB)
@@ -32,9 +33,9 @@ func InitializeApp(cfg *config.Config) (*providers.App, error) {
 	manager := providers.NewAdapterManager(adapterRegistry)
 	messageRoutingRuleRepository := persistent.NewMessageRoutingRuleRepository(commonDB)
 	messageProcessorRepository := persistent.NewMessageProcessorRepository(commonDB)
-	loggerInterface := providers.NewLogger(cfg)
 	routingUseCase := providers.NewRoutingUseCase(messageRoutingRuleRepository, messageProcessorRepository, channelRepository, loggerInterface)
-	messageUseCase := providers.NewMessageUseCase(messageRepository, channelRepository, manager, routingUseCase, loggerInterface)
+	messageQueueRepository := persistent.NewMessageQueueRepository(commonDB)
+	messageUseCase := providers.NewMessageUseCase(messageRepository, channelRepository, manager, routingUseCase, messageQueueRepository, loggerInterface)
 	botRepository := persistent.NewBotRepository(commonDB)
 	channelUseCase := providers.NewChannelUseCase(channelRepository, botRepository, manager, loggerInterface)
 	botUseCase := providers.NewBotUseCase(botRepository, channelRepository, loggerInterface)
@@ -45,17 +46,18 @@ func InitializeApp(cfg *config.Config) (*providers.App, error) {
 	connectionLogRepository := persistent.NewConnectionLogRepository(commonDB)
 	apiCallLogRepository := persistent.NewAPICallLogRepository(commonDB)
 	logUseCase := providers.NewLogUseCase(connectionLogRepository, apiCallLogRepository, loggerInterface)
-	messageQueueRepository := persistent.NewMessageQueueRepository(commonDB)
 	queueUseCase := providers.NewQueueUseCase(messageQueueRepository, loggerInterface)
 	processorUseCase := providers.NewProcessorUseCase(messageProcessorRepository, messageRoutingRuleRepository, loggerInterface)
 	server := providers.NewHTTPServer(cfg, messageUseCase, channelUseCase, botUseCase, systemConfigUseCase, platformUseCase, monitorUseCase, logUseCase, queueUseCase, processorUseCase, loggerInterface)
 	grpcserverServer := providers.NewGRPCServer(cfg, loggerInterface)
 	serverServer, err := providers.NewRMQServer(cfg, loggerInterface)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	logger := providers.NewZerologLogger(cfg)
 	connectionManager := providers.NewConnectionManager(logger, channelRepository, manager, messageUseCase)
-	app := providers.NewApp(server, grpcserverServer, serverServer, connectionManager, commonDB, loggerInterface)
-	return app, nil
+	configWatcher := providers.NewConfigWatcher(systemConfigRepository, channelRepository, messageProcessorRepository, manager, loggerInterface)
+	app := providers.NewApp(cfg, loggerInterface, commonDB, server, grpcserverServer, serverServer, connectionManager, configWatcher)
+	return app, func() {
+	}, nil
 }

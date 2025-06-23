@@ -19,6 +19,7 @@ type messageUseCase struct {
 	adapterManager port.AdapterManager
 	routingUC      RoutingUseCase
 	msgService     *service.MessageService
+	queueRepo      port.MessageQueueRepository
 	logger         logger.Interface
 }
 
@@ -28,6 +29,7 @@ func NewMessageUseCase(
 	channelRepo port.ChannelRepository,
 	adapterManager port.AdapterManager,
 	routingUC RoutingUseCase,
+	queueRepo port.MessageQueueRepository,
 	logger logger.Interface,
 ) MessageUseCase {
 	return &messageUseCase{
@@ -36,6 +38,7 @@ func NewMessageUseCase(
 		adapterManager: adapterManager,
 		routingUC:      routingUC,
 		msgService:     service.NewMessageService(),
+		queueRepo:      queueRepo,
 		logger:         logger,
 	}
 }
@@ -114,6 +117,19 @@ func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity
 		msg.MessageID = uc.generateMessageID()
 	}
 
+	// 消息去重检查
+	if msg.PlatformMessageID != "" {
+		// 检查是否已存在相同的平台消息ID
+		existingMsg, err := uc.messageRepo.GetByPlatformMessageID(ctx, msg.ChannelID, msg.PlatformMessageID)
+		if err == nil && existingMsg != nil {
+			uc.logger.Warn("检测到重复消息，跳过处理",
+				"message_id", msg.MessageID,
+				"platform_message_id", msg.PlatformMessageID,
+				"existing_message_id", existingMsg.MessageID)
+			return nil // 不返回错误，静默跳过
+		}
+	}
+
 	// 保存消息到数据库
 	if err := uc.messageRepo.Create(ctx, msg); err != nil {
 		uc.logger.Error("保存消息失败", "error", err)
@@ -134,6 +150,11 @@ func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity
 		uc.msgService.MarkAsFailed(msg, err.Error())
 		if updateErr := uc.messageRepo.Update(ctx, msg); updateErr != nil {
 			uc.logger.Error("更新消息状态失败", "error", updateErr)
+		}
+
+		// 将失败的消息放入重试队列
+		if err := uc.enqueueFailedMessage(ctx, msg); err != nil {
+			uc.logger.Error("将失败消息加入队列失败", "error", err)
 		}
 	}
 
@@ -450,6 +471,11 @@ func (uc *messageUseCase) processWebhookForwarder(ctx context.Context, msg *enti
 		return fmt.Errorf("无效的webhook_url配置")
 	}
 
+	// 检查是否需要将消息暂存到队列（例如：后端服务不可用时）
+	if shouldQueueMessage(processor) {
+		return uc.enqueueWebhookMessage(ctx, msg, processor, url)
+	}
+
 	// TODO: 实现Webhook转发逻辑
 	// 1. 构建要发送的数据
 	// 2. 发送HTTP POST请求到目标URL
@@ -457,6 +483,44 @@ func (uc *messageUseCase) processWebhookForwarder(ctx context.Context, msg *enti
 
 	uc.logger.Info("Webhook转发处理完成", "url", url, "message_id", msg.MessageID)
 	return nil
+}
+
+// enqueueWebhookMessage 将Webhook消息加入队列
+func (uc *messageUseCase) enqueueWebhookMessage(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor, webhookURL string) error {
+	queue := &entity.MessageQueue{
+		QueueName:   "webhook_forward",
+		MessageID:   msg.MessageID,
+		Priority:    50, // Webhook转发优先级较高
+		MaxRetries:  5,
+		Status:      entity.QueueStatusPending,
+		ScheduledAt: time.Now(),
+		Payload: entity.JSONField{
+			"message_id":   msg.ID,
+			"processor_id": processor.ID,
+			"webhook_url":  webhookURL,
+			"message_data": msg,
+		},
+	}
+
+	if err := uc.queueRepo.Create(ctx, queue); err != nil {
+		return fmt.Errorf("将消息加入Webhook队列失败: %w", err)
+	}
+
+	uc.logger.Info("消息已加入Webhook转发队列", "message_id", msg.MessageID, "queue_id", queue.ID)
+	return nil
+}
+
+// shouldQueueMessage 判断是否应该将消息放入队列
+func shouldQueueMessage(processor *entity.MessageProcessor) bool {
+	// 可以根据处理器配置判断
+	// 例如：检查后端服务健康状态、是否启用队列模式等
+	queueMode := processor.GetConfigValue("queue_mode")
+	if queueMode != nil {
+		if enabled, ok := queueMode.(bool); ok && enabled {
+			return true
+		}
+	}
+	return false
 }
 
 // processAutoReply 处理自动回复
@@ -507,4 +571,23 @@ func (uc *messageUseCase) processAIChat(ctx context.Context, msg *entity.Message
 
 	uc.logger.Info("AI聊天处理完成（暂未实现）", "message_id", msg.MessageID)
 	return nil
+}
+
+// enqueueFailedMessage 将失败的消息加入重试队列
+func (uc *messageUseCase) enqueueFailedMessage(ctx context.Context, msg *entity.Message) error {
+	queue := &entity.MessageQueue{
+		QueueName:   "message_retry",
+		MessageID:   msg.MessageID,
+		Priority:    100,
+		MaxRetries:  3,
+		Status:      entity.QueueStatusPending,
+		ScheduledAt: time.Now().Add(5 * time.Minute), // 5分钟后重试
+		Payload: entity.JSONField{
+			"message_id":   msg.ID,
+			"channel_id":   msg.ChannelID,
+			"retry_reason": "processing_failed",
+		},
+	}
+
+	return uc.queueRepo.Create(ctx, queue)
 }

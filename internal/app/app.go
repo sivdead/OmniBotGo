@@ -12,10 +12,11 @@ import (
 // Run creates objects via Wire dependency injection and starts the application.
 func Run(cfg *config.Config) {
 	// 使用Wire初始化应用程序
-	app, err := InitializeApp(cfg)
+	app, cleanup, err := InitializeApp(cfg)
 	if err != nil {
 		log.Fatalf("Failed to initialize app: %v", err)
 	}
+	defer cleanup()
 
 	// 启动应用程序
 	app.Run()

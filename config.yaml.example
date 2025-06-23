@@ -39,4 +39,22 @@ metrics:
 
 # Swagger 文档配置
 swagger:
-  enabled: true 
+  enabled: true
+
+# 速率限制配置
+rate_limit:
+  # 全局限制（所有请求，-1表示不限制）
+  global_max: 1000        # 全局最大请求数
+  global_expiration: 60   # 全局时间窗口（秒）
+  
+  # 每个IP限制（-1表示不限制）
+  per_ip_max: 100         # 每个IP最大请求数
+  per_ip_expiration: 60   # 每个IP时间窗口（秒）
+  
+  # 每个用户限制（需要认证，-1表示不限制）
+  per_user_max: 200       # 每个用户最大请求数
+  per_user_expiration: 60 # 每个用户时间窗口（秒）
+  
+  # 并发限制（-1表示不限制）
+  max_workers: 100        # 最大并发工作协程数
+  max_requests: 1000      # 最大同时处理请求数

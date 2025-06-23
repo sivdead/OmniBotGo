@@ -69,6 +69,21 @@ func (r *MessageRepo) GetByMessageID(ctx context.Context, messageID string) (*en
 	return &message, nil
 }
 
+// GetByPlatformMessageID 根据平台消息ID获取Message
+func (r *MessageRepo) GetByPlatformMessageID(ctx context.Context, channelID int64, platformMessageID string) (*entity.Message, error) {
+	var message entity.Message
+	err := r.db.GetGORM().WithContext(ctx).
+		Where("channel_id = ? AND platform_message_id = ?", channelID, platformMessageID).
+		First(&message).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil // 返回nil表示不存在
+		}
+		return nil, r.handleError(err, "get message by platform message id")
+	}
+	return &message, nil
+}
+
 // GetByChannelID 根据通道ID获取消息列表
 func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID int64, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
 	// 转换参数类型为内部使用的类型

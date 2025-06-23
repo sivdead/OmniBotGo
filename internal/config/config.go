@@ -10,14 +10,15 @@ import (
 type (
 	// Config -.
 	Config struct {
-		App     App     `mapstructure:"app"`
-		HTTP    HTTP    `mapstructure:"http"`
-		Log     Log     `mapstructure:"log"`
-		DB      DB      `mapstructure:"db"`
-		GRPC    GRPC    `mapstructure:"grpc"`
-		RMQ     RMQ     `mapstructure:"rmq"`
-		Metrics Metrics `mapstructure:"metrics"`
-		Swagger Swagger `mapstructure:"swagger"`
+		App       App       `mapstructure:"app"`
+		HTTP      HTTP      `mapstructure:"http"`
+		Log       Log       `mapstructure:"log"`
+		DB        DB        `mapstructure:"db"`
+		GRPC      GRPC      `mapstructure:"grpc"`
+		RMQ       RMQ       `mapstructure:"rmq"`
+		Metrics   Metrics   `mapstructure:"metrics"`
+		Swagger   Swagger   `mapstructure:"swagger"`
+		RateLimit RateLimit `mapstructure:"rate_limit"`
 	}
 
 	// App -.
@@ -66,6 +67,25 @@ type (
 	// Swagger -.
 	Swagger struct {
 		Enabled bool `mapstructure:"enabled"`
+	}
+
+	// RateLimit -.
+	RateLimit struct {
+		// 全局限制（-1表示不限制）
+		GlobalMax        int `mapstructure:"global_max"`
+		GlobalExpiration int `mapstructure:"global_expiration"` // 秒
+
+		// 每个IP限制（-1表示不限制）
+		PerIPMax        int `mapstructure:"per_ip_max"`
+		PerIPExpiration int `mapstructure:"per_ip_expiration"` // 秒
+
+		// 每个用户限制（-1表示不限制）
+		PerUserMax        int `mapstructure:"per_user_max"`
+		PerUserExpiration int `mapstructure:"per_user_expiration"` // 秒
+
+		// 并发限制（-1表示不限制）
+		MaxWorkers  int `mapstructure:"max_workers"`
+		MaxRequests int `mapstructure:"max_requests"`
 	}
 )
 
@@ -153,6 +173,16 @@ func setDefaults(v *viper.Viper) {
 
 	// Swagger defaults
 	v.SetDefault("swagger.enabled", false)
+
+	// Rate limit defaults
+	v.SetDefault("rate_limit.global_max", 1000)
+	v.SetDefault("rate_limit.global_expiration", 60) // 1分钟
+	v.SetDefault("rate_limit.per_ip_max", 100)
+	v.SetDefault("rate_limit.per_ip_expiration", 60) // 1分钟
+	v.SetDefault("rate_limit.per_user_max", 200)
+	v.SetDefault("rate_limit.per_user_expiration", 60) // 1分钟
+	v.SetDefault("rate_limit.max_workers", 100)
+	v.SetDefault("rate_limit.max_requests", 1000)
 }
 
 // validateConfig validates required configuration fields

@@ -49,6 +49,7 @@ func NewMessageUseCase(
 	channelRepo port.ChannelRepository,
 	adapterManager port.AdapterManager,
 	routingUC usecase.RoutingUseCase,
+	queueRepo port.MessageQueueRepository,
 	logger logger.Interface,
 ) usecase.MessageUseCase {
 	return usecase.NewMessageUseCase(
@@ -56,6 +57,7 @@ func NewMessageUseCase(
 		channelRepo,
 		adapterManager,
 		routingUC,
+		queueRepo,
 		logger,
 	)
 }

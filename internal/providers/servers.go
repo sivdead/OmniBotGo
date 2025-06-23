@@ -4,18 +4,21 @@ import (
 	"github.com/google/wire"
 	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/controller/http"
+	"github.com/sivdead/OmniBotGo/internal/service"
 	"github.com/sivdead/OmniBotGo/internal/usecase"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/grpcserver"
 	"github.com/sivdead/OmniBotGo/pkg/httpserver"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 	"github.com/sivdead/OmniBotGo/pkg/rabbitmq/rmq_rpc/server"
 )
 
-// ServerSet 包含所有服务器相关的Provider
+// ServerSet 服务器相关的Provider集合
 var ServerSet = wire.NewSet(
 	NewHTTPServer,
 	NewGRPCServer,
 	NewRMQServer,
+	NewConfigWatcher,
 )
 
 // NewHTTPServer 创建HTTP服务器并设置路由
@@ -71,4 +74,15 @@ func NewRMQServer(
 	// rmqRouter := amqprpc.NewRouter(useCases, l)
 
 	return server.New(cfg.RMQ.URL, cfg.RMQ.ServerExchange, nil, l)
+}
+
+// NewConfigWatcher 创建配置监视器
+func NewConfigWatcher(
+	systemRepo port.SystemConfigRepository,
+	channelRepo port.ChannelRepository,
+	processorRepo port.MessageProcessorRepository,
+	adapterManager port.AdapterManager,
+	logger logger.Interface,
+) *service.ConfigWatcher {
+	return service.NewConfigWatcher(systemRepo, channelRepo, processorRepo, adapterManager, logger)
 }

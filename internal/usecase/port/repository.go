@@ -59,6 +59,7 @@ type MessageRepository interface {
 	Create(ctx context.Context, message *entity.Message) error
 	GetByID(ctx context.Context, id int64) (*entity.Message, error)
 	GetByMessageID(ctx context.Context, messageID string) (*entity.Message, error)
+	GetByPlatformMessageID(ctx context.Context, channelID int64, platformMessageID string) (*entity.Message, error)
 	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult[*entity.Message], error)
 	GetByConversationID(ctx context.Context, conversationID string, params ListParams) (*PaginatedResult[*entity.Message], error)
 	GetPendingMessages(ctx context.Context, limit int) ([]*entity.Message, error)

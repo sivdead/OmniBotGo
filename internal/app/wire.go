@@ -1,4 +1,5 @@
 //go:build wireinject
+// +build wireinject
 
 package app
 
@@ -9,14 +10,15 @@ import (
 )
 
 // InitializeApp 使用Wire进行依赖注入，初始化整个应用程序
-func InitializeApp(cfg *config.Config) (*providers.App, error) {
-	wire.Build(
+func InitializeApp(
+	cfg *config.Config,
+) (*providers.App, func(), error) {
+	panic(wire.Build(
 		providers.InfrastructureSet,
-		providers.AdapterSet,
 		providers.RepositorySet,
+		providers.AdapterSet,
 		providers.UseCaseSet,
 		providers.ServerSet,
-		providers.AppSet,
-	)
-	return &providers.App{}, nil
+		providers.NewApp,
+	))
 }

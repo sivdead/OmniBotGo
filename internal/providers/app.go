@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/google/wire"
+	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/service"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 	"github.com/sivdead/OmniBotGo/pkg/grpcserver"
@@ -23,30 +24,36 @@ var AppSet = wire.NewSet(
 
 // App 应用程序主结构体
 type App struct {
+	Config            *config.Config
+	Logger            logger.Interface
+	Database          database.CommonDB
 	HTTPServer        *httpserver.Server
 	GRPCServer        *grpcserver.Server
 	RMQServer         *server.Server
 	ConnectionManager *service.ConnectionManager
-	Database          database.CommonDB
-	Logger            logger.Interface
+	ConfigWatcher     *service.ConfigWatcher
 }
 
 // NewApp 创建应用程序实例
 func NewApp(
-	httpSrv *httpserver.Server,
-	grpcSrv *grpcserver.Server,
-	rmqSrv *server.Server,
-	connMgr *service.ConnectionManager,
-	db database.CommonDB,
+	cfg *config.Config,
 	l logger.Interface,
+	db database.CommonDB,
+	httpServer *httpserver.Server,
+	grpcServer *grpcserver.Server,
+	rmqServer *server.Server,
+	connectionManager *service.ConnectionManager,
+	configWatcher *service.ConfigWatcher,
 ) *App {
 	return &App{
-		HTTPServer:        httpSrv,
-		GRPCServer:        grpcSrv,
-		RMQServer:         rmqSrv,
-		ConnectionManager: connMgr,
-		Database:          db,
+		Config:            cfg,
 		Logger:            l,
+		Database:          db,
+		HTTPServer:        httpServer,
+		GRPCServer:        grpcServer,
+		RMQServer:         rmqServer,
+		ConnectionManager: connectionManager,
+		ConfigWatcher:     configWatcher,
 	}
 }
 
@@ -62,6 +69,11 @@ func (a *App) Run() {
 	// 启动ConnectionManager（在其他服务之前启动，确保Stream连接已就绪）
 	if err := a.ConnectionManager.Start(context.Background()); err != nil {
 		a.Logger.Error(fmt.Errorf("app - Run - connectionManager.Start: %w", err))
+	}
+
+	// 启动ConfigWatcher
+	if err := a.ConfigWatcher.Start(context.Background()); err != nil {
+		a.Logger.Error(fmt.Errorf("app - Run - configWatcher.Start: %w", err))
 	}
 
 	// 启动所有服务器
@@ -108,6 +120,9 @@ func (a *App) shutdown() {
 	if err := a.ConnectionManager.Stop(context.Background()); err != nil {
 		a.Logger.Error(fmt.Errorf("app - shutdown - connectionManager.Stop: %w", err))
 	}
+
+	// 停止ConfigWatcher
+	a.ConfigWatcher.Stop()
 
 	// 然后关闭其他服务器
 	if err := a.HTTPServer.Shutdown(); err != nil {
