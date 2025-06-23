@@ -15,7 +15,7 @@ import (
 // @Accept json
 // @Produce json
 // @Param request body usecase.CreateProcessorRequest true "创建处理器请求"
-// @Success 201 {object} StandardResponse{data=entity.Processor} "创建成功"
+// @Success 201 {object} StandardResponse{data=entity.MessageProcessor} "创建成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 409 {object} StandardResponse "处理器名称已存在"
 // @Failure 500 {object} StandardResponse "内部服务器错误"
@@ -105,7 +105,7 @@ func (v *V1) GetProcessors(c *fiber.Ctx) error {
 // @Accept json
 // @Produce json
 // @Param id path string true "处理器ID"
-// @Success 200 {object} StandardResponse{data=entity.Processor} "获取成功"
+// @Success 200 {object} StandardResponse{data=entity.MessageProcessor} "获取成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 404 {object} StandardResponse "处理器不存在"
 // @Failure 500 {object} StandardResponse "内部服务器错误"
@@ -145,7 +145,7 @@ func (v *V1) GetProcessorByID(c *fiber.Ctx) error {
 // @Produce json
 // @Param id path string true "处理器ID"
 // @Param request body usecase.UpdateProcessorRequest true "更新处理器请求"
-// @Success 200 {object} StandardResponse{data=entity.Processor} "更新成功"
+// @Success 200 {object} StandardResponse{data=entity.MessageProcessor} "更新成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 404 {object} StandardResponse "处理器不存在"
 // @Failure 500 {object} StandardResponse "内部服务器错误"
@@ -290,7 +290,7 @@ func (v *V1) UpdateProcessorStatus(c *fiber.Ctx) error {
 // @Produce json
 // @Param id path string true "处理器ID"
 // @Param request body usecase.CreateRoutingRuleRequest true "创建路由规则请求"
-// @Success 201 {object} StandardResponse{data=entity.RoutingRule} "创建成功"
+// @Success 201 {object} StandardResponse{data=entity.MessageRoutingRule} "创建成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 404 {object} StandardResponse "处理器不存在"
 // @Failure 500 {object} StandardResponse "内部服务器错误"
@@ -343,7 +343,7 @@ func (v *V1) CreateRoutingRule(c *fiber.Ctx) error {
 // @Accept json
 // @Produce json
 // @Param id path string true "处理器ID"
-// @Success 200 {object} StandardResponse{data=[]entity.RoutingRule} "获取成功"
+// @Success 200 {object} StandardResponse{data=[]entity.MessageRoutingRule} "获取成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 404 {object} StandardResponse "处理器不存在"
 // @Failure 500 {object} StandardResponse "内部服务器错误"
@@ -384,7 +384,7 @@ func (v *V1) GetRoutingRules(c *fiber.Ctx) error {
 // @Param id path string true "处理器ID"
 // @Param rule_id path string true "规则ID"
 // @Param request body usecase.UpdateRoutingRuleRequest true "更新路由规则请求"
-// @Success 200 {object} StandardResponse{data=entity.RoutingRule} "更新成功"
+// @Success 200 {object} StandardResponse{data=entity.MessageRoutingRule} "更新成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 404 {object} StandardResponse "规则不存在"
 // @Failure 500 {object} StandardResponse "内部服务器错误"

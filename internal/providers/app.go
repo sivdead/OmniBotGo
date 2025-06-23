@@ -65,7 +65,9 @@ func (a *App) Run() {
 	}
 
 	// 启动所有服务器
-	a.RMQServer.Start()
+	if a.RMQServer != nil {
+		a.RMQServer.Start()
+	}
 	a.GRPCServer.Start()
 	a.HTTPServer.Start()
 
@@ -75,6 +77,12 @@ func (a *App) Run() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
+	// 创建RMQ通知channel，如果RMQServer为nil则创建一个永不触发的channel
+	rmqNotify := make(<-chan error)
+	if a.RMQServer != nil {
+		rmqNotify = a.RMQServer.Notify()
+	}
+
 	select {
 	case s := <-interrupt:
 		a.Logger.Info("app - Run - signal: %s", s.String())
@@ -82,8 +90,10 @@ func (a *App) Run() {
 		a.Logger.Error(fmt.Errorf("app - Run - httpServer.Notify: %w", err))
 	case err := <-a.GRPCServer.Notify():
 		a.Logger.Error(fmt.Errorf("app - Run - grpcServer.Notify: %w", err))
-	case err := <-a.RMQServer.Notify():
-		a.Logger.Error(fmt.Errorf("app - Run - rmqServer.Notify: %w", err))
+	case err := <-rmqNotify:
+		if err != nil {
+			a.Logger.Error(fmt.Errorf("app - Run - rmqServer.Notify: %w", err))
+		}
 	}
 
 	// 优雅关闭所有服务器
@@ -108,8 +118,10 @@ func (a *App) shutdown() {
 		a.Logger.Error(fmt.Errorf("app - shutdown - grpcServer.Shutdown: %w", err))
 	}
 
-	if err := a.RMQServer.Shutdown(); err != nil {
-		a.Logger.Error(fmt.Errorf("app - shutdown - rmqServer.Shutdown: %w", err))
+	if a.RMQServer != nil {
+		if err := a.RMQServer.Shutdown(); err != nil {
+			a.Logger.Error(fmt.Errorf("app - shutdown - rmqServer.Shutdown: %w", err))
+		}
 	}
 
 	a.Logger.Info("应用程序优雅关闭完成")

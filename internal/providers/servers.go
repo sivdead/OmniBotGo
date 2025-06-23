@@ -61,6 +61,12 @@ func NewRMQServer(
 	cfg *config.Config,
 	l logger.Interface,
 ) (*server.Server, error) {
+	// 如果没有配置RMQ URL，返回nil（表示不启用RMQ服务器）
+	if cfg.RMQ.URL == "" {
+		l.Info("RabbitMQ URL not configured, RMQ server disabled")
+		return nil, nil
+	}
+
 	// TODO: 后续添加OmniBotGo的路由
 	// rmqRouter := amqprpc.NewRouter(useCases, l)
 

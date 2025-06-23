@@ -20,7 +20,7 @@ import (
 // @Param end_time query string false "结束时间"
 // @Param page query int false "页码，默认1" default(1)
 // @Param page_size query int false "每页数量，默认20" default(20)
-// @Success 200 {object} StandardResponse{data=usecase.LogListResult} "获取成功"
+// @Success 200 {object} StandardResponse{data=usecase.ConnectionLogListResult} "获取成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/logs/connections [get]
@@ -109,7 +109,7 @@ func (v *V1) GetConnectionLogByID(c *fiber.Ctx) error {
 // @Param end_time query string false "结束时间"
 // @Param page query int false "页码，默认1" default(1)
 // @Param page_size query int false "每页数量，默认20" default(20)
-// @Success 200 {object} StandardResponse{data=usecase.LogListResult} "获取成功"
+// @Success 200 {object} StandardResponse{data=usecase.APICallLogListResult} "获取成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/logs/api-calls [get]

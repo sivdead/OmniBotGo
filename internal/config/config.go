@@ -181,9 +181,10 @@ func validateConfig(cfg *Config) error {
 	if cfg.RMQ.ClientExchange == "" {
 		return fmt.Errorf("rmq.client_exchange is required")
 	}
-	if cfg.RMQ.URL == "" {
-		return fmt.Errorf("rmq.url is required")
-	}
+	// RMQ URL is now optional - if empty, RabbitMQ will be disabled
+	// if cfg.RMQ.URL == "" {
+	// 	return fmt.Errorf("rmq.url is required")
+	// }
 	return nil
 }
 

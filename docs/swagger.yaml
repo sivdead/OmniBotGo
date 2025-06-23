@@ -319,6 +319,44 @@ definitions:
         example: "2023-01-01T12:00:00Z"
         type: string
     type: object
+  entity.MessageQueue:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+      deleted_at:
+        example: "2023-01-01T12:00:00Z"
+        format: date-time
+        type: string
+      error_message:
+        type: string
+      id:
+        example: 1
+        type: integer
+      max_retries:
+        type: integer
+      message_id:
+        type: string
+      payload:
+        $ref: '#/definitions/entity.JSONField'
+      priority:
+        type: integer
+      queue_name:
+        type: string
+      retry_count:
+        type: integer
+      scheduled_at:
+        type: string
+      started_at:
+        type: string
+      status:
+        $ref: '#/definitions/entity.QueueStatus'
+      updated_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+    type: object
   entity.MessageRoutingRule:
     properties:
       bot_ids:
@@ -390,6 +428,29 @@ definitions:
     - MessageStatusSent
     - MessageStatusFailed
     - MessageStatusExpired
+  entity.QueueStatus:
+    enum:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    type: integer
+    x-enum-comments:
+      QueueStatusCancelled: 已取消
+      QueueStatusCompleted: 已完成
+      QueueStatusFailed: 处理失败
+      QueueStatusPending: 待处理
+      QueueStatusRetrying: 重试中
+      QueueStatusRunning: 运行中
+    x-enum-varnames:
+    - QueueStatusPending
+    - QueueStatusRunning
+    - QueueStatusCompleted
+    - QueueStatusFailed
+    - QueueStatusRetrying
+    - QueueStatusCancelled
   entity.RouteType:
     enum:
     - 1
@@ -424,6 +485,64 @@ definitions:
     - StatusActive
     - StatusDeleted
     - StatusSuspended
+  entity.SystemConfig:
+    properties:
+      config_group:
+        type: string
+      config_key:
+        type: string
+      config_type:
+        type: string
+      config_value:
+        type: string
+      created_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+      deleted_at:
+        example: "2023-01-01T12:00:00Z"
+        format: date-time
+        type: string
+      description:
+        type: string
+      id:
+        example: 1
+        type: integer
+      is_encrypted:
+        type: boolean
+      is_system:
+        type: boolean
+      updated_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+    type: object
+  usecase.APICallLogListResult:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/entity.APICallLog'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  usecase.APICallStatsResult:
+    properties:
+      avg_duration_ms:
+        type: number
+      failed_calls:
+        type: integer
+      success_calls:
+        type: integer
+      success_rate:
+        type: number
+      total_calls:
+        type: integer
+    type: object
   usecase.BotListResult:
     properties:
       items:
@@ -444,6 +563,21 @@ definitions:
       items:
         items:
           $ref: '#/definitions/entity.Channel'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  usecase.ConnectionLogListResult:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/entity.ConnectionLog'
         type: array
       page:
         type: integer
@@ -489,6 +623,201 @@ definitions:
     - channel_name
     - platform_type
     type: object
+  usecase.CreateProcessorRequest:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      description:
+        type: string
+      is_enabled:
+        type: boolean
+      name:
+        type: string
+      priority:
+        type: integer
+      type:
+        type: string
+    required:
+    - name
+    - type
+    type: object
+  usecase.CreateRoutingRuleRequest:
+    properties:
+      conditions:
+        additionalProperties: true
+        type: object
+      is_fallback:
+        type: boolean
+      message_type:
+        type: string
+      platform_type:
+        type: string
+      priority:
+        type: integer
+      processor_id:
+        type: integer
+      rule_name:
+        type: string
+    required:
+    - processor_id
+    - rule_name
+    type: object
+  usecase.CreateSystemConfigRequest:
+    properties:
+      description:
+        type: string
+      group:
+        type: string
+      is_encrypted:
+        type: boolean
+      is_system:
+        type: boolean
+      key:
+        type: string
+      type:
+        type: string
+      value:
+        type: string
+    required:
+    - key
+    - type
+    - value
+    type: object
+  usecase.MessageHistoryResult:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/entity.Message'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  usecase.PlatformConfigField:
+    properties:
+      field:
+        type: string
+      label:
+        type: string
+      required:
+        type: boolean
+      type:
+        type: string
+    type: object
+  usecase.PlatformConfigValidationResult:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      valid:
+        type: boolean
+    type: object
+  usecase.PlatformInfo:
+    properties:
+      config_fields:
+        items:
+          $ref: '#/definitions/usecase.PlatformConfigField'
+        type: array
+      description:
+        type: string
+      icon_url:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+      supported_features:
+        items:
+          type: string
+        type: array
+      type:
+        type: string
+      webhook_config:
+        $ref: '#/definitions/usecase.PlatformWebhookConfig'
+    type: object
+  usecase.PlatformStatusResult:
+    properties:
+      message:
+        type: string
+      platform_type:
+        type: string
+      status:
+        type: string
+    type: object
+  usecase.PlatformWebhookConfig:
+    properties:
+      content_type:
+        type: string
+      method:
+        type: string
+      url_pattern:
+        type: string
+    type: object
+  usecase.ProcessorListResult:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/entity.MessageProcessor'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  usecase.QueueMessageListResult:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/entity.MessageQueue'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  usecase.QueueStatsResult:
+    properties:
+      completed_jobs:
+        type: integer
+      failed_jobs:
+        type: integer
+      pending_jobs:
+        type: integer
+      running_jobs:
+        type: integer
+      total_jobs:
+        type: integer
+    type: object
+  usecase.SystemConfigListResult:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/entity.SystemConfig'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
   usecase.UpdateBotRequest:
     properties:
       avatar_url:
@@ -521,6 +850,226 @@ definitions:
     required:
     - id
     type: object
+  usecase.UpdateProcessorRequest:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+      description:
+        type: string
+      id:
+        type: integer
+      is_enabled:
+        type: boolean
+      name:
+        type: string
+      priority:
+        type: integer
+      status:
+        $ref: '#/definitions/entity.Status'
+    required:
+    - id
+    type: object
+  usecase.UpdateProcessorStatusRequest:
+    properties:
+      id:
+        type: integer
+      status:
+        $ref: '#/definitions/entity.Status'
+    required:
+    - id
+    - status
+    type: object
+  usecase.UpdateRoutingRuleRequest:
+    properties:
+      conditions:
+        additionalProperties: true
+        type: object
+      id:
+        type: integer
+      is_fallback:
+        type: boolean
+      message_type:
+        type: string
+      platform_type:
+        type: string
+      priority:
+        type: integer
+      processor_id:
+        type: integer
+      rule_name:
+        type: string
+      status:
+        $ref: '#/definitions/entity.Status'
+    required:
+    - id
+    type: object
+  usecase.UpdateSystemConfigRequest:
+    properties:
+      description:
+        type: string
+      group:
+        type: string
+      is_encrypted:
+        type: boolean
+      key:
+        type: string
+      type:
+        type: string
+      value:
+        type: string
+    required:
+    - key
+    type: object
+  usecase.ValidatePlatformConfigRequest:
+    properties:
+      config:
+        additionalProperties: true
+        type: object
+    required:
+    - config
+    type: object
+  v1.AdapterHealth:
+    properties:
+      channel_count:
+        type: integer
+      last_error:
+        type: string
+      platform:
+        type: string
+      status:
+        type: string
+    type: object
+  v1.ChannelHealthSummary:
+    properties:
+      connected:
+        type: integer
+      connecting:
+        type: integer
+      failed:
+        type: integer
+      total:
+        type: integer
+    type: object
+  v1.DatabaseHealth:
+    properties:
+      connections:
+        properties:
+          active:
+            type: integer
+          idle:
+            type: integer
+          total:
+            type: integer
+        type: object
+      ping:
+        type: string
+      status:
+        type: string
+    type: object
+  v1.HealthResponse:
+    properties:
+      adapters:
+        items:
+          $ref: '#/definitions/v1.AdapterHealth'
+        type: array
+      channels:
+        $ref: '#/definitions/v1.ChannelHealthSummary'
+      database:
+        $ref: '#/definitions/v1.DatabaseHealth'
+      environment:
+        additionalProperties: true
+        type: object
+      messages:
+        $ref: '#/definitions/v1.MessageHealthSummary'
+      status:
+        type: string
+      timestamp:
+        type: string
+      uptime:
+        type: string
+      version:
+        type: string
+    type: object
+  v1.MessageHealthSummary:
+    properties:
+      failed:
+        type: integer
+      pending:
+        type: integer
+      processed:
+        type: integer
+      processing:
+        type: integer
+      success_rate:
+        type: number
+      total_24h:
+        type: integer
+    type: object
+  v1.MessageStatistics:
+    properties:
+      failed_messages:
+        type: integer
+      messages_by_status:
+        additionalProperties:
+          type: integer
+        type: object
+      messages_by_type:
+        additionalProperties:
+          type: integer
+        type: object
+      pending_messages:
+        type: integer
+      today_messages:
+        type: integer
+      total_messages:
+        type: integer
+    type: object
+  v1.PlatformConnectionStatus:
+    properties:
+      channel_id:
+        type: integer
+      channel_name:
+        type: string
+      connection_status:
+        type: string
+      last_connected:
+        type: string
+      last_error:
+        type: string
+      messages_received:
+        type: integer
+      messages_sent:
+        type: integer
+      platform:
+        type: string
+    type: object
+  v1.SendMessageRequest:
+    properties:
+      channel_id:
+        type: integer
+      content:
+        type: string
+      conversation_id:
+        type: string
+      media_type:
+        type: string
+      media_url:
+        type: string
+      message_type:
+        type: string
+      receiver_id:
+        type: string
+      receiver_name:
+        type: string
+      receiver_type:
+        type: string
+    required:
+    - channel_id
+    - content
+    - message_type
+    - receiver_id
+    type: object
   v1.StandardResponse:
     properties:
       code:
@@ -532,6 +1081,47 @@ definitions:
         type: string
       success:
         type: boolean
+    type: object
+  v1.SystemStatus:
+    properties:
+      app_name:
+        description: 基本信息
+        type: string
+      cpu_count:
+        description: 系统资源
+        type: integer
+      current_time:
+        type: string
+      database_status:
+        description: 服务状态
+        type: string
+      gc_count:
+        description: GC运行次数
+        type: integer
+      go_routines:
+        type: integer
+      grpc_status:
+        type: string
+      http_status:
+        type: string
+      memory_alloc:
+        description: 当前分配的内存（字节）
+        type: integer
+      memory_alloc_mb:
+        description: 当前分配的内存（MB）
+        type: string
+      memory_sys:
+        description: 系统分配的内存（字节）
+        type: integer
+      memory_sys_mb:
+        description: 系统分配的内存（MB）
+        type: string
+      start_time:
+        type: string
+      uptime:
+        type: string
+      version:
+        type: string
     type: object
   v1.UpdateChannelStatusRequest:
     properties:
@@ -1043,6 +1633,1640 @@ paths:
       summary: 更新通道连接状态
       tags:
       - channels
+  /api/v1/configs:
+    get:
+      consumes:
+      - application/json
+      description: 获取系统配置项列表，支持分页和过滤
+      parameters:
+      - description: 配置组
+        in: query
+        name: group
+        type: string
+      - description: 配置键
+        in: query
+        name: key
+        type: string
+      - description: 是否为系统配置
+        in: query
+        name: is_system
+        type: boolean
+      - default: 1
+        description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量，默认20
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.SystemConfigListResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取系统配置列表
+      tags:
+      - configs
+    post:
+      consumes:
+      - application/json
+      description: 创建新的系统配置项
+      parameters:
+      - description: 创建系统配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/usecase.CreateSystemConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.SystemConfig'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "409":
+          description: 配置已存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 创建系统配置
+      tags:
+      - configs
+  /api/v1/configs/{key}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的系统配置项
+      parameters:
+      - description: 配置键
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 配置不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 删除系统配置
+      tags:
+      - configs
+    get:
+      consumes:
+      - application/json
+      description: 根据键获取指定系统配置的值
+      parameters:
+      - description: 配置键
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.SystemConfig'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 配置不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取系统配置详情
+      tags:
+      - configs
+    put:
+      consumes:
+      - application/json
+      description: 更新指定系统配置的值
+      parameters:
+      - description: 配置键
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: 更新系统配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/usecase.UpdateSystemConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.SystemConfig'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 配置不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 更新系统配置
+      tags:
+      - configs
+  /api/v1/configs/groups/{group}:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定组的所有系统配置项
+      parameters:
+      - description: 配置组
+        in: path
+        name: group
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/entity.SystemConfig'
+                  type: array
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 根据组获取系统配置
+      tags:
+      - configs
+  /api/v1/logs/api-calls:
+    get:
+      consumes:
+      - application/json
+      description: 获取API调用日志记录，支持分页和过滤
+      parameters:
+      - description: HTTP方法
+        in: query
+        name: method
+        type: string
+      - description: 请求路径
+        in: query
+        name: path
+        type: string
+      - description: 状态码
+        in: query
+        name: status_code
+        type: integer
+      - description: 开始时间
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_time
+        type: string
+      - default: 1
+        description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量，默认20
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.APICallLogListResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取API调用日志列表
+      tags:
+      - logs
+  /api/v1/logs/api-calls/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取指定API调用日志的详细信息
+      parameters:
+      - description: 日志ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.APICallLog'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 日志不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取API调用日志详情
+      tags:
+      - logs
+  /api/v1/logs/api-calls/stats:
+    get:
+      consumes:
+      - application/json
+      description: 获取API调用的统计信息，包括成功率、响应时间等
+      parameters:
+      - description: 开始时间
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_time
+        type: string
+      - description: 分组方式
+        enum:
+        - hour
+        - day
+        - week
+        - month
+        in: query
+        name: group_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.APICallStatsResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取API调用统计
+      tags:
+      - logs
+  /api/v1/logs/connections:
+    get:
+      consumes:
+      - application/json
+      description: 获取平台连接日志记录，支持分页和过滤
+      parameters:
+      - description: 通道ID
+        in: query
+        name: channel_id
+        type: integer
+      - description: 连接状态
+        in: query
+        name: status
+        type: string
+      - description: 开始时间
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_time
+        type: string
+      - default: 1
+        description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量，默认20
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.ConnectionLogListResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取连接日志列表
+      tags:
+      - logs
+  /api/v1/logs/connections/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取指定连接日志的详细信息
+      parameters:
+      - description: 日志ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.ConnectionLog'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 日志不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取连接日志详情
+      tags:
+      - logs
+  /api/v1/messages/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取单个消息的详细信息
+      parameters:
+      - description: 消息ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.Message'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 消息不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取消息详情
+      tags:
+      - messages
+  /api/v1/messages/{id}/retry:
+    post:
+      consumes:
+      - application/json
+      description: 重新发送失败的消息
+      parameters:
+      - description: 消息ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 重试成功
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 消息不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 重试失败的消息
+      tags:
+      - messages
+  /api/v1/messages/history:
+    get:
+      consumes:
+      - application/json
+      description: 根据条件获取消息历史记录，支持分页
+      parameters:
+      - description: 通道ID
+        in: query
+        name: channel_id
+        type: integer
+      - description: 发送者ID
+        in: query
+        name: sender_id
+        type: string
+      - description: 接收者ID
+        in: query
+        name: receiver_id
+        type: string
+      - description: 消息类型
+        in: query
+        name: message_type
+        type: string
+      - description: 消息状态
+        in: query
+        name: message_status
+        type: string
+      - description: 消息方向
+        in: query
+        name: direction
+        type: string
+      - description: 开始时间
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_time
+        type: string
+      - default: 1
+        description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量，默认20
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.MessageHistoryResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取消息历史
+      tags:
+      - messages
+  /api/v1/messages/send:
+    post:
+      consumes:
+      - application/json
+      description: 通过指定通道发送消息到平台
+      parameters:
+      - description: 发送消息请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/v1.SendMessageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 发送成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.Message'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 通道不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 发送消息
+      tags:
+      - messages
+  /api/v1/monitor/health:
+    get:
+      consumes:
+      - application/json
+      description: 获取系统各组件的健康状态详情
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 系统健康
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "503":
+          description: 系统不健康
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取详细健康状态
+      tags:
+      - monitor
+  /api/v1/monitor/messages/stats:
+    get:
+      consumes:
+      - application/json
+      description: 获取消息总量、状态分布、类型分布等统计信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/v1.MessageStatistics'
+              type: object
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取消息统计信息
+      tags:
+      - monitor
+  /api/v1/monitor/platforms:
+    get:
+      consumes:
+      - application/json
+      description: 获取各个平台的连接状态、消息统计等信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/v1.PlatformConnectionStatus'
+                  type: array
+              type: object
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取所有平台的连接状态
+      tags:
+      - monitor
+  /api/v1/monitor/status:
+    get:
+      consumes:
+      - application/json
+      description: 获取系统运行状态、资源使用情况等信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/v1.SystemStatus'
+              type: object
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取系统状态信息
+      tags:
+      - monitor
+  /api/v1/platforms:
+    get:
+      consumes:
+      - application/json
+      description: 获取系统支持的所有消息平台列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/usecase.PlatformInfo'
+                  type: array
+              type: object
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取支持的平台列表
+      tags:
+      - platforms
+  /api/v1/platforms/{type}:
+    get:
+      consumes:
+      - application/json
+      description: 根据平台类型获取平台的详细信息
+      parameters:
+      - description: 平台类型
+        enum:
+        - wecom
+        - dingtalk
+        - wechat_official
+        - feishu
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.PlatformInfo'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 平台不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取平台详情
+      tags:
+      - platforms
+  /api/v1/platforms/{type}/status:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定平台的运行状态
+      parameters:
+      - description: 平台类型
+        enum:
+        - wecom
+        - dingtalk
+        - wechat_official
+        - feishu
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.PlatformStatusResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取平台状态
+      tags:
+      - platforms
+  /api/v1/platforms/{type}/validate:
+    post:
+      consumes:
+      - application/json
+      description: 验证指定平台的配置是否正确
+      parameters:
+      - description: 平台类型
+        enum:
+        - wecom
+        - dingtalk
+        - wechat_official
+        - feishu
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: 验证平台配置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/usecase.ValidatePlatformConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 验证成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.PlatformConfigValidationResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 验证平台配置
+      tags:
+      - platforms
+  /api/v1/processors:
+    get:
+      consumes:
+      - application/json
+      description: 根据条件查询处理器列表，支持分页和过滤
+      parameters:
+      - description: 状态
+        in: query
+        name: status
+        type: string
+      - description: 处理器类型
+        in: query
+        name: type
+        type: string
+      - default: 1
+        description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量，默认20
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.ProcessorListResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取处理器列表
+      tags:
+      - processors
+    post:
+      consumes:
+      - application/json
+      description: 创建新的消息处理器配置
+      parameters:
+      - description: 创建处理器请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/usecase.CreateProcessorRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.MessageProcessor'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "409":
+          description: 处理器名称已存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 创建新的消息处理器
+      tags:
+      - processors
+  /api/v1/processors/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的处理器配置
+      parameters:
+      - description: 处理器ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 处理器不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 删除处理器
+      tags:
+      - processors
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取指定处理器的详细信息
+      parameters:
+      - description: 处理器ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.MessageProcessor'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 处理器不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取处理器详情
+      tags:
+      - processors
+    put:
+      consumes:
+      - application/json
+      description: 更新指定处理器的配置信息
+      parameters:
+      - description: 处理器ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新处理器请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/usecase.UpdateProcessorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.MessageProcessor'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 处理器不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 更新处理器配置
+      tags:
+      - processors
+  /api/v1/processors/{id}/rules:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定处理器的路由规则列表
+      parameters:
+      - description: 处理器ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/entity.MessageRoutingRule'
+                  type: array
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 处理器不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取路由规则列表
+      tags:
+      - processors
+    post:
+      consumes:
+      - application/json
+      description: 为指定处理器创建路由规则
+      parameters:
+      - description: 处理器ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 创建路由规则请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/usecase.CreateRoutingRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.MessageRoutingRule'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 处理器不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 创建路由规则
+      tags:
+      - processors
+  /api/v1/processors/{id}/rules/{rule_id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的路由规则
+      parameters:
+      - description: 处理器ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 规则ID
+        in: path
+        name: rule_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 删除路由规则
+      tags:
+      - processors
+    put:
+      consumes:
+      - application/json
+      description: 更新指定的路由规则配置
+      parameters:
+      - description: 处理器ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 规则ID
+        in: path
+        name: rule_id
+        required: true
+        type: string
+      - description: 更新路由规则请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/usecase.UpdateRoutingRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.MessageRoutingRule'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 规则不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 更新路由规则
+      tags:
+      - processors
+  /api/v1/processors/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: 启用或禁用指定的处理器
+      parameters:
+      - description: 处理器ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新处理器状态请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/usecase.UpdateProcessorStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 处理器不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 更新处理器状态
+      tags:
+      - processors
+  /api/v1/queues:
+    get:
+      consumes:
+      - application/json
+      description: 获取消息队列中的消息列表，支持分页和过滤
+      parameters:
+      - description: 消息状态
+        in: query
+        name: status
+        type: string
+      - description: 队列类型
+        in: query
+        name: queue_type
+        type: string
+      - description: 优先级
+        in: query
+        name: priority
+        type: integer
+      - default: 1
+        description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量，默认20
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.QueueMessageListResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取队列消息列表
+      tags:
+      - queues
+  /api/v1/queues/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取指定队列消息的详细信息
+      parameters:
+      - description: 消息ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/entity.MessageQueue'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 消息不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取队列消息详情
+      tags:
+      - queues
+  /api/v1/queues/{id}/cancel:
+    patch:
+      consumes:
+      - application/json
+      description: 取消指定的队列消息处理
+      parameters:
+      - description: 消息ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 取消成功
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 消息不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 取消队列消息
+      tags:
+      - queues
+  /api/v1/queues/{id}/retry:
+    post:
+      consumes:
+      - application/json
+      description: 重新处理指定的队列消息
+      parameters:
+      - description: 消息ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 重试成功
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "404":
+          description: 消息不存在
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 重试队列消息
+      tags:
+      - queues
+  /api/v1/queues/failed:
+    delete:
+      consumes:
+      - application/json
+      description: 清理队列中的失败消息
+      parameters:
+      - description: 清理指定时间之前的失败消息
+        in: query
+        name: before
+        type: string
+      - default: 100
+        description: 批量处理大小，默认100
+        in: query
+        name: batch_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 清理成功
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 清理失败消息
+      tags:
+      - queues
+  /api/v1/queues/stats:
+    get:
+      consumes:
+      - application/json
+      description: 获取消息队列的统计信息，包括处理情况、性能指标等
+      parameters:
+      - description: 队列类型
+        in: query
+        name: queue_type
+        type: string
+      - description: 开始时间
+        in: query
+        name: start_time
+        type: string
+      - description: 结束时间
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/usecase.QueueStatsResult'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+        "500":
+          description: 内部服务器错误
+          schema:
+            $ref: '#/definitions/v1.StandardResponse'
+      summary: 获取队列统计信息
+      tags:
+      - queues
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: 返回简化的系统健康状态，用于负载均衡器健康检查
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 系统健康
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: 系统异常
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 获取简单健康状态
+      tags:
+      - health
+  /healthz:
+    get:
+      consumes:
+      - application/json
+      description: 返回系统各组件的健康状态信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 系统健康
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/v1.HealthResponse'
+              type: object
+        "503":
+          description: 系统异常
+          schema:
+            allOf:
+            - $ref: '#/definitions/v1.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/v1.HealthResponse'
+              type: object
+      summary: 获取系统健康状态
+      tags:
+      - health
+  /live:
+    get:
+      consumes:
+      - application/json
+      description: 检查应用是否仍在运行
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 应用存活
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 获取应用存活状态
+      tags:
+      - health
+  /ready:
+    get:
+      consumes:
+      - application/json
+      description: 检查应用是否已经准备好接收请求
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 应用就绪
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: 应用未就绪
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 获取应用就绪状态
+      tags:
+      - health
   /webhook/{platform}/{channel_id}:
     get:
       consumes:

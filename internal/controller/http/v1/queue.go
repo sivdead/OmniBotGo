@@ -63,7 +63,7 @@ func (v *V1) GetQueueMessages(c *fiber.Ctx) error {
 // @Accept json
 // @Produce json
 // @Param id path string true "消息ID"
-// @Success 200 {object} StandardResponse{data=entity.QueueMessage} "获取成功"
+// @Success 200 {object} StandardResponse{data=entity.MessageQueue} "获取成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 404 {object} StandardResponse "消息不存在"
 // @Failure 500 {object} StandardResponse "内部服务器错误"
