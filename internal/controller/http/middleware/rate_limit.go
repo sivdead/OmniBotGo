@@ -9,6 +9,19 @@ import (
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
+const (
+	// 默认速率限制值
+	DefaultGlobalMax         = 1000
+	DefaultPerIPMax          = 100
+	DefaultPerUserMax        = 200
+	DefaultGlobalExpiration  = 1 * time.Minute
+	DefaultPerIPExpiration   = 1 * time.Minute
+	DefaultPerUserExpiration = 1 * time.Minute
+	
+	// 垃圾回收间隔
+	GCInterval = 10 * time.Second
+)
+
 // RateLimitConfig 速率限制配置
 type RateLimitConfig struct {
 	// 全局限制
@@ -33,12 +46,12 @@ type RateLimitConfig struct {
 // DefaultRateLimitConfig 默认速率限制配置
 func DefaultRateLimitConfig(l logger.Interface) RateLimitConfig {
 	return RateLimitConfig{
-		GlobalMax:         1000,
-		GlobalExpiration:  1 * time.Minute,
-		PerIPMax:          100,
-		PerIPExpiration:   1 * time.Minute,
-		PerUserMax:        200,
-		PerUserExpiration: 1 * time.Minute,
+		GlobalMax:         DefaultGlobalMax,
+		GlobalExpiration:  DefaultGlobalExpiration,
+		PerIPMax:          DefaultPerIPMax,
+		PerIPExpiration:   DefaultPerIPExpiration,
+		PerUserMax:        DefaultPerUserMax,
+		PerUserExpiration: DefaultPerUserExpiration,
 		SkipPaths: []string{
 			"/health",
 			"/metrics",
@@ -53,6 +66,7 @@ type RateLimiter struct {
 	config RateLimitConfig
 	stores map[string]*MemoryStore
 	mu     sync.RWMutex
+	done   chan struct{} // 用于优雅关闭
 }
 
 // NewRateLimiter 创建速率限制中间件
@@ -64,9 +78,20 @@ func NewRateLimiter(config RateLimitConfig) fiber.Handler {
 			"ip":     NewMemoryStore(),
 			"user":   NewMemoryStore(),
 		},
+		done: make(chan struct{}),
 	}
 
 	return limiter.Handle
+}
+
+// Shutdown 优雅关闭速率限制器
+func (r *RateLimiter) Shutdown() {
+	close(r.done)
+	r.mu.RLock()
+	for _, store := range r.stores {
+		store.Shutdown()
+	}
+	r.mu.RUnlock()
 }
 
 // Handle 处理请求
@@ -145,9 +170,9 @@ func (r *RateLimiter) limitReached(c *fiber.Ctx) error {
 
 // MemoryStore 内存存储实现
 type MemoryStore struct {
-	mu    sync.RWMutex
-	data  map[string]entry
-	gcRun bool
+	mu   sync.RWMutex
+	data map[string]entry
+	done chan struct{} // 用于停止垃圾回收
 }
 
 type entry struct {
@@ -159,6 +184,7 @@ type entry struct {
 func NewMemoryStore() *MemoryStore {
 	store := &MemoryStore{
 		data: make(map[string]entry),
+		done: make(chan struct{}),
 	}
 	// 启动垃圾回收
 	go store.gc()
@@ -199,19 +225,17 @@ func (s *MemoryStore) Reset() error {
 	return nil
 }
 
-// Close 关闭存储
-func (s *MemoryStore) Close() error {
-	s.gcRun = false
-	return nil
+// Shutdown 关闭存储
+func (s *MemoryStore) Shutdown() {
+	close(s.done)
 }
 
 // gc 垃圾回收过期条目
 func (s *MemoryStore) gc() {
-	s.gcRun = true
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(GCInterval)
 	defer ticker.Stop()
 
-	for s.gcRun {
+	for {
 		select {
 		case <-ticker.C:
 			s.mu.Lock()
@@ -222,6 +246,8 @@ func (s *MemoryStore) gc() {
 				}
 			}
 			s.mu.Unlock()
+		case <-s.done:
+			return // 优雅退出
 		}
 	}
 }

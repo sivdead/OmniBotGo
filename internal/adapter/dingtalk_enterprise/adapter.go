@@ -3,11 +3,15 @@ package dingtalk_enterprise
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -380,9 +384,22 @@ func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
 
 // verifySignature 验证钉钉签名
 func verifySignature(timestamp, nonce, token, signature string) bool {
+	if token == "" || signature == "" {
+		return false
+	}
+	
 	// 将timestamp、nonce、token按字典序排序
-	// 拼接成字符串后进行sha256加密
+	params := []string{timestamp, nonce, token}
+	sort.Strings(params)
+	
+	// 拼接成字符串
+	data := strings.Join(params, "")
+	
+	// 进行sha256加密
+	h := sha256.New()
+	h.Write([]byte(data))
+	hash := hex.EncodeToString(h.Sum(nil))
+	
 	// 将加密结果与signature对比
-	// TODO: 实现签名验证逻辑
-	return true
+	return hash == signature
 }

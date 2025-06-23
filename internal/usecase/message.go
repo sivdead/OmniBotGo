@@ -89,14 +89,44 @@ func (uc *messageUseCase) CreateStreamMessageHandler() port.MessageHandler {
 func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity.Message) error {
 	uc.logger.Info("开始处理入站消息", "method", "ProcessInboundMessage", "message_id", msg.MessageID, "channel_id", msg.ChannelID)
 
-	// 使用service验证消息数据
+	if err := uc.validateInboundMessage(ctx, msg); err != nil {
+		return err
+	}
+
+	if err := uc.checkChannelStatus(ctx, msg.ChannelID); err != nil {
+		return err
+	}
+
+	if err := uc.prepareInboundMessage(msg); err != nil {
+		return err
+	}
+
+	if skip, err := uc.checkDuplicateMessage(ctx, msg); err != nil {
+		return err
+	} else if skip {
+		return nil // 重复消息，静默跳过
+	}
+
+	if err := uc.persistAndProcessMessage(ctx, msg); err != nil {
+		return err
+	}
+
+	uc.logger.Info("入站消息处理完成")
+	return nil
+}
+
+// validateInboundMessage 验证入站消息
+func (uc *messageUseCase) validateInboundMessage(ctx context.Context, msg *entity.Message) error {
 	if err := uc.msgService.ValidateMessage(msg); err != nil {
 		uc.logger.Error("消息验证失败", "error", err)
 		return fmt.Errorf("消息验证失败: %w", err)
 	}
+	return nil
+}
 
-	// 检查通道是否存在且活跃
-	channel, err := uc.channelRepo.GetByID(ctx, msg.ChannelID)
+// checkChannelStatus 检查通道状态
+func (uc *messageUseCase) checkChannelStatus(ctx context.Context, channelID int64) error {
+	channel, err := uc.channelRepo.GetByID(ctx, channelID)
 	if err != nil {
 		uc.logger.Error("获取通道信息失败", "error", err)
 		return fmt.Errorf("获取通道信息失败: %w", err)
@@ -106,37 +136,47 @@ func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity
 		uc.logger.Warn("通道未激活，拒绝处理消息")
 		return fmt.Errorf("通道未激活")
 	}
+	return nil
+}
 
-	// 设置消息为入站方向
+// prepareInboundMessage 准备入站消息
+func (uc *messageUseCase) prepareInboundMessage(msg *entity.Message) error {
 	msg.Direction = entity.MessageDirectionInbound
 	msg.MessageStatus = entity.MessageStatusPending
 	msg.ReceivedAt = time.Now()
 
-	// 生成消息ID（如果为空）
 	if msg.MessageID == "" {
 		msg.MessageID = uc.generateMessageID()
 	}
+	return nil
+}
 
-	// 消息去重检查
-	if msg.PlatformMessageID != "" {
-		// 检查是否已存在相同的平台消息ID
-		existingMsg, err := uc.messageRepo.GetByPlatformMessageID(ctx, msg.ChannelID, msg.PlatformMessageID)
-		if err == nil && existingMsg != nil {
-			uc.logger.Warn("检测到重复消息，跳过处理",
-				"message_id", msg.MessageID,
-				"platform_message_id", msg.PlatformMessageID,
-				"existing_message_id", existingMsg.MessageID)
-			return nil // 不返回错误，静默跳过
-		}
+// checkDuplicateMessage 检查重复消息
+func (uc *messageUseCase) checkDuplicateMessage(ctx context.Context, msg *entity.Message) (bool, error) {
+	if msg.PlatformMessageID == "" {
+		return false, nil
 	}
 
+	existingMsg, err := uc.messageRepo.GetByPlatformMessageID(ctx, msg.ChannelID, msg.PlatformMessageID)
+	if err == nil && existingMsg != nil {
+		uc.logger.Warn("检测到重复消息，跳过处理",
+			"message_id", msg.MessageID,
+			"platform_message_id", msg.PlatformMessageID,
+			"existing_message_id", existingMsg.MessageID)
+		return true, nil // 返回true表示跳过处理
+	}
+	return false, nil
+}
+
+// persistAndProcessMessage 持久化并处理消息
+func (uc *messageUseCase) persistAndProcessMessage(ctx context.Context, msg *entity.Message) error {
 	// 保存消息到数据库
 	if err := uc.messageRepo.Create(ctx, msg); err != nil {
 		uc.logger.Error("保存消息失败", "error", err)
 		return fmt.Errorf("保存消息失败: %w", err)
 	}
 
-	// 使用service标记消息为处理中
+	// 标记消息为处理中
 	uc.msgService.MarkAsProcessing(msg)
 	if err := uc.messageRepo.Update(ctx, msg); err != nil {
 		uc.logger.Error("更新消息状态失败", "error", err)
@@ -146,20 +186,23 @@ func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity
 	// 进行消息路由处理
 	if err := uc.routeAndProcessMessage(ctx, msg); err != nil {
 		uc.logger.Error("消息路由处理失败", "error", err)
-		// 使用service标记消息为失败，但不返回错误，避免影响消息保存
-		uc.msgService.MarkAsFailed(msg, err.Error())
-		if updateErr := uc.messageRepo.Update(ctx, msg); updateErr != nil {
-			uc.logger.Error("更新消息状态失败", "error", updateErr)
-		}
-
-		// 将失败的消息放入重试队列
-		if err := uc.enqueueFailedMessage(ctx, msg); err != nil {
-			uc.logger.Error("将失败消息加入队列失败", "error", err)
-		}
+		uc.handleMessageProcessingError(ctx, msg, err)
 	}
 
-	uc.logger.Info("入站消息处理完成")
 	return nil
+}
+
+// handleMessageProcessingError 处理消息处理错误
+func (uc *messageUseCase) handleMessageProcessingError(ctx context.Context, msg *entity.Message, err error) {
+	uc.msgService.MarkAsFailed(msg, err.Error())
+	if updateErr := uc.messageRepo.Update(ctx, msg); updateErr != nil {
+		uc.logger.Error("更新消息状态失败", "error", updateErr)
+	}
+
+	// 将失败的消息放入重试队列
+	if enqueueErr := uc.enqueueFailedMessage(ctx, msg); enqueueErr != nil {
+		uc.logger.Error("将失败消息加入队列失败", "error", enqueueErr)
+	}
 }
 
 // SendMessage 发送消息

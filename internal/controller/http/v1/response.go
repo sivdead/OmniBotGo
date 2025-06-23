@@ -56,7 +56,7 @@ func NewSuccessResponse(c *fiber.Ctx, args ...interface{}) error {
 		return c.Status(statusCode).JSON(response)
 	}
 
-	return c.Status(http.StatusOK).JSON(response)
+	return c.Status(StatusOK).JSON(response)
 }
 
 // NewValidationErrorResponse 创建验证错误响应
@@ -71,5 +71,5 @@ func NewValidationErrorResponse(c *fiber.Ctx, err error) error {
 		message = "参数验证失败: " + err.Error()
 	}
 
-	return NewErrorResponse(c, http.StatusBadRequest, message)
+	return NewErrorResponse(c, StatusBadRequest, message)
 }
