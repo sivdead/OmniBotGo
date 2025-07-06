@@ -34,7 +34,7 @@ func TestWireDependencyInjection(t *testing.T) {
 	}
 
 	// 测试应用初始化
-	app, err := app.InitializeApp(cfg)
+	app, _,  err := app.InitializeApp(cfg)
 
 	// 检查是否是外部依赖连接错误（可以接受的）
 	if err != nil {

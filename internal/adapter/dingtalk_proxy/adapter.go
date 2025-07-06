@@ -2,6 +2,9 @@ package dingtalk_proxy
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -94,7 +97,26 @@ func (a *DingtalkProxyAdapter) VerifyWebhook(ctx context.Context, signature, tim
 	}
 
 	// 企业应用模式验证
-	// TODO: 实现企业应用的Webhook验证
+	// 从配置中获取app_secret
+	appSecret, ok := cfg["app_secret"].(string)
+	if !ok || appSecret == "" {
+		return fmt.Errorf("app_secret not found in config for webhook verification")
+	}
+
+	// 使用企业应用适配器的验证逻辑
+	// 钉钉企业应用的签名验证算法：
+	// 1. 把timestamp + "\n" + secret当做签名字符串
+	// 2. 使用HmacSHA256算法计算签名
+	// 3. 然后进行Base64 encode，得到最终的签名
+	if !verifyDingtalkSignature(timestamp, appSecret, signature) {
+		a.logger.Warn().
+			Str("signature", signature).
+			Str("timestamp", timestamp).
+			Msg("钉钉企业应用Webhook签名验证失败")
+		return fmt.Errorf("webhook signature verification failed")
+	}
+
+	a.logger.Debug().Msg("钉钉企业应用Webhook签名验证成功")
 	return nil
 }
 
@@ -134,6 +156,27 @@ func (a *DingtalkProxyAdapter) Stop(ctx context.Context) error {
 // IsConnected 实现StreamAdapter接口
 func (a *DingtalkProxyAdapter) IsConnected() bool {
 	return a.streamAdapter.IsConnected()
+}
+
+// verifyDingtalkSignature 验证钉钉签名
+func verifyDingtalkSignature(timestamp, secret, signature string) bool {
+	// 钉钉签名验证算法：
+	// 1. 把timestamp + "\n" + secret当做签名字符串
+	// 2. 使用HmacSHA256算法计算签名
+	// 3. 然后进行Base64 encode，得到最终的签名
+
+	// 构建签名字符串
+	stringToSign := timestamp + "\n" + secret
+
+	// 使用HMAC-SHA256计算签名
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(stringToSign))
+
+	// Base64编码
+	calculatedSignature := base64.StdEncoding.EncodeToString(h.Sum(nil))
+
+	// 比较签名
+	return calculatedSignature == signature
 }
 
 // isStreamMode 判断是否为Stream模式

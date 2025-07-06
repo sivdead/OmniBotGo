@@ -211,7 +211,75 @@ func mapToWecomMessageType(msgType string) string {
 	}
 }
 
+// GetAccessToken 获取访问令牌
+func (w *WecomAdapter) GetAccessToken(ctx context.Context, config map[string]interface{}) (*dto.AccessTokenResponse, error) {
+	return w.RefreshAccessToken(ctx, config, "")
+}
+
+// RefreshAccessToken 刷新访问令牌
+func (w *WecomAdapter) RefreshAccessToken(ctx context.Context, config map[string]interface{}, oldToken string) (*dto.AccessTokenResponse, error) {
+	// 从配置中获取企业微信相关信息
+	corpID, ok := config["corp_id"].(string)
+	if !ok || corpID == "" {
+		return nil, fmt.Errorf("企业微信配置中缺少corp_id")
+	}
+
+	appSecret, ok := config["app_secret"].(string)
+	if !ok || appSecret == "" {
+		return nil, fmt.Errorf("企业微信配置中缺少app_secret")
+	}
+
+	// 调用企业微信API获取access_token
+	// 参考：https://developer.work.weixin.qq.com/document/path/91039
+	apiURL := fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=%s&corpsecret=%s", corpID, appSecret)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	resp, err := w.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("请求企业微信API失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("企业微信API返回错误状态码: %d", resp.StatusCode)
+	}
+
+	// 解析响应
+	var tokenResp struct {
+		ErrCode     int    `json:"errcode"`
+		ErrMsg      string `json:"errmsg"`
+		AccessToken string `json:"access_token"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return nil, fmt.Errorf("解析企业微信API响应失败: %w", err)
+	}
+
+	if tokenResp.ErrCode != 0 {
+		return nil, fmt.Errorf("企业微信API返回错误: %d - %s", tokenResp.ErrCode, tokenResp.ErrMsg)
+	}
+
+	if tokenResp.AccessToken == "" {
+		return nil, fmt.Errorf("企业微信API返回空的access_token")
+	}
+
+	// 计算过期时间（通常为2小时，减去5分钟作为缓冲）
+	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn-300) * time.Second)
+
+	return &dto.AccessTokenResponse{
+		AccessToken: tokenResp.AccessToken,
+		ExpiresIn:   tokenResp.ExpiresIn,
+		ExpiresAt:   &expiresAt,
+	}, nil
+}
+
 // 确保 WecomAdapter 实现了所需的接口
 var _ port.MessageSender = (*WecomAdapter)(nil)
+var _ port.TokenManager = (*WecomAdapter)(nil)
 var _ port.PlatformIdentifier = (*WecomAdapter)(nil)
 var _ port.ConfigValidator = (*WecomAdapter)(nil)

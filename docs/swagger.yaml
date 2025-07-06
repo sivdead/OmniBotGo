@@ -926,8 +926,11 @@ definitions:
       config:
         additionalProperties: true
         type: object
+      platform_type:
+        type: string
     required:
     - config
+    - platform_type
     type: object
   v1.AdapterHealth:
     properties:

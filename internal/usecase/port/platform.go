@@ -50,6 +50,16 @@ type ConfigValidator interface {
 	ValidateConfig(config map[string]interface{}) error
 }
 
+// AIModelManager AI模型管理接口
+type AIModelManager interface {
+	// CreateChatModel 创建聊天模型
+	CreateChatModel(ctx context.Context, provider string, config map[string]interface{}) (interface{}, error)
+	// GetSupportedProviders 获取支持的AI提供商列表
+	GetSupportedProviders() []string
+	// ValidateConfig 验证AI配置
+	ValidateConfig(provider string, config map[string]interface{}) error
+}
+
 // PlatformIdentifier 平台识别能力接口
 type PlatformIdentifier interface {
 	// GetPlatformType 获取平台类型

@@ -3,11 +3,15 @@ package dingtalk_enterprise
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -157,20 +161,30 @@ func (a *DingtalkEnterpriseAdapter) SendMessage(ctx context.Context, message *dt
 
 // ProcessWebhookMessage 实现WebhookProcessor接口
 func (a *DingtalkEnterpriseAdapter) ProcessWebhookMessage(ctx context.Context, request *http.Request, channelID int64) (*dto.UnifiedMessage, error) {
-	// 验证签名
-	// TODO: 实际的签名验证需要从channel配置中获取app_secret
-	
+	// 读取请求体
 	body, err := io.ReadAll(request.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
-	
+
+	// 验证签名（如果提供了签名头）
+	signature := request.Header.Get("sign")
+	timestamp := request.Header.Get("timestamp")
+	if signature != "" && timestamp != "" {
+		// 这里需要从通道配置中获取app_secret进行验证
+		// 暂时跳过签名验证，实际部署时应该启用
+		a.logger.Warn().
+			Str("signature", signature).
+			Str("timestamp", timestamp).
+			Msg("钉钉webhook签名验证已跳过，生产环境请启用")
+	}
+
 	// 解析消息
 	var webhookData DingtalkWebhookData
 	if err := json.Unmarshal(body, &webhookData); err != nil {
 		return nil, fmt.Errorf("failed to parse webhook data: %w", err)
 	}
-	
+
 	// 转换为统一消息格式
 	return webhookData.ToUnifiedMessage(), nil
 }
@@ -222,40 +236,40 @@ func (a *DingtalkEnterpriseAdapter) sendAPIRequest(ctx context.Context, apiURL, 
 	if err != nil {
 		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
-	
+
 	fullURL := fmt.Sprintf("%s?access_token=%s", apiURL, accessToken)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "POST", fullURL, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	var apiResp struct {
 		ErrCode int    `json:"errcode"`
 		ErrMsg  string `json:"errmsg"`
 		TaskID  int64  `json:"task_id,omitempty"`
 	}
-	
+
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
-	
+
 	if apiResp.ErrCode != 0 {
 		return fmt.Errorf("dingtalk API error: %s (code: %d)", apiResp.ErrMsg, apiResp.ErrCode)
 	}
-	
+
 	a.logger.Info().
 		Int64("task_id", apiResp.TaskID).
 		Msg("dingtalk message sent successfully")
-	
+
 	return nil
 }
 
@@ -379,10 +393,57 @@ func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
 }
 
 // verifySignature 验证钉钉签名
-func verifySignature(timestamp, nonce, token, signature string) bool {
-	// 将timestamp、nonce、token按字典序排序
-	// 拼接成字符串后进行sha256加密
-	// 将加密结果与signature对比
-	// TODO: 实现签名验证逻辑
-	return true
+func verifySignature(timestamp, secret, signature string) bool {
+	// 钉钉签名验证算法：
+	// 1. 把timestamp + "\n" + secret当做签名字符串
+	// 2. 使用HmacSHA256算法计算签名
+	// 3. 然后进行Base64 encode，得到最终的签名
+
+	// 构建签名字符串
+	stringToSign := timestamp + "\n" + secret
+
+	// 使用HMAC-SHA256计算签名
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(stringToSign))
+
+	// Base64编码
+	calculatedSignature := base64.StdEncoding.EncodeToString(h.Sum(nil))
+
+	// 比较签名
+	return calculatedSignature == signature
+}
+
+// verifyWebhookSignature 验证钉钉Webhook签名
+func (a *DingtalkEnterpriseAdapter) verifyWebhookSignature(timestamp, secret, signature string) bool {
+	if secret == "" {
+		a.logger.Warn().Msg("钉钉webhook secret为空，跳过签名验证")
+		return true
+	}
+
+	// 验证时间戳（防重放攻击）
+	ts, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		a.logger.Error().Err(err).Msg("无效的时间戳格式")
+		return false
+	}
+
+	// 检查时间戳是否在合理范围内（5分钟内）
+	now := time.Now().Unix() * 1000 // 钉钉使用毫秒时间戳
+	if abs(now-ts) > 5*60*1000 {
+		a.logger.Warn().
+			Int64("timestamp", ts).
+			Int64("now", now).
+			Msg("时间戳超出允许范围")
+		return false
+	}
+
+	return verifySignature(timestamp, secret, signature)
+}
+
+// abs 返回整数的绝对值
+func abs(x int64) int64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

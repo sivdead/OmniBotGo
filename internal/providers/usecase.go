@@ -14,8 +14,8 @@ var UseCaseSet = wire.NewSet(
 	NewChannelUseCase,
 	NewBotUseCase,
 	NewMessageUseCase,
-	NewSystemConfigUseCase,
-	NewPlatformUseCase,
+	ProvideSystemConfigUseCase,
+	ProvidePlatformUseCase,
 	NewMonitorUseCase,
 	NewLogUseCase,
 	NewQueueUseCase,
@@ -87,30 +87,32 @@ func NewRoutingUseCase(
 	)
 }
 
-// NewSystemConfigUseCase 创建SystemConfigUseCase实例
-func NewSystemConfigUseCase(
-	systemConfigRepo port.SystemConfigRepository,
+// ProvideSystemConfigUseCase 提供系统配置用例
+func ProvideSystemConfigUseCase(
+	repo port.SystemConfigRepository,
 	logger logger.Interface,
 ) usecase.SystemConfigUseCase {
-	// TODO: 实现SystemConfigUseCase
-	return nil
+	return usecase.NewSystemConfigUseCase(repo, logger)
 }
 
-// NewPlatformUseCase 创建PlatformUseCase实例
-func NewPlatformUseCase(
+// ProvidePlatformUseCase 提供平台管理用例
+func ProvidePlatformUseCase(
 	adapterManager port.AdapterManager,
+	channelRepo port.ChannelRepository,
 	logger logger.Interface,
 ) usecase.PlatformUseCase {
-	// TODO: 实现PlatformUseCase
-	return nil
+	return usecase.NewPlatformUseCase(adapterManager, channelRepo, logger)
 }
 
 // NewMonitorUseCase 创建MonitorUseCase实例
 func NewMonitorUseCase(
+	botRepo port.BotRepository,
+	channelRepo port.ChannelRepository,
+	messageRepo port.MessageRepository,
+	queueRepo port.MessageQueueRepository,
 	logger logger.Interface,
 ) usecase.MonitorUseCase {
-	// TODO: 实现MonitorUseCase
-	return nil
+	return usecase.NewMonitorUseCase(botRepo, channelRepo, messageRepo, queueRepo, logger)
 }
 
 // NewLogUseCase 创建LogUseCase实例
@@ -119,8 +121,7 @@ func NewLogUseCase(
 	apiCallLogRepo port.APICallLogRepository,
 	logger logger.Interface,
 ) usecase.LogUseCase {
-	// TODO: 实现LogUseCase
-	return nil
+	return usecase.NewLogUseCase(logRepo, apiCallLogRepo, logger)
 }
 
 // NewQueueUseCase 创建QueueUseCase实例
@@ -128,8 +129,7 @@ func NewQueueUseCase(
 	queueRepo port.MessageQueueRepository,
 	logger logger.Interface,
 ) usecase.QueueUseCase {
-	// TODO: 实现QueueUseCase
-	return nil
+	return usecase.NewQueueUseCase(queueRepo, logger)
 }
 
 // NewProcessorUseCase 创建ProcessorUseCase实例
@@ -138,6 +138,5 @@ func NewProcessorUseCase(
 	routingRuleRepo port.MessageRoutingRuleRepository,
 	logger logger.Interface,
 ) usecase.ProcessorUseCase {
-	// TODO: 实现ProcessorUseCase
-	return nil
+	return usecase.NewProcessorUseCase(processorRepo, routingRuleRepo, logger)
 }

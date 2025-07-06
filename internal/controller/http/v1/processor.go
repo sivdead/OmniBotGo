@@ -32,20 +32,13 @@ func (v *V1) CreateProcessor(c *fiber.Ctx) error {
 		return NewValidationErrorResponse(c, err)
 	}
 
-	// TODO: 调用usecase创建处理器
-	// result, err := v.processorUC.CreateProcessor(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("创建处理器失败: %v", err)
-	//     if err.Error() == "处理器名称已存在" {
-	//         return NewErrorResponse(c, http.StatusConflict, err.Error())
-	//     }
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "创建处理器失败")
-	// }
-
-	// 临时返回成功响应
-	result := map[string]interface{}{
-		"message": "处理器创建功能开发中",
-		"name":    req.Name,
+	result, err := v.processorUC.CreateProcessor(c.Context(), req)
+	if err != nil {
+		v.l.Error("创建处理器失败: %v", err)
+		if err.Error() == "处理器名称已存在" {
+			return NewErrorResponse(c, http.StatusConflict, err.Error())
+		}
+		return NewErrorResponse(c, http.StatusInternalServerError, "创建处理器失败")
 	}
 
 	return NewSuccessResponse(c, http.StatusCreated, "处理器创建成功", result)
@@ -80,19 +73,10 @@ func (v *V1) GetProcessors(c *fiber.Ctx) error {
 		req.PageSize = 20
 	}
 
-	// TODO: 调用usecase处理处理器查询
-	// result, err := v.processorUC.GetProcessors(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("获取处理器列表失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "获取处理器列表失败")
-	// }
-
-	// 临时返回空结果
-	result := map[string]interface{}{
-		"items":     []interface{}{},
-		"total":     0,
-		"page":      req.Page,
-		"page_size": req.PageSize,
+	result, err := v.processorUC.ListProcessors(c.Context(), req)
+	if err != nil {
+		v.l.Error("获取处理器列表失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "获取处理器列表失败")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -121,17 +105,10 @@ func (v *V1) GetProcessorByID(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
 	}
 
-	// TODO: 调用usecase获取处理器详情
-	// result, err := v.processorUC.GetProcessorByID(c.Context(), id)
-	// if err != nil {
-	//     v.l.Error("获取处理器详情失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusNotFound, "处理器不存在")
-	// }
-
-	// 临时返回空结果
-	result := map[string]interface{}{
-		"id":      id,
-		"message": "处理器功能开发中",
+	result, err := v.processorUC.GetProcessor(c.Context(), id)
+	if err != nil {
+		v.l.Error("获取处理器详情失败: %v", err)
+		return NewErrorResponse(c, http.StatusNotFound, "处理器不存在")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -175,17 +152,10 @@ func (v *V1) UpdateProcessor(c *fiber.Ctx) error {
 	// 设置ID
 	req.ID = id
 
-	// TODO: 调用usecase更新处理器
-	// result, err := v.processorUC.UpdateProcessor(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("更新处理器失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "更新处理器失败")
-	// }
-
-	// 临时返回成功响应
-	result := map[string]interface{}{
-		"message": "处理器更新功能开发中",
-		"id":      id,
+	result, err := v.processorUC.UpdateProcessor(c.Context(), req)
+	if err != nil {
+		v.l.Error("更新处理器失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "更新处理器失败")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -214,17 +184,14 @@ func (v *V1) DeleteProcessor(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
 	}
 
-	// TODO: 调用usecase删除处理器
-	// err = v.processorUC.DeleteProcessor(c.Context(), id)
-	// if err != nil {
-	//     v.l.Error("删除处理器失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "删除处理器失败")
-	// }
-
-	v.l.Info("处理器删除功能调用: %d", id)
+	err = v.processorUC.DeleteProcessor(c.Context(), id)
+	if err != nil {
+		v.l.Error("删除处理器失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "删除处理器失败")
+	}
 
 	return NewSuccessResponse(c, map[string]interface{}{
-		"message": "处理器删除功能开发中",
+		"message": "处理器删除成功",
 		"id":      id,
 	})
 }
@@ -267,17 +234,14 @@ func (v *V1) UpdateProcessorStatus(c *fiber.Ctx) error {
 	// 设置ID
 	req.ID = id
 
-	// TODO: 调用usecase更新处理器状态
-	// err = v.processorUC.UpdateProcessorStatus(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("更新处理器状态失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "更新处理器状态失败")
-	// }
-
-	v.l.Info("处理器状态更新功能调用: %d", id)
+	err = v.processorUC.UpdateProcessorStatus(c.Context(), req)
+	if err != nil {
+		v.l.Error("更新处理器状态失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "更新处理器状态失败")
+	}
 
 	return NewSuccessResponse(c, map[string]interface{}{
-		"message": "处理器状态更新功能开发中",
+		"message": "处理器状态更新成功",
 		"id":      id,
 	})
 }
@@ -320,17 +284,10 @@ func (v *V1) CreateRoutingRule(c *fiber.Ctx) error {
 	// 设置处理器ID
 	req.ProcessorID = processorID
 
-	// TODO: 调用usecase创建路由规则
-	// result, err := v.processorUC.CreateRoutingRule(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("创建路由规则失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "创建路由规则失败")
-	// }
-
-	// 临时返回成功响应
-	result := map[string]interface{}{
-		"message":      "路由规则创建功能开发中",
-		"processor_id": processorID,
+	result, err := v.processorUC.CreateRoutingRule(c.Context(), req)
+	if err != nil {
+		v.l.Error("创建路由规则失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "创建路由规则失败")
 	}
 
 	return NewSuccessResponse(c, http.StatusCreated, "路由规则创建成功", result)
@@ -359,17 +316,24 @@ func (v *V1) GetRoutingRules(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
 	}
 
-	// TODO: 调用usecase获取路由规则列表
-	// result, err := v.processorUC.GetRoutingRules(c.Context(), processorID)
-	// if err != nil {
-	//     v.l.Error("获取路由规则列表失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "获取路由规则列表失败")
-	// }
+	var params usecase.ListRoutingRulesParams
+	if err := c.QueryParser(&params); err != nil {
+		v.l.Error("解析查询参数失败: %v", err)
+		return NewErrorResponse(c, http.StatusBadRequest, "查询参数格式错误")
+	}
 
-	// 临时返回空结果
-	result := map[string]interface{}{
-		"processor_id": processorID,
-		"rules":        []interface{}{},
+	// 设置默认值
+	if params.Page <= 0 {
+		params.Page = 1
+	}
+	if params.PageSize <= 0 {
+		params.PageSize = 20
+	}
+
+	result, err := v.processorUC.ListRoutingRules(c.Context(), processorID, params)
+	if err != nil {
+		v.l.Error("获取路由规则列表失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "获取路由规则列表失败")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -422,18 +386,10 @@ func (v *V1) UpdateRoutingRule(c *fiber.Ctx) error {
 	req.ID = ruleID
 	req.ProcessorID = &processorID
 
-	// TODO: 调用usecase更新路由规则
-	// result, err := v.processorUC.UpdateRoutingRule(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("更新路由规则失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "更新路由规则失败")
-	// }
-
-	// 临时返回成功响应
-	result := map[string]interface{}{
-		"message":      "路由规则更新功能开发中",
-		"processor_id": processorID,
-		"rule_id":      ruleID,
+	result, err := v.processorUC.UpdateRoutingRule(c.Context(), req)
+	if err != nil {
+		v.l.Error("更新路由规则失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "更新路由规则失败")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -470,17 +426,14 @@ func (v *V1) DeleteRoutingRule(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "规则ID格式错误")
 	}
 
-	// TODO: 调用usecase删除路由规则
-	// err = v.processorUC.DeleteRoutingRule(c.Context(), processorID, ruleID)
-	// if err != nil {
-	//     v.l.Error("删除路由规则失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "删除路由规则失败")
-	// }
-
-	v.l.Info("路由规则删除功能调用: processor_id=%d, rule_id=%d", processorID, ruleID)
+	err = v.processorUC.DeleteRoutingRule(c.Context(), ruleID)
+	if err != nil {
+		v.l.Error("删除路由规则失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "删除路由规则失败")
+	}
 
 	return NewSuccessResponse(c, map[string]interface{}{
-		"message":      "路由规则删除功能开发中",
+		"message":      "路由规则删除成功",
 		"processor_id": processorID,
 		"rule_id":      ruleID,
 	})

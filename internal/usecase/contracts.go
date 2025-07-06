@@ -310,7 +310,8 @@ type PlatformWebhookConfig struct {
 
 // ValidatePlatformConfigRequest 验证平台配置请求
 type ValidatePlatformConfigRequest struct {
-	Config map[string]interface{} `json:"config" validate:"required"`
+	PlatformType string                 `json:"platform_type" validate:"required"`
+	Config       map[string]interface{} `json:"config" validate:"required"`
 }
 
 // PlatformConfigValidationResult 平台配置验证结果
