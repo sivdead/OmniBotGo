@@ -12,6 +12,9 @@ alwaysApply: true
 ### 核心原则
 - 依赖方向：Controller → UseCase → Entity ← Repository
 - 业务逻辑独立于框架、数据库、外部服务
+- **演进式设计 (Evolutionary Design)**: 优先实现当前需求，保持设计的灵活性，避免为未来不确定的需求进行过度工程。
+- **实用主义与简洁性 (Pragmatism & Simplicity)**: 选择最简单、直接的方案解决问题，避免不必要的复杂性。遵循YAGNI (You Ain't Gonna Need It)原则。
+- **避免过度设计 (Avoid Over-engineering)**: 警惕设计模式的滥用和不成熟的抽象。优先编写清晰、可读的代码，在需要时进行重构。
 - 使用接口进行抽象，便于测试和扩展
 
 ### 目录结构
