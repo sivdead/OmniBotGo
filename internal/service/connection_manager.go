@@ -94,11 +94,11 @@ func (cm *ConnectionManager) Stop(ctx context.Context) error {
 			if err := connInfo.StreamAdapter.Stop(ctx); err != nil {
 				cm.logger.Error().
 					Err(err).
-					Int64("channel_id", channelID).
+					Str("channel_id", channelID).
 					Msg("failed to stop stream connection")
 			} else {
 				cm.logger.Info().
-					Int64("channel_id", channelID).
+					Str("channel_id", channelID).
 					Msg("stream connection stopped")
 			}
 		}
@@ -181,7 +181,7 @@ func (cm *ConnectionManager) createChannelMessageHandler(channelID string) port.
 		}
 
 		// 注入channelID到消息中
-		message.RawContent["channel_id"] = float64(channelID)
+		message.RawContent["channel_id"] = channelID
 
 		// 调用原始处理器
 		return baseHandler(ctx, message)
@@ -189,26 +189,26 @@ func (cm *ConnectionManager) createChannelMessageHandler(channelID string) port.
 }
 
 // GetConnectionStatus 获取连接状态
-func (cm *ConnectionManager) GetConnectionStatus(channelID int64) (bool, error) {
+func (cm *ConnectionManager) GetConnectionStatus(channelID string) (bool, error) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
 	connInfo, exists := cm.connections[channelID]
 	if !exists {
-		return false, fmt.Errorf("connection not found for channel %d", channelID)
+		return false, fmt.Errorf("connection not found for channel %s", channelID)
 	}
 
 	return connInfo.IsConnected && connInfo.StreamAdapter.IsConnected(), nil
 }
 
 // RestartConnection 重启指定通道的连接
-func (cm *ConnectionManager) RestartConnection(ctx context.Context, channelID int64) error {
+func (cm *ConnectionManager) RestartConnection(ctx context.Context, channelID string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
 	connInfo, exists := cm.connections[channelID]
 	if !exists {
-		return fmt.Errorf("connection not found for channel %d", channelID)
+		return fmt.Errorf("connection not found for channel %s", channelID)
 	}
 
 	// 停止现有连接
@@ -216,7 +216,7 @@ func (cm *ConnectionManager) RestartConnection(ctx context.Context, channelID in
 		if err := connInfo.StreamAdapter.Stop(ctx); err != nil {
 			cm.logger.Error().
 				Err(err).
-				Int64("channel_id", channelID).
+				Str("channel_id", channelID).
 				Msg("failed to stop connection during restart")
 		}
 	}
@@ -229,7 +229,7 @@ func (cm *ConnectionManager) RestartConnection(ctx context.Context, channelID in
 	for k, v := range connInfo.Config {
 		configWithChannelID[k] = v
 	}
-	configWithChannelID["channel_id"] = float64(channelID)
+	configWithChannelID["channel_id"] = channelID
 
 	// 重新启动连接
 	if err := connInfo.StreamAdapter.Start(cm.ctx, messageHandler, configWithChannelID); err != nil {
@@ -242,7 +242,7 @@ func (cm *ConnectionManager) RestartConnection(ctx context.Context, channelID in
 	cm.connections[channelID] = connInfo
 
 	cm.logger.Info().
-		Int64("channel_id", channelID).
+		Str("channel_id", channelID).
 		Msg("stream connection restarted")
 
 	return nil
