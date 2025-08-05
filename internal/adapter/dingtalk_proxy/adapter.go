@@ -2,16 +2,12 @@ package dingtalk_proxy
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sort"
-	"strings"
 
 	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/adapter/dingtalk_enterprise"

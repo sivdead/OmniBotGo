@@ -7,7 +7,7 @@ import (
 // Channel 平台通道实体，管理单个平台连接的配置和状态
 type Channel struct {
 	BaseEntity
-	BotID                int64            `json:"bot_id" gorm:"column:bot_id;not null;index;comment:所属机器人ID"`
+	BotID                string           `json:"bot_id" gorm:"column:bot_id;not null;index;comment:所属机器人ID"`
 	PlatformType         string           `json:"platform_type" gorm:"column:platform_type;type:varchar(50);not null;comment:平台类型"`
 	ChannelName          string           `json:"channel_name" gorm:"column:channel_name;type:varchar(100);not null;comment:通道名称"`
 	WebhookPath          string           `json:"webhook_path" gorm:"column:webhook_path;type:varchar(200);comment:Webhook路径"`
@@ -83,8 +83,8 @@ func (c *Channel) UpdateConnectionStatus(status ConnectionStatus) {
 
 // Validate 验证Channel实体数据
 func (c *Channel) Validate() error {
-	if c.BotID <= 0 {
-		return NewValidationError("bot_id", "机器人ID必须大于0")
+	if c.BotID == "" {
+		return NewValidationError("bot_id", "机器人ID不能为空")
 	}
 	if c.PlatformType == "" {
 		return NewValidationError("platform_type", "平台类型不能为空")

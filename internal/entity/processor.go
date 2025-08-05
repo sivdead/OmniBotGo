@@ -62,7 +62,7 @@ type MessageRoutingRule struct {
 	MessageTypes    JSONField `json:"message_types" gorm:"column:message_types;type:json;comment:适用的消息类型列表"`
 	SenderPatterns  JSONField `json:"sender_patterns" gorm:"column:sender_patterns;type:json;comment:发送者匹配模式"`
 	ContentPatterns JSONField `json:"content_patterns" gorm:"column:content_patterns;type:json;comment:内容匹配模式"`
-	ProcessorID     int64     `json:"processor_id" gorm:"column:processor_id;not null;index;comment:处理器ID"`
+	ProcessorID     string    `json:"processor_id" gorm:"column:processor_id;not null;index;comment:处理器ID"`
 	RouteType       RouteType `json:"route_type" gorm:"column:route_type;type:tinyint;not null;comment:路由类型:1-直接,2-转发,3-广播,4-条件"`
 	Priority        int       `json:"priority" gorm:"column:priority;default:100;comment:优先级"`
 	IsFallback      bool      `json:"is_fallback" gorm:"column:is_fallback;default:false;comment:是否为兜底规则"`
@@ -84,7 +84,7 @@ func (mrr *MessageRoutingRule) IsActive() bool {
 }
 
 // MatchesBotID 检查是否匹配指定的Bot ID
-func (mrr *MessageRoutingRule) MatchesBotID(botID int64) bool {
+func (mrr *MessageRoutingRule) MatchesBotID(botID string) bool {
 	if mrr.BotIDs == nil {
 		return true // 空配置表示匹配所有
 	}
@@ -96,7 +96,7 @@ func (mrr *MessageRoutingRule) MatchesBotID(botID int64) bool {
 
 	if idList, ok := botIDs.([]interface{}); ok {
 		for _, id := range idList {
-			if idFloat, ok := id.(float64); ok && int64(idFloat) == botID {
+			if idStr, ok := id.(string); ok && idStr == botID {
 				return true
 			}
 		}
@@ -126,7 +126,7 @@ func (mrr *MessageRoutingRule) MatchesPlatformType(platformType string) bool {
 }
 
 // MatchesChannelID 检查是否匹配指定的通道ID
-func (mrr *MessageRoutingRule) MatchesChannelID(channelID int64) bool {
+func (mrr *MessageRoutingRule) MatchesChannelID(channelID string) bool {
 	if mrr.ChannelIDs == nil {
 		return true
 	}
@@ -138,7 +138,7 @@ func (mrr *MessageRoutingRule) MatchesChannelID(channelID int64) bool {
 
 	if idList, ok := channelIDs.([]interface{}); ok {
 		for _, id := range idList {
-			if idFloat, ok := id.(float64); ok && int64(idFloat) == channelID {
+			if idStr, ok := id.(string); ok && idStr == channelID {
 				return true
 			}
 		}
@@ -172,8 +172,8 @@ func (mrr *MessageRoutingRule) Validate() error {
 	if mrr.RuleName == "" {
 		return NewValidationError("rule_name", "规则名称不能为空")
 	}
-	if mrr.ProcessorID <= 0 {
-		return NewValidationError("processor_id", "处理器ID必须大于0")
+	if mrr.ProcessorID == "" {
+		return NewValidationError("processor_id", "处理器ID不能为空")
 	}
 	return nil
 }

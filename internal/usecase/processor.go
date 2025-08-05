@@ -316,7 +316,7 @@ func (uc *processorUC) UpdateRoutingRule(ctx context.Context, req UpdateRoutingR
 			return nil, fmt.Errorf("failed to check processor existence: %w", err)
 		}
 		if !exists {
-			return nil, fmt.Errorf("processor with ID %d not found", *req.ProcessorID)
+			return nil, fmt.Errorf("processor with ID %s not found", *req.ProcessorID)
 		}
 		rule.ProcessorID = *req.ProcessorID
 	}

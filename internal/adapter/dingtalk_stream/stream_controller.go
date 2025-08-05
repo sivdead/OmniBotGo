@@ -25,7 +25,7 @@ type StreamController struct {
 	logger         zerolog.Logger
 	client         *client.StreamClient
 	config         *config.DingtalkStreamConfig
-	channelID      int64
+	channelID      string
 	isRunning      bool
 }
 
@@ -34,7 +34,7 @@ func NewStreamController(
 	messageHandler MessageHandler,
 	logger zerolog.Logger,
 	config *config.DingtalkStreamConfig,
-	channelID int64,
+	channelID string,
 ) *StreamController {
 	return &StreamController{
 		messageHandler: messageHandler,

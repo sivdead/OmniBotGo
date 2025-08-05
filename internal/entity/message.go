@@ -8,7 +8,7 @@ import (
 type Message struct {
 	BaseEntity
 	MessageID         string           `json:"message_id" gorm:"column:message_id;type:varchar(100);uniqueIndex;not null;comment:消息唯一ID"`
-	ChannelID         int64            `json:"channel_id" gorm:"column:channel_id;not null;index;comment:所属通道ID"`
+	ChannelID         string            `json:"channel_id" gorm:"column:channel_id;not null;index;comment:所属通道ID"`
 	PlatformMessageID string           `json:"platform_message_id" gorm:"column:platform_message_id;type:varchar(200);comment:平台消息ID"`
 	Direction         MessageDirection `json:"direction" gorm:"column:direction;type:tinyint;not null;comment:消息方向:1-入站,2-出站"`
 	MessageType       string           `json:"message_type" gorm:"column:message_type;type:varchar(50);not null;comment:消息类型"`
@@ -28,7 +28,7 @@ type Message struct {
 	MessageStatus     MessageStatus    `json:"message_status" gorm:"column:message_status;type:tinyint;default:0;comment:消息状态:0-待处理,1-处理中,2-已处理,3-已发送,4-失败,5-过期"`
 	RetryCount        int              `json:"retry_count" gorm:"column:retry_count;default:0;comment:重试次数"`
 	ErrorMessage      string           `json:"error_message" gorm:"column:error_message;type:text;comment:错误消息"`
-	ParentMessageID   *int64           `json:"parent_message_id" gorm:"column:parent_message_id;index;comment:父消息ID"`
+	ParentMessageID   *string          `json:"parent_message_id" gorm:"column:parent_message_id;index;comment:父消息ID"`
 	ConversationID    string           `json:"conversation_id" gorm:"column:conversation_id;type:varchar(100);index;comment:会话ID"`
 	BackendRequestID  string           `json:"backend_request_id" gorm:"column:backend_request_id;type:varchar(100);comment:后端请求ID"`
 	PlatformTimestamp time.Time        `json:"platform_timestamp" gorm:"column:platform_timestamp;comment:平台时间戳"`

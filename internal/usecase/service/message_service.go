@@ -95,8 +95,8 @@ func (s *MessageService) ValidateMessage(m *entity.Message) error {
 	if m.MessageID == "" {
 		return entity.NewValidationError("message_id", "消息ID不能为空")
 	}
-	if m.ChannelID <= 0 {
-		return entity.NewValidationError("channel_id", "通道ID必须大于0")
+	if m.ChannelID == "" {
+		return entity.NewValidationError("channel_id", "通道ID不能为空")
 	}
 	if m.MessageType == "" {
 		return entity.NewValidationError("message_type", "消息类型不能为空")

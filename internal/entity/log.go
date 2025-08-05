@@ -59,8 +59,8 @@ func (cl *ConnectionLog) Validate() error {
 type APICallLog struct {
 	BaseEntity
 	RequestID       string    `json:"request_id" gorm:"column:request_id;type:varchar(100);not null;index;comment:请求ID"`
-	ChannelID       *int64    `json:"channel_id" gorm:"column:channel_id;index;comment:通道ID"`
-	ProcessorID     *int64    `json:"processor_id" gorm:"column:processor_id;index;comment:处理器ID"`
+	ChannelID       string    `json:"channel_id" gorm:"column:channel_id;index;comment:通道ID"`
+	ProcessorID     string    `json:"processor_id" gorm:"column:processor_id;index;comment:处理器ID"`
 	Method          string    `json:"method" gorm:"column:method;type:varchar(10);not null;comment:HTTP方法"`
 	URL             string    `json:"url" gorm:"column:url;type:varchar(500);not null;comment:请求URL"`
 	RequestHeaders  JSONField `json:"request_headers" gorm:"column:request_headers;type:json;comment:请求头"`

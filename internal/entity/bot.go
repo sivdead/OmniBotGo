@@ -46,7 +46,7 @@ func (b *Bot) GetDefaultWebhookPath() string {
 	if path := b.Config.GetString("webhook_path"); path != "" {
 		return path
 	}
-	return "/webhook/" + b.BotType + "/" + string(rune(b.ID))
+	return "/webhook/" + b.BotType + "/" + b.ID
 }
 
 // Validate 验证Bot实体数据

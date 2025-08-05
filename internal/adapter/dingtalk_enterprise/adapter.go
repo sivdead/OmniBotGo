@@ -3,8 +3,6 @@ package dingtalk_enterprise
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -13,8 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
-	"strings"
 	"strconv"
 	"sync"
 	"time"

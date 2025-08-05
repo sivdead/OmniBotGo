@@ -84,8 +84,8 @@ func (uc *messageUseCase) CreateStreamMessageHandler() port.MessageHandler {
 		// 这里需要找到对应的ChannelID，可以通过平台类型和配置信息查找
 		// 为了简化，我们可以在RawContent中传递channelID
 		if channelIDValue, ok := unifiedMessage.RawContent["channel_id"]; ok {
-			if channelID, ok := channelIDValue.(float64); ok {
-				message.ChannelID = int64(channelID)
+			if channelID, ok := channelIDValue.(string); ok {
+				message.ChannelID = channelID
 			}
 		}
 
@@ -586,8 +586,8 @@ func (uc *messageUseCase) processWebhookForwarder(ctx context.Context, msg *enti
 
 	// 记录API调用日志
 	apiLog := &entity.APICallLog{
-		ChannelID:   &msg.ChannelID,
-		ProcessorID: &processor.ID,
+		ChannelID:   msg.ChannelID,
+		ProcessorID: processor.ID,
 		RequestID:   msg.MessageID,
 		Method:      "POST",
 		URL:         url,

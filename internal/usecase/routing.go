@@ -23,7 +23,7 @@ type RoutingUseCase interface {
 	// UpdateRoutingRule 更新路由规则
 	UpdateRoutingRule(ctx context.Context, rule *entity.MessageRoutingRule) error
 	// DeleteRoutingRule 删除路由规则
-	DeleteRoutingRule(ctx context.Context, ruleID int64) error
+	DeleteRoutingRule(ctx context.Context, ruleID string) error
 	// GetRoutingRules 获取路由规则列表
 	GetRoutingRules(ctx context.Context, filters RoutingRuleFilters) ([]*entity.MessageRoutingRule, error)
 }
@@ -329,7 +329,7 @@ func (uc *routingUseCase) UpdateRoutingRule(ctx context.Context, rule *entity.Me
 }
 
 // DeleteRoutingRule 删除路由规则
-func (uc *routingUseCase) DeleteRoutingRule(ctx context.Context, ruleID int64) error {
+func (uc *routingUseCase) DeleteRoutingRule(ctx context.Context, ruleID string) error {
 	uc.logger.Info("删除路由规则", "rule_id", ruleID)
 
 	// 检查规则是否存在
