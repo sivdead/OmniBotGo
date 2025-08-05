@@ -86,18 +86,16 @@ func (r *MessageRepo) GetByPlatformMessageID(ctx context.Context, channelID stri
 
 // GetByChannelID 根据通道ID获取消息列表
 func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID string, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
-	// 转换参数类型为内部使用的类型
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var messages []*entity.Message
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.Message{}).
 		Where("channel_id = ?", channelID)
 
-	query = r.buildQuery(query, internalParams)
+	query = r.buildQuery(query, validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &messages)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &messages)
 	if err != nil {
 		return nil, r.handleError(err, "get messages by channel ID")
 	}
@@ -107,17 +105,16 @@ func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID string, para
 
 // GetByConversationID 根据会话ID获取消息列表
 func (r *MessageRepo) GetByConversationID(ctx context.Context, conversationID string, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var messages []*entity.Message
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.Message{}).
 		Where("conversation_id = ?", conversationID)
 
-	query = r.buildQuery(query, internalParams)
+	query = r.buildQuery(query, validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &messages)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &messages)
 	if err != nil {
 		return nil, r.handleError(err, "get messages by conversation ID")
 	}
@@ -176,13 +173,12 @@ func (r *MessageRepo) Delete(ctx context.Context, id string) error {
 
 // List 获取消息列表（分页）
 func (r *MessageRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var messages []*entity.Message
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Message{}), internalParams)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Message{}), validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &messages)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &messages)
 	if err != nil {
 		return nil, r.handleError(err, "list messages")
 	}

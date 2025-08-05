@@ -124,13 +124,12 @@ func (r *MessageQueueRepo) Delete(ctx context.Context, id string) error {
 
 // List 获取MessageQueue列表（分页）
 func (r *MessageQueueRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.MessageQueue], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var queues []*entity.MessageQueue
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageQueue{}), internalParams)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageQueue{}), validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &queues)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &queues)
 	if err != nil {
 		return nil, r.handleError(err, "list message queues")
 	}

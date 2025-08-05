@@ -122,13 +122,12 @@ func (r *ChannelRepo) Delete(ctx context.Context, id string) error {
 
 // List 获取Channel列表（分页）
 func (r *ChannelRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.Channel], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var channels []*entity.Channel
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Channel{}), internalParams)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Channel{}), validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &channels)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &channels)
 	if err != nil {
 		return nil, r.handleError(err, "list channels")
 	}

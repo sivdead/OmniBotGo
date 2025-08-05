@@ -78,13 +78,12 @@ func (r *BotRepo) Delete(ctx context.Context, id string) error {
 
 // List 获取Bot列表（分页）
 func (r *BotRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.Bot], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var bots []*entity.Bot
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Bot{}), internalParams)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Bot{}), validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &bots)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &bots)
 	if err != nil {
 		return nil, r.handleError(err, "list bots")
 	}

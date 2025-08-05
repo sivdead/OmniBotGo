@@ -37,17 +37,16 @@ func (r *ConnectionLogRepo) Create(ctx context.Context, log *entity.ConnectionLo
 
 // GetByChannelID 根据通道ID获取ConnectionLog列表（分页）
 func (r *ConnectionLogRepo) GetByChannelID(ctx context.Context, channelID string, params port.ListParams) (*port.PaginatedResult[*entity.ConnectionLog], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var logs []*entity.ConnectionLog
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.ConnectionLog{}).
 		Where("channel_id = ?", channelID)
 
-	query = r.buildQuery(query, internalParams)
+	query = r.buildQuery(query, validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "get connection logs by channel id")
 	}
@@ -97,13 +96,12 @@ func (r *ConnectionLogRepo) GetErrorLogs(ctx context.Context, channelID string, 
 
 // List 获取ConnectionLog列表（分页）
 func (r *ConnectionLogRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.ConnectionLog], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var logs []*entity.ConnectionLog
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.ConnectionLog{}), internalParams)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.ConnectionLog{}), validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "list connection logs")
 	}
@@ -165,17 +163,16 @@ func (r *APICallLogRepo) GetByRequestID(ctx context.Context, requestID string) (
 
 // GetByChannelID 根据通道ID获取APICallLog列表（分页）
 func (r *APICallLogRepo) GetByChannelID(ctx context.Context, channelID string, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var logs []*entity.APICallLog
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.APICallLog{}).
 		Where("channel_id = ?", channelID)
 
-	query = r.buildQuery(query, internalParams)
+	query = r.buildQuery(query, validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "get api call logs by channel id")
 	}
@@ -185,17 +182,16 @@ func (r *APICallLogRepo) GetByChannelID(ctx context.Context, channelID string, p
 
 // GetByProcessorID 根据处理器ID获取APICallLog列表（分页）
 func (r *APICallLogRepo) GetByProcessorID(ctx context.Context, processorID string, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var logs []*entity.APICallLog
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.APICallLog{}).
 		Where("processor_id = ?", processorID)
 
-	query = r.buildQuery(query, internalParams)
+	query = r.buildQuery(query, validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "get api call logs by processor id")
 	}
@@ -264,13 +260,12 @@ func (r *APICallLogRepo) GetRecentCalls(ctx context.Context, limit int) ([]*enti
 
 // List 获取APICallLog列表（分页）
 func (r *APICallLogRepo) List(ctx context.Context, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
-	internalParams := convertToInternalParams(params)
-	internalParams = r.validateParams(internalParams)
+	validatedParams := r.validateParams(params)
 
 	var logs []*entity.APICallLog
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.APICallLog{}), internalParams)
+	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.APICallLog{}), validatedParams)
 
-	result, err := PaginateTypedForPort(r.db.GetGORM(), ctx, query, internalParams, &logs)
+	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
 		return nil, r.handleError(err, "list api call logs")
 	}

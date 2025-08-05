@@ -101,42 +101,6 @@ func (r *BaseRepo) buildQuery(db *gorm.DB, params port.ListParams) *gorm.DB {
 	return query
 }
 
-// PaginateTyped 执行泛型分页查询（独立函数）
-func PaginateTyped[T any](db *gorm.DB, ctx context.Context, query *gorm.DB, params port.ListParams, result *[]T) (*port.PaginatedResult[T], error) {
-	// 计算总数
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("failed to count records: %w", err)
-	}
-
-	// 计算分页参数
-	if params.Page <= 0 {
-		params.Page = 1
-	}
-	if params.PageSize <= 0 {
-		params.PageSize = 20
-	}
-	if params.PageSize > 100 {
-		params.PageSize = 100
-	}
-
-	offset := (params.Page - 1) * params.PageSize
-	totalPages := int(math.Ceil(float64(total) / float64(params.PageSize)))
-
-	// 执行分页查询
-	if err := query.Offset(offset).Limit(params.PageSize).Find(result).Error; err != nil {
-		return nil, fmt.Errorf("failed to query records: %w", err)
-	}
-
-	return &port.PaginatedResult[T]{
-		Items:      *result,
-		Total:      total,
-		Page:       params.Page,
-		PageSize:   params.PageSize,
-		TotalPages: totalPages,
-	}, nil
-}
-
 // exists 检查记录是否存在
 func (r *BaseRepo) exists(ctx context.Context, model interface{}, where string, args ...interface{}) (bool, error) {
 	var count int64
@@ -203,18 +167,8 @@ func (r *BaseRepo) handleError(err error, operation string) error {
 	return fmt.Errorf("%s failed: %w", operation, err)
 }
 
-// convertToInternalParams 转换port.ListParams到port.ListParams
-func convertToInternalParams(params port.ListParams) port.ListParams {
-	return port.ListParams{
-		Page:     params.Page,
-		PageSize: params.PageSize,
-		OrderBy:  params.OrderBy,
-		Filters:  params.Filters,
-	}
-}
-
-// PaginateTypedForPort 执行泛型分页查询并返回port.PaginatedResult
-func PaginateTypedForPort[T any](db *gorm.DB, ctx context.Context, query *gorm.DB, params port.ListParams, result *[]T) (*port.PaginatedResult[T], error) {
+// Paginate 执行泛型分页查询并返回分页结果
+func Paginate[T any](db *gorm.DB, ctx context.Context, query *gorm.DB, params port.ListParams, result *[]T) (*port.PaginatedResult[T], error) {
 	// 计算总数
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
