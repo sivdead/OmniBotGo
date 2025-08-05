@@ -39,7 +39,7 @@ type SystemStatus struct {
 // PlatformConnectionStatus 平台连接状态
 type PlatformConnectionStatus struct {
 	Platform         string    `json:"platform"`
-	ChannelID        int64     `json:"channel_id"`
+	ChannelID        string    `json:"channel_id"`
 	ChannelName      string    `json:"channel_name"`
 	ConnectionStatus string    `json:"connection_status"`
 	LastConnected    time.Time `json:"last_connected,omitempty"`
@@ -334,7 +334,7 @@ func (v *V1) checkResourceHealth() map[string]interface{} {
 	}
 }
 
-func (v *V1) getChannelMessageStats(ctx context.Context, channelID int64) (*channelStats, error) {
+func (v *V1) getChannelMessageStats(ctx context.Context, channelID string) (*channelStats, error) {
 	// 通过消息历史获取通道统计
 
 	// 获取发送消息统计（出站消息）

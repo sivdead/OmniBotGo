@@ -54,10 +54,10 @@ func (w *WebhookController) HandleWebhook(c *fiber.Ctx) error {
 	}
 
 	// 验证通道ID
-	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
-	if err != nil {
-		w.l.Error("无效的通道ID: %s", channelIDStr)
-		return NewErrorResponse(c, http.StatusBadRequest, "无效的通道ID")
+	channelID := channelIDStr
+	if channelID == "" {
+		w.l.Error("通道ID不能为空")
+		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
 	}
 
 	// 获取通道信息
@@ -179,9 +179,9 @@ func (w *WebhookController) GetWebhookInfo(c *fiber.Ctx) error {
 	}
 
 	// 验证通道ID
-	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "无效的通道ID")
+	channelID := channelIDStr
+	if channelID == "" {
+		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
 	}
 
 	// 获取通道信息
@@ -190,8 +190,10 @@ func (w *WebhookController) GetWebhookInfo(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusNotFound, "通道不存在")
 	}
 
-	// 构建Webhook路径
-	webhookPath, err := w.adapterManager.BuildWebhookPath(platformType, channelID)
+	// 构建Webhook路径 (临时转换，待后续重构接口)
+	// TODO: 更新 BuildWebhookPath 接口以支持 string channelID
+	channelIDInt, _ := strconv.ParseInt(channelID, 10, 64)
+	webhookPath, err := w.adapterManager.BuildWebhookPath(platformType, channelIDInt)
 	if err != nil {
 		return NewErrorResponse(c, http.StatusInternalServerError, "构建Webhook路径失败")
 	}
@@ -211,7 +213,7 @@ func (w *WebhookController) GetWebhookInfo(c *fiber.Ctx) error {
 
 // WebhookInfo Webhook信息
 type WebhookInfo struct {
-	ChannelID        int64  `json:"channel_id"`
+	ChannelID        string `json:"channel_id"`
 	Platform         string `json:"platform"`
 	WebhookPath      string `json:"webhook_path"`
 	WebhookURL       string `json:"webhook_url"`
