@@ -156,3 +156,10 @@ func (m *Manager) ParseInboundMessage(ctx context.Context, platformType entity.P
 func (m *Manager) BuildWebhookPath(platformType entity.PlatformType, channelID int64) (string, error) {
 	return fmt.Sprintf("/webhook/%s/%d", string(platformType), channelID), nil
 }
+
+// GetAIModelManager 获取AI模型管理器
+// TODO: 实现完整的AI模型管理功能
+func (m *Manager) GetAIModelManager() port.AIModelManager {
+	// 临时返回 nil，实际应该返回具体的 AI 模型管理器实现
+	return nil
+}

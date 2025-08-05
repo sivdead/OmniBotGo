@@ -9,7 +9,6 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/entity"
 )
 
-
 // WebhookController Webhook控制器
 type WebhookController struct {
 	*V1
