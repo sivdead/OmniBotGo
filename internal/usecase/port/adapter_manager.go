@@ -27,6 +27,9 @@ type AdapterManager interface {
 	// GetConfigValidator 获取具备配置验证能力的适配器
 	GetConfigValidator(platformType entity.PlatformType) (ConfigValidator, error)
 
+	// GetAIModelManager 获取AI模型管理器
+	GetAIModelManager() AIModelManager
+
 	// GetSupportedPlatforms 获取支持的平台列表
 	GetSupportedPlatforms() []entity.PlatformType
 

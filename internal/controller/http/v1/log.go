@@ -39,19 +39,10 @@ func (v *V1) GetConnectionLogs(c *fiber.Ctx) error {
 		req.PageSize = 20
 	}
 
-	// TODO: 调用usecase处理连接日志查询
-	// result, err := v.logUC.GetConnectionLogs(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("获取连接日志失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "获取连接日志失败")
-	// }
-
-	// 临时返回空结果
-	result := map[string]interface{}{
-		"items":     []interface{}{},
-		"total":     0,
-		"page":      req.Page,
-		"page_size": req.PageSize,
+	result, err := v.logUC.ListConnectionLogs(c.Context(), req)
+	if err != nil {
+		v.l.Error("获取连接日志失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "获取连接日志失败")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -80,17 +71,10 @@ func (v *V1) GetConnectionLogByID(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "日志ID格式错误")
 	}
 
-	// TODO: 调用usecase获取连接日志详情
-	// result, err := v.logUC.GetConnectionLogByID(c.Context(), id)
-	// if err != nil {
-	//     v.l.Error("获取连接日志详情失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusNotFound, "日志不存在")
-	// }
-
-	// 临时返回空结果
-	result := map[string]interface{}{
-		"id":      id,
-		"message": "连接日志功能开发中",
+	result, err := v.logUC.GetConnectionLog(c.Context(), id)
+	if err != nil {
+		v.l.Error("获取连接日志详情失败: %v", err)
+		return NewErrorResponse(c, http.StatusNotFound, "日志不存在")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -128,19 +112,10 @@ func (v *V1) GetAPICallLogs(c *fiber.Ctx) error {
 		req.PageSize = 20
 	}
 
-	// TODO: 调用usecase处理API调用日志查询
-	// result, err := v.logUC.GetAPICallLogs(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("获取API调用日志失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "获取API调用日志失败")
-	// }
-
-	// 临时返回空结果
-	result := map[string]interface{}{
-		"items":     []interface{}{},
-		"total":     0,
-		"page":      req.Page,
-		"page_size": req.PageSize,
+	result, err := v.logUC.ListAPICallLogs(c.Context(), req)
+	if err != nil {
+		v.l.Error("获取API调用日志失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "获取API调用日志失败")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -169,17 +144,10 @@ func (v *V1) GetAPICallLogByID(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "日志ID格式错误")
 	}
 
-	// TODO: 调用usecase获取API调用日志详情
-	// result, err := v.logUC.GetAPICallLogByID(c.Context(), id)
-	// if err != nil {
-	//     v.l.Error("获取API调用日志详情失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusNotFound, "日志不存在")
-	// }
-
-	// 临时返回空结果
-	result := map[string]interface{}{
-		"id":      id,
-		"message": "API调用日志功能开发中",
+	result, err := v.logUC.GetAPICallLog(c.Context(), id)
+	if err != nil {
+		v.l.Error("获取API调用日志详情失败: %v", err)
+		return NewErrorResponse(c, http.StatusNotFound, "日志不存在")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -205,20 +173,10 @@ func (v *V1) GetAPICallStats(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "查询参数格式错误")
 	}
 
-	// TODO: 调用usecase获取API调用统计
-	// result, err := v.logUC.GetAPICallStats(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("获取API调用统计失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "获取API调用统计失败")
-	// }
-
-	// 临时返回示例统计数据
-	result := map[string]interface{}{
-		"total_calls":       0,
-		"success_rate":      0.0,
-		"avg_response_time": 0,
-		"error_rate":        0.0,
-		"stats_by_period":   []interface{}{},
+	result, err := v.logUC.GetAPICallStats(c.Context(), req)
+	if err != nil {
+		v.l.Error("获取API调用统计失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "获取API调用统计失败")
 	}
 
 	return NewSuccessResponse(c, result)

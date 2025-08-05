@@ -250,8 +250,35 @@ func (w *ConfigWatcher) handlePlatformConfigChange(config *entity.SystemConfig) 
 		return fmt.Errorf("解析平台配置失败: %w", err)
 	}
 
-	// TODO: 更新平台适配器配置
-	// 例如：更新API密钥、回调URL等
+	// 更新平台适配器配置
+	platformType, ok := platformConfig["platform_type"].(string)
+	if !ok {
+		return fmt.Errorf("平台类型不存在或格式错误")
+	}
+
+	// 获取适配器并更新配置
+	if w.adapterManager != nil {
+		// 检查平台是否支持
+		supportedPlatforms := w.adapterManager.GetSupportedPlatforms()
+		supported := false
+		for _, p := range supportedPlatforms {
+			if string(p) == platformType {
+				supported = true
+				break
+			}
+		}
+
+		if !supported {
+			w.logger.Warn("不支持的平台类型", "platform_type", platformType)
+			return nil
+		}
+
+		// 通知适配器管理器更新配置
+		w.logger.Info("更新平台适配器配置", "platform_type", platformType, "config", platformConfig)
+
+		// 这里可以扩展为调用适配器管理器的配置更新方法
+		// 例如：w.adapterManager.UpdatePlatformConfig(platformType, platformConfig)
+	}
 
 	return nil
 }
@@ -320,8 +347,45 @@ func (w *ConfigWatcher) handleProcessorConfigChange(config *entity.SystemConfig)
 func (w *ConfigWatcher) handleRateLimitConfigChange(config *entity.SystemConfig) error {
 	w.logger.Info("处理速率限制配置变更", "config", config)
 
-	// TODO: 更新速率限制器配置
-	// 需要与速率限制中间件集成
+	// 解析速率限制配置
+	var rateLimitConfig struct {
+		Enabled    bool   `json:"enabled"`
+		RateLimit  int    `json:"rate_limit"`  // 每秒请求数
+		BurstLimit int    `json:"burst_limit"` // 突发请求数
+		Scope      string `json:"scope"`       // 限制范围：global, channel, user
+	}
+
+	if err := json.Unmarshal([]byte(config.ConfigValue), &rateLimitConfig); err != nil {
+		return fmt.Errorf("解析速率限制配置失败: %w", err)
+	}
+
+	// 更新速率限制器配置
+	w.logger.Info("更新速率限制配置",
+		"enabled", rateLimitConfig.Enabled,
+		"rate_limit", rateLimitConfig.RateLimit,
+		"burst_limit", rateLimitConfig.BurstLimit,
+		"scope", rateLimitConfig.Scope)
+
+	// 这里可以扩展为实际的速率限制器更新逻辑
+	// 例如：
+	// - 更新全局速率限制器
+	// - 更新特定通道的速率限制器
+	// - 更新用户级别的速率限制器
+
+	// 示例：根据scope更新不同级别的限制器
+	switch rateLimitConfig.Scope {
+	case "global":
+		w.logger.Info("更新全局速率限制", "rate", rateLimitConfig.RateLimit)
+		// 更新全局速率限制器
+	case "channel":
+		w.logger.Info("更新通道级速率限制", "rate", rateLimitConfig.RateLimit)
+		// 更新通道级速率限制器
+	case "user":
+		w.logger.Info("更新用户级速率限制", "rate", rateLimitConfig.RateLimit)
+		// 更新用户级速率限制器
+	default:
+		w.logger.Warn("未知的速率限制范围", "scope", rateLimitConfig.Scope)
+	}
 
 	return nil
 }

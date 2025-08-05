@@ -297,15 +297,23 @@ func (uc *channelUseCase) RefreshChannelToken(ctx context.Context, id int64) err
 		return fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
-	// TODO: 根据平台类型调用相应的令牌刷新逻辑
-	// 这里应该根据 channel.PlatformType 选择对应的平台API来刷新令牌
+	// 直接使用AdapterManager获取TokenManager
+	tokenManager, err := uc.adapterManager.GetTokenManager(entity.PlatformType(channel.PlatformType))
+	if err != nil {
+		uc.logger.Error("获取Token管理器失败", "error", err, "platform_type", channel.PlatformType)
+		return fmt.Errorf("获取%s平台Token管理器失败: %w", channel.PlatformType, err)
+	}
 
-	// 模拟令牌刷新
-	newToken := fmt.Sprintf("token_%d_%d", id, time.Now().Unix())
-	expiresAt := time.Now().Add(2 * time.Hour)
+	// 刷新令牌
+	tokenResponse, err := tokenManager.RefreshAccessToken(ctx, channel.Config, channel.AccessToken)
+	if err != nil {
+		uc.logger.Error("刷新令牌失败", "error", err, "platform_type", channel.PlatformType)
+		return fmt.Errorf("刷新%s平台令牌失败: %w", channel.PlatformType, err)
+	}
 
-	channel.AccessToken = newToken
-	channel.AccessTokenExpiresAt = &expiresAt
+	// 更新通道的令牌信息
+	channel.AccessToken = tokenResponse.AccessToken
+	channel.AccessTokenExpiresAt = tokenResponse.ExpiresAt
 	channel.UpdatedAt = time.Now()
 
 	// 保存更新
@@ -314,7 +322,7 @@ func (uc *channelUseCase) RefreshChannelToken(ctx context.Context, id int64) err
 		return fmt.Errorf("保存令牌更新失败: %w", err)
 	}
 
-	uc.logger.Info("通道令牌刷新成功", "new_token", "***", "expires_at", expiresAt)
+	uc.logger.Info("通道令牌刷新成功", "platform_type", channel.PlatformType, "expires_at", tokenResponse.ExpiresAt)
 
 	return nil
 }

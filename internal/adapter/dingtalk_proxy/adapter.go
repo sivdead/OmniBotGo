@@ -4,6 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -98,18 +101,26 @@ func (a *DingtalkProxyAdapter) VerifyWebhook(ctx context.Context, signature, tim
 	}
 
 	// 企业应用模式验证
-	// 实现企业应用的Webhook验证
-	// 获取app_secret从配置中进行签名验证
+	// 从配置中获取app_secret
 	appSecret, ok := cfg["app_secret"].(string)
 	if !ok || appSecret == "" {
-		return fmt.Errorf("app_secret is required for webhook verification")
+		return fmt.Errorf("app_secret not found in config for webhook verification")
 	}
-	
+
 	// 使用企业应用适配器的验证逻辑
-	if !verifySignature(timestamp, nonce, appSecret, signature) {
+	// 钉钉企业应用的签名验证算法：
+	// 1. 把timestamp + "\n" + secret当做签名字符串
+	// 2. 使用HmacSHA256算法计算签名
+	// 3. 然后进行Base64 encode，得到最终的签名
+	if !verifyDingtalkSignature(timestamp, appSecret, signature) {
+		a.logger.Warn().
+			Str("signature", signature).
+			Str("timestamp", timestamp).
+			Msg("钉钉企业应用Webhook签名验证失败")
 		return fmt.Errorf("webhook signature verification failed")
 	}
-	
+
+	a.logger.Debug().Msg("钉钉企业应用Webhook签名验证成功")
 	return nil
 }
 
@@ -151,6 +162,27 @@ func (a *DingtalkProxyAdapter) IsConnected() bool {
 	return a.streamAdapter.IsConnected()
 }
 
+// verifyDingtalkSignature 验证钉钉签名
+func verifyDingtalkSignature(timestamp, secret, signature string) bool {
+	// 钉钉签名验证算法：
+	// 1. 把timestamp + "\n" + secret当做签名字符串
+	// 2. 使用HmacSHA256算法计算签名
+	// 3. 然后进行Base64 encode，得到最终的签名
+
+	// 构建签名字符串
+	stringToSign := timestamp + "\n" + secret
+
+	// 使用HMAC-SHA256计算签名
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(stringToSign))
+
+	// Base64编码
+	calculatedSignature := base64.StdEncoding.EncodeToString(h.Sum(nil))
+
+	// 比较签名
+	return calculatedSignature == signature
+}
+
 // isStreamMode 判断是否为Stream模式
 func isStreamMode(config map[string]interface{}) bool {
 	// 如果配置了client_id和client_secret，则为Stream模式
@@ -158,26 +190,4 @@ func isStreamMode(config map[string]interface{}) bool {
 	clientSecret, hasClientSecret := config["client_secret"].(string)
 
 	return hasClientID && hasClientSecret && clientID != "" && clientSecret != ""
-}
-
-// verifySignature 验证钉钉签名
-func verifySignature(timestamp, nonce, token, signature string) bool {
-	if token == "" || signature == "" {
-		return false
-	}
-	
-	// 将timestamp、nonce、token按字典序排序
-	params := []string{timestamp, nonce, token}
-	sort.Strings(params)
-	
-	// 拼接成字符串
-	data := strings.Join(params, "")
-	
-	// 进行sha256加密
-	h := sha256.New()
-	h.Write([]byte(data))
-	hash := hex.EncodeToString(h.Sum(nil))
-	
-	// 将加密结果与signature对比
-	return hash == signature
 }

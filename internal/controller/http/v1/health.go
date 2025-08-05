@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -90,12 +91,12 @@ func (h *HealthController) GetHealth(c *fiber.Ctx) error {
 
 	response := HealthResponse{
 		Status:    "healthy",
-		Version:   "1.0.0", // TODO: 从配置或构建信息获取
+		Version:   h.cfg.App.Version,
 		Timestamp: time.Now(),
 		Uptime:    time.Since(StartTime).String(),
 		Environment: map[string]interface{}{
-			"go_version": "1.21",        // TODO: 从runtime获取
-			"platform":   "linux/amd64", // TODO: 从runtime获取
+			"go_version": runtime.Version(),
+			"platform":   runtime.GOOS + "/" + runtime.GOARCH,
 		},
 	}
 
@@ -188,7 +189,16 @@ func (h *HealthController) GetReadiness(c *fiber.Ctx) error {
 		})
 	}
 
-	// TODO: 检查其他必需的依赖服务
+	// 检查监控usecase是否可用
+	_, err := h.monitorUC.GetSystemOverview(ctx)
+	if err != nil {
+		c.Status(http.StatusServiceUnavailable)
+		return c.JSON(map[string]string{
+			"status": "not ready",
+			"reason": "monitoring service not available",
+			"time":   time.Now().Format(time.RFC3339),
+		})
+	}
 
 	return c.JSON(map[string]string{
 		"status": "ready",
@@ -219,9 +229,24 @@ func (h *HealthController) checkDatabaseHealth(ctx context.Context) DatabaseHeal
 		Ping:   "ok",
 	}
 
-	// TODO: 实际检查数据库连接
-	// 这里需要添加实际的数据库ping检查
-	// 可以通过依赖注入获取数据库连接池
+	// 通过监控usecase检查数据库健康状态
+	healthResult, err := h.monitorUC.GetDetailedHealth(ctx)
+	if err != nil {
+		health.Status = "unhealthy"
+		health.Ping = "failed: " + err.Error()
+		return health
+	}
+
+	// 检查数据库组件状态
+	if dbComponent, exists := healthResult.Components["database"]; exists {
+		if dbComponent.Status != "healthy" {
+			health.Status = "unhealthy"
+			health.Ping = "failed: " + dbComponent.Message
+		}
+	} else {
+		health.Status = "unknown"
+		health.Ping = "component not found"
+	}
 
 	return health
 }
@@ -238,9 +263,21 @@ func (h *HealthController) checkAdaptersHealth(ctx context.Context) []AdapterHea
 			Status:   "healthy",
 		}
 
-		// 检查该平台的通道数量
-		// TODO: 通过channelUC获取通道统计信息
-		health.ChannelCount = 0
+		// 获取该平台的通道数量
+		channels, err := h.channelUC.GetActiveChannels(ctx)
+		if err != nil {
+			health.Status = "unhealthy"
+			health.LastError = err.Error()
+		} else {
+			// 统计该平台的通道数量
+			count := 0
+			for _, channel := range channels {
+				if channel.PlatformType == string(platform) {
+					count++
+				}
+			}
+			health.ChannelCount = count
+		}
 
 		healths = append(healths, health)
 	}
@@ -252,12 +289,23 @@ func (h *HealthController) checkAdaptersHealth(ctx context.Context) []AdapterHea
 func (h *HealthController) checkChannelsHealth(ctx context.Context) ChannelHealthSummary {
 	summary := ChannelHealthSummary{}
 
-	// TODO: 通过channelUC获取通道统计信息
-	// channels, err := h.channelUC.GetChannelStatistics(ctx)
-	// if err != nil {
-	//     h.l.Error("获取通道统计失败", "error", err)
-	//     return summary
-	// }
+	// 通过channelUC获取通道统计信息
+	channels, err := h.channelUC.GetActiveChannels(ctx)
+	if err != nil {
+		h.l.Error("获取通道统计失败", "error", err)
+		return summary
+	}
+
+	summary.Total = len(channels)
+
+	for _, channel := range channels {
+		if h.channelUC.IsChannelConnected(ctx, channel.ID) {
+			summary.Connected++
+		} else {
+			// 简单分类：如果不是连接状态，则认为是失败状态
+			summary.Failed++
+		}
+	}
 
 	return summary
 }
@@ -266,12 +314,23 @@ func (h *HealthController) checkChannelsHealth(ctx context.Context) ChannelHealt
 func (h *HealthController) checkMessagesHealth(ctx context.Context) MessageHealthSummary {
 	summary := MessageHealthSummary{}
 
-	// TODO: 通过messageUC获取消息统计信息
-	// stats, err := h.messageUC.GetMessageStatistics(ctx, time.Now().Add(-24*time.Hour))
-	// if err != nil {
-	//     h.l.Error("获取消息统计失败", "error", err)
-	//     return summary
-	// }
+	// 通过监控usecase获取系统概览
+	overview, err := h.monitorUC.GetSystemOverview(ctx)
+	if err != nil {
+		h.l.Error("获取消息统计失败", "error", err)
+		return summary
+	}
+
+	// 构建消息健康状态摘要
+	summary.Total24h = overview.TotalMessages // 暂时使用总消息数
+	summary.Pending = overview.PendingJobs
+	summary.Failed = overview.FailedJobs
+	summary.Processed = overview.TotalMessages - overview.PendingJobs - overview.FailedJobs
+
+	// 计算成功率
+	if overview.TotalMessages > 0 {
+		summary.SuccessRate = float64(summary.Processed) / float64(overview.TotalMessages) * 100
+	}
 
 	return summary
 }

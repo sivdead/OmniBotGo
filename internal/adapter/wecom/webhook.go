@@ -3,7 +3,6 @@ package wecom
 import (
 	"context"
 	"crypto/sha1"
-	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"sort"
@@ -18,31 +17,61 @@ import (
 
 // VerifyWebhook 验证Webhook签名
 func (w *WecomAdapter) VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error {
-	// 实现企业微信的签名验证逻辑
-	// 获取配置中的token
+	// 从配置中获取token
 	token, ok := config["token"].(string)
 	if !ok || token == "" {
-		return fmt.Errorf("token is required for webhook verification")
+		return fmt.Errorf("webhook token not found in config")
 	}
 
-	// 企业微信的签名验证算法
-	// 1. 将token、timestamp、nonce三个参数进行字典序排序
-	// 2. 将三个参数字符串拼接成一个字符串进行sha1哈希
+	// 实现企业微信的签名验证逻辑
+	// 企业微信签名算法：
+	// 1. 将token、timestamp、nonce、encrypt四个参数进行字典序排序
+	// 2. 将四个参数字符串拼接成一个字符串进行sha1加密
 	// 3. 开发者获得加密后的字符串可与signature对比，标识该请求来源于微信
-	
-	params := []string{token, timestamp, nonce}
-	sort.Strings(params)
-	
-	// 拼接成字符串并进行sha1哈希
-	data := strings.Join(params, "")
-	h := sha1.New()
-	h.Write([]byte(data))
-	hash := hex.EncodeToString(h.Sum(nil))
-	
-	if hash != signature {
+
+	// 从body中提取encrypt参数（如果是加密消息）
+	var encrypt string
+	if len(body) > 0 {
+		// 尝试解析XML获取Encrypt字段
+		var encryptMsg struct {
+			Encrypt string `xml:"Encrypt"`
+		}
+		if err := xml.Unmarshal(body, &encryptMsg); err == nil && encryptMsg.Encrypt != "" {
+			encrypt = encryptMsg.Encrypt
+		}
+	}
+
+	// 构建签名字符串
+	var signatureParams []string
+	signatureParams = append(signatureParams, token, timestamp, nonce)
+	if encrypt != "" {
+		signatureParams = append(signatureParams, encrypt)
+	}
+
+	// 字典序排序
+	sort.Strings(signatureParams)
+
+	// 拼接字符串
+	signatureString := strings.Join(signatureParams, "")
+
+	// 计算SHA1
+	hash := sha1.New()
+	hash.Write([]byte(signatureString))
+	calculatedSignature := fmt.Sprintf("%x", hash.Sum(nil))
+
+	// 比较签名
+	if calculatedSignature != signature {
+		w.logger.Warn("企业微信Webhook签名验证失败",
+			"expected", signature,
+			"calculated", calculatedSignature,
+			"token_length", len(token),
+			"timestamp", timestamp,
+			"nonce", nonce,
+			"has_encrypt", encrypt != "")
 		return fmt.Errorf("webhook signature verification failed")
 	}
 
+	w.logger.Debug("企业微信Webhook签名验证成功")
 	return nil
 }
 

@@ -36,7 +36,8 @@ type AdapterRegistry map[entity.PlatformType]interface{}
 
 // NewWecomAdapter 创建企业微信适配器
 func NewWecomAdapter() *wecom.WecomAdapter {
-	return wecom.NewWecomAdapter()
+	logger := zerolog.New(os.Stdout).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	return wecom.NewWecomAdapter(logger)
 }
 
 // NewDingtalkStreamAdapter 创建钉钉Stream适配器

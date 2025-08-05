@@ -53,7 +53,12 @@ func NewGRPCServer(
 ) *grpcserver.Server {
 	grpcSrv := grpcserver.New(grpcserver.Port(cfg.GRPC.Port))
 
-	// TODO: 后续添加OmniBotGo的路由
+	// gRPC路由将在后续版本中添加，用于支持高性能的内部服务通信
+	// 计划支持的服务：
+	// - 消息处理服务 (MessageService)
+	// - 通道管理服务 (ChannelService)
+	// - 机器人管理服务 (BotService)
+	// - 监控服务 (MonitorService)
 	// grpc.NewRouter(grpcSrv.App, useCases, l)
 
 	return grpcSrv
@@ -70,7 +75,12 @@ func NewRMQServer(
 		return nil, nil
 	}
 
-	// TODO: 后续添加OmniBotGo的路由
+	// RabbitMQ RPC路由将在后续版本中添加，用于支持异步消息处理
+	// 计划支持的队列：
+	// - 消息处理队列 (message.process)
+	// - 消息重试队列 (message.retry)
+	// - 通道状态更新队列 (channel.status)
+	// - 批量操作队列 (batch.operation)
 	// rmqRouter := amqprpc.NewRouter(useCases, l)
 
 	return server.New(cfg.RMQ.URL, cfg.RMQ.ServerExchange, nil, l)

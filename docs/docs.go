@@ -4887,12 +4887,16 @@ const docTemplate = `{
         "usecase.ValidatePlatformConfigRequest": {
             "type": "object",
             "required": [
-                "config"
+                "config",
+                "platform_type"
             ],
             "properties": {
                 "config": {
                     "type": "object",
                     "additionalProperties": true
+                },
+                "platform_type": {
+                    "type": "string"
                 }
             }
         },

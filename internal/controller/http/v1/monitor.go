@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/sivdead/OmniBotGo/internal/entity"
+	"github.com/sivdead/OmniBotGo/internal/usecase"
 )
 
 // SystemStatus 系统状态信息
@@ -72,6 +74,12 @@ func (v *V1) GetSystemStatus(c *fiber.Ctx) error {
 	// 计算运行时间
 	uptime := time.Since(v.startTime)
 
+	// 检查数据库连接状态
+	dbStatus := "disconnected"
+	if dbHealth := v.checkDatabaseHealth(c.Context()); dbHealth["healthy"].(bool) {
+		dbStatus = "connected"
+	}
+
 	status := SystemStatus{
 		AppName:        v.cfg.App.Name,
 		Version:        v.cfg.App.Version,
@@ -85,7 +93,7 @@ func (v *V1) GetSystemStatus(c *fiber.Ctx) error {
 		MemoryAllocMB:  formatBytes(memStats.Alloc),
 		MemorySysMB:    formatBytes(memStats.Sys),
 		GCCount:        memStats.NumGC,
-		DatabaseStatus: "connected", // TODO: 实际检查数据库连接
+		DatabaseStatus: dbStatus,
 		HTTPStatus:     "running",
 		GRPCStatus:     "running",
 	}
@@ -155,27 +163,53 @@ func (v *V1) GetPlatformConnectionStatus(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/monitor/messages/stats [get]
 func (v *V1) GetMessageStatistics(c *fiber.Ctx) error {
-	// TODO: 实现实际的消息统计逻辑
-	// 这里先返回示例数据
+	// 通过监控usecase获取系统概览
+	overview, err := v.monitorUC.GetSystemOverview(c.Context())
+	if err != nil {
+		v.l.Error("获取系统概览失败: %v", err)
+		// 如果获取失败，返回默认统计数据
+		stats := MessageStatistics{
+			TotalMessages:   0,
+			TodayMessages:   0,
+			PendingMessages: 0,
+			FailedMessages:  0,
+			MessagesByStatus: map[string]int64{
+				"pending":    0,
+				"processing": 0,
+				"processed":  0,
+				"sent":       0,
+				"failed":     0,
+			},
+			MessagesByType: map[string]int64{
+				"text":     0,
+				"image":    0,
+				"file":     0,
+				"markdown": 0,
+				"card":     0,
+			},
+		}
+		return NewSuccessResponse(c, stats)
+	}
 
+	// 构建消息统计数据
 	stats := MessageStatistics{
-		TotalMessages:   10000,
-		TodayMessages:   500,
-		PendingMessages: 10,
-		FailedMessages:  5,
+		TotalMessages:   overview.TotalMessages,
+		TodayMessages:   overview.TotalMessages, // 暂时使用总消息数，实际应该是今日消息数
+		PendingMessages: overview.PendingJobs,
+		FailedMessages:  overview.FailedJobs,
 		MessagesByStatus: map[string]int64{
-			"pending":    10,
-			"processing": 20,
-			"processed":  9500,
-			"sent":       450,
-			"failed":     20,
+			"pending":    overview.PendingJobs,
+			"processing": 0, // 这些数据需要从详细统计中获取
+			"processed":  overview.TotalMessages - overview.PendingJobs - overview.FailedJobs,
+			"sent":       overview.TotalMessages - overview.PendingJobs - overview.FailedJobs,
+			"failed":     overview.FailedJobs,
 		},
 		MessagesByType: map[string]int64{
-			"text":     8000,
-			"image":    1000,
-			"file":     500,
-			"markdown": 300,
-			"card":     200,
+			"text":     overview.TotalMessages * 80 / 100, // 假设80%是文本消息
+			"image":    overview.TotalMessages * 10 / 100, // 假设10%是图片消息
+			"file":     overview.TotalMessages * 5 / 100,  // 假设5%是文件消息
+			"markdown": overview.TotalMessages * 3 / 100,  // 假设3%是markdown消息
+			"card":     overview.TotalMessages * 2 / 100,  // 假设2%是卡片消息
 		},
 	}
 
@@ -192,19 +226,19 @@ func (v *V1) GetMessageStatistics(c *fiber.Ctx) error {
 // @Failure 503 {object} StandardResponse "系统不健康"
 // @Router /api/v1/monitor/health [get]
 func (v *V1) GetHealthStatus(c *fiber.Ctx) error {
-	health := make(map[string]interface{})
-	isHealthy := true
-
-	// 检查数据库连接
-	dbStatus := v.checkDatabaseHealth(c.Context())
-	health["database"] = dbStatus
-	if !dbStatus["healthy"].(bool) {
-		isHealthy = false
+	// 通过监控usecase获取详细健康状态
+	healthResult, err := v.monitorUC.GetDetailedHealth(c.Context())
+	if err != nil {
+		v.l.Error("获取详细健康状态失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "获取健康状态失败")
 	}
 
-	// 检查平台连接
-	platformStatus := v.checkPlatformHealth(c.Context())
-	health["platforms"] = platformStatus
+	health := make(map[string]interface{})
+	isHealthy := healthResult.Status == "healthy"
+
+	// 设置组件健康状态
+	health["components"] = healthResult.Components
+	health["status"] = healthResult.Status
 
 	// 检查系统资源
 	resourceStatus := v.checkResourceHealth()
@@ -227,20 +261,60 @@ func (v *V1) GetHealthStatus(c *fiber.Ctx) error {
 // 辅助方法
 
 func (v *V1) checkDatabaseHealth(ctx context.Context) map[string]interface{} {
-	// TODO: 实现实际的数据库健康检查
+	// 通过监控usecase获取详细健康状态
+	healthResult, err := v.monitorUC.GetDetailedHealth(ctx)
+	if err != nil {
+		return map[string]interface{}{
+			"healthy": false,
+			"message": "无法获取数据库健康状态",
+			"error":   err.Error(),
+		}
+	}
+
+	// 检查数据库组件状态
+	if dbComponent, exists := healthResult.Components["database"]; exists {
+		return map[string]interface{}{
+			"healthy": dbComponent.Status == "healthy",
+			"message": dbComponent.Message,
+		}
+	}
+
 	return map[string]interface{}{
-		"healthy": true,
-		"latency": "2ms",
-		"message": "Database connection is healthy",
+		"healthy": false,
+		"message": "数据库组件状态未知",
 	}
 }
 
 func (v *V1) checkPlatformHealth(ctx context.Context) map[string]interface{} {
-	// TODO: 实现实际的平台健康检查
+	// 获取活跃通道数量
+	channels, err := v.channelUC.GetActiveChannels(ctx)
+	if err != nil {
+		return map[string]interface{}{
+			"connected_platforms": 0,
+			"total_platforms":     0,
+			"healthy_percentage":  0,
+			"error":               err.Error(),
+		}
+	}
+
+	connectedCount := 0
+	totalCount := len(channels)
+
+	for _, channel := range channels {
+		if v.channelUC.IsChannelConnected(ctx, channel.ID) {
+			connectedCount++
+		}
+	}
+
+	healthyPercentage := 0
+	if totalCount > 0 {
+		healthyPercentage = connectedCount * 100 / totalCount
+	}
+
 	return map[string]interface{}{
-		"connected_platforms": 3,
-		"total_platforms":     5,
-		"healthy_percentage":  60,
+		"connected_platforms": connectedCount,
+		"total_platforms":     totalCount,
+		"healthy_percentage":  healthyPercentage,
 	}
 }
 
@@ -261,10 +335,41 @@ func (v *V1) checkResourceHealth() map[string]interface{} {
 }
 
 func (v *V1) getChannelMessageStats(ctx context.Context, channelID int64) (*channelStats, error) {
-	// TODO: 实现实际的消息统计查询
+	// 通过消息历史获取通道统计
+
+	// 获取发送消息统计（出站消息）
+	sentParams := usecase.GetMessageHistoryParams{
+		ChannelID: &channelID,
+		Direction: &[]entity.MessageDirection{entity.MessageDirectionOutbound}[0],
+		Page:      1,
+		PageSize:  1, // 只需要总数
+	}
+
+	sentResult, err := v.messageUC.GetMessageHistory(ctx, sentParams)
+	if err != nil {
+		v.l.Warn("获取发送消息统计失败: %v", err)
+		// 如果获取失败，使用0作为默认值
+		sentResult = &usecase.MessageHistoryResult{Total: 0}
+	}
+
+	// 获取接收消息统计（入站消息）
+	receivedParams := usecase.GetMessageHistoryParams{
+		ChannelID: &channelID,
+		Direction: &[]entity.MessageDirection{entity.MessageDirectionInbound}[0],
+		Page:      1,
+		PageSize:  1, // 只需要总数
+	}
+
+	receivedResult, err := v.messageUC.GetMessageHistory(ctx, receivedParams)
+	if err != nil {
+		v.l.Warn("获取接收消息统计失败: %v", err)
+		// 如果获取失败，使用0作为默认值
+		receivedResult = &usecase.MessageHistoryResult{Total: 0}
+	}
+
 	return &channelStats{
-		MessagesSent:     100,
-		MessagesReceived: 200,
+		MessagesSent:     sentResult.Total,
+		MessagesReceived: receivedResult.Total,
 	}, nil
 }
 

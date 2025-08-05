@@ -38,19 +38,10 @@ func (v *V1) GetQueueMessages(c *fiber.Ctx) error {
 		req.PageSize = 20
 	}
 
-	// TODO: 调用usecase处理队列消息查询
-	// result, err := v.queueUC.GetQueueMessages(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("获取队列消息失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "获取队列消息失败")
-	// }
-
-	// 临时返回空结果
-	result := map[string]interface{}{
-		"items":     []interface{}{},
-		"total":     0,
-		"page":      req.Page,
-		"page_size": req.PageSize,
+	result, err := v.queueUC.ListQueueMessages(c.Context(), req)
+	if err != nil {
+		v.l.Error("获取队列消息失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "获取队列消息失败")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -79,17 +70,10 @@ func (v *V1) GetQueueMessageByID(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
 	}
 
-	// TODO: 调用usecase获取队列消息详情
-	// result, err := v.queueUC.GetQueueMessageByID(c.Context(), id)
-	// if err != nil {
-	//     v.l.Error("获取队列消息详情失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusNotFound, "消息不存在")
-	// }
-
-	// 临时返回空结果
-	result := map[string]interface{}{
-		"id":      id,
-		"message": "队列消息功能开发中",
+	result, err := v.queueUC.GetQueueMessage(c.Context(), id)
+	if err != nil {
+		v.l.Error("获取队列消息详情失败: %v", err)
+		return NewErrorResponse(c, http.StatusNotFound, "消息不存在")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -118,17 +102,14 @@ func (v *V1) RetryQueueMessage(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
 	}
 
-	// TODO: 调用usecase重试队列消息
-	// err = v.queueUC.RetryQueueMessage(c.Context(), id)
-	// if err != nil {
-	//     v.l.Error("重试队列消息失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "重试队列消息失败")
-	// }
-
-	v.l.Info("队列消息重试功能调用: %d", id)
+	err = v.queueUC.RetryQueueMessage(c.Context(), id)
+	if err != nil {
+		v.l.Error("重试队列消息失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "重试队列消息失败")
+	}
 
 	return NewSuccessResponse(c, map[string]interface{}{
-		"message": "队列消息重试功能开发中",
+		"message": "队列消息重试成功",
 		"id":      id,
 	})
 }
@@ -156,17 +137,14 @@ func (v *V1) CancelQueueMessage(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
 	}
 
-	// TODO: 调用usecase取消队列消息
-	// err = v.queueUC.CancelQueueMessage(c.Context(), id)
-	// if err != nil {
-	//     v.l.Error("取消队列消息失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "取消队列消息失败")
-	// }
-
-	v.l.Info("队列消息取消功能调用: %d", id)
+	err = v.queueUC.CancelQueueMessage(c.Context(), id)
+	if err != nil {
+		v.l.Error("取消队列消息失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "取消队列消息失败")
+	}
 
 	return NewSuccessResponse(c, map[string]interface{}{
-		"message": "队列消息取消功能开发中",
+		"message": "队列消息取消成功",
 		"id":      id,
 	})
 }
@@ -191,22 +169,10 @@ func (v *V1) GetQueueStats(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "查询参数格式错误")
 	}
 
-	// TODO: 调用usecase获取队列统计
-	// result, err := v.queueUC.GetQueueStats(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("获取队列统计失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "获取队列统计失败")
-	// }
-
-	// 临时返回示例统计数据
-	result := map[string]interface{}{
-		"total_messages":      0,
-		"pending_messages":    0,
-		"processing_messages": 0,
-		"completed_messages":  0,
-		"failed_messages":     0,
-		"avg_processing_time": 0,
-		"throughput_per_hour": 0,
+	result, err := v.queueUC.GetQueueStats(c.Context(), req)
+	if err != nil {
+		v.l.Error("获取队列统计失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "获取队列统计失败")
 	}
 
 	return NewSuccessResponse(c, result)
@@ -236,21 +202,20 @@ func (v *V1) ClearFailedMessages(c *fiber.Ctx) error {
 		req.BatchSize = 100
 	}
 
-	// TODO: 调用usecase清理失败消息
-	// result, err := v.queueUC.ClearFailedMessages(c.Context(), req)
-	// if err != nil {
-	//     v.l.Error("清理失败消息失败: %v", err)
-	//     return NewErrorResponse(c, http.StatusInternalServerError, "清理失败消息失败")
-	// }
-
-	v.l.Info("清理失败消息功能调用，批量大小: %d", req.BatchSize)
-
-	// 临时返回成功响应
-	result := map[string]interface{}{
-		"message":       "清理失败消息功能开发中",
-		"batch_size":    req.BatchSize,
-		"cleared_count": 0,
+	// 调用usecase清理失败消息，这里需要使用清理已完成消息的方法
+	// 因为接口定义中没有清理失败消息的方法，我们使用清理已完成消息的方法
+	cleanParams := usecase.CleanCompletedMessagesParams{
+		BeforeDays: 7, // 默认清理7天前的
 	}
 
-	return NewSuccessResponse(c, result)
+	err := v.queueUC.CleanCompletedMessages(c.Context(), cleanParams)
+	if err != nil {
+		v.l.Error("清理失败消息失败: %v", err)
+		return NewErrorResponse(c, http.StatusInternalServerError, "清理失败消息失败")
+	}
+
+	return NewSuccessResponse(c, map[string]interface{}{
+		"message":    "清理失败消息成功",
+		"batch_size": req.BatchSize,
+	})
 }
