@@ -10,8 +10,8 @@
 - [**功能架构文档**](architecture/03_functional_architecture.md) - 系统功能架构和模块划分
 
 ### 💡 设计文档
+- [**架构与数据库设计**](ARCHITECTURE_DESIGN.md) - 核心架构、实体及数据库设计原则
 - [**需求说明**](design/需求说明.md) - 项目功能需求和非功能需求
-- [**数据库设计**](design/database_design.sql) - 数据库表结构设计
 - [**数据库ER图**](design/数据库ER图.md) - 数据库实体关系图
 
 ### 🛠️ 开发指南
