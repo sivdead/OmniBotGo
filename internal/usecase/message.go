@@ -134,7 +134,7 @@ func (uc *messageUseCase) validateInboundMessage(ctx context.Context, msg *entit
 }
 
 // checkChannelStatus 检查通道状态
-func (uc *messageUseCase) checkChannelStatus(ctx context.Context, channelID int64) error {
+func (uc *messageUseCase) checkChannelStatus(ctx context.Context, channelID string) error {
 	channel, err := uc.channelRepo.GetByID(ctx, channelID)
 	if err != nil {
 		uc.logger.Error("获取通道信息失败", "error", err)
@@ -423,7 +423,7 @@ func (uc *messageUseCase) GetMessageHistory(ctx context.Context, params GetMessa
 }
 
 // GetMessage 根据ID获取消息
-func (uc *messageUseCase) GetMessage(ctx context.Context, id int64) (*entity.Message, error) {
+func (uc *messageUseCase) GetMessage(ctx context.Context, id string) (*entity.Message, error) {
 	uc.logger.Info("获取消息详情", "method", "GetMessage", "message_id", id)
 
 	message, err := uc.messageRepo.GetByID(ctx, id)
@@ -438,11 +438,11 @@ func (uc *messageUseCase) GetMessage(ctx context.Context, id int64) (*entity.Mes
 }
 
 // RetryFailedMessage 重试失败的消息
-func (uc *messageUseCase) RetryFailedMessage(ctx context.Context, messageID int64) error {
+func (uc *messageUseCase) RetryFailedMessage(ctx context.Context, messageID string) error {
 	uc.logger.Info("重试失败消息", "method", "RetryFailedMessage", "message_id", messageID)
 
 	// 获取消息
-	message, err := uc.messageRepo.GetByID(ctx, messageID)
+	message, err := uc.messageRepo.GetByMessageID(ctx, messageID)
 	if err != nil {
 		uc.logger.Error("获取消息失败", "error", err)
 		return fmt.Errorf("获取消息失败: %w", err)
@@ -1135,7 +1135,7 @@ func (uc *messageUseCase) toolSearchWeb(ctx context.Context, args string) (strin
 func (uc *messageUseCase) toolSendMessage(ctx context.Context, args string) (string, error) {
 	// 解析参数
 	var params struct {
-		ChannelID int64  `json:"channel_id"`
+		ChannelID string `json:"channel_id"`
 		Content   string `json:"content"`
 	}
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
@@ -1162,7 +1162,7 @@ func (uc *messageUseCase) toolSendMessage(ctx context.Context, args string) (str
 		return "", fmt.Errorf("failed to send message via tool: %w", err)
 	}
 
-	return fmt.Sprintf("Message sent successfully to channel %d", params.ChannelID), nil
+	return fmt.Sprintf("Message sent successfully to channel %s", params.ChannelID), nil
 }
 
 // createAIReplyMessage 创建AI回复消息

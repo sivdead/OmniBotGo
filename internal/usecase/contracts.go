@@ -20,9 +20,9 @@ type (
 		// GetMessageHistory 获取消息历史
 		GetMessageHistory(ctx context.Context, params GetMessageHistoryParams) (*MessageHistoryResult, error)
 		// GetMessage 根据ID获取消息
-		GetMessage(ctx context.Context, id int64) (*entity.Message, error)
+		GetMessage(ctx context.Context, id string) (*entity.Message, error)
 		// RetryFailedMessage 重试失败的消息
-		RetryFailedMessage(ctx context.Context, messageID int64) error
+		RetryFailedMessage(ctx context.Context, messageID string) error
 		// CreateStreamMessageHandler 创建用于Stream适配器的消息处理回调函数
 		CreateStreamMessageHandler() port.MessageHandler
 	}
@@ -34,19 +34,19 @@ type (
 		// UpdateChannel 更新通道
 		UpdateChannel(ctx context.Context, req UpdateChannelRequest) (*entity.Channel, error)
 		// DeleteChannel 删除通道
-		DeleteChannel(ctx context.Context, id int64) error
+		DeleteChannel(ctx context.Context, id string) error
 		// GetChannel 获取通道信息
-		GetChannel(ctx context.Context, id int64) (*entity.Channel, error)
+		GetChannel(ctx context.Context, id string) (*entity.Channel, error)
 		// ListChannels 获取通道列表
 		ListChannels(ctx context.Context, params ListChannelsParams) (*ChannelListResult, error)
 		// UpdateChannelStatus 更新通道状态
-		UpdateChannelStatus(ctx context.Context, id int64, status entity.ConnectionStatus) error
+		UpdateChannelStatus(ctx context.Context, id string, status entity.ConnectionStatus) error
 		// RefreshChannelToken 刷新通道令牌
-		RefreshChannelToken(ctx context.Context, id int64) error
+		RefreshChannelToken(ctx context.Context, id string) error
 		// GetActiveChannels 获取所有活跃的通道
 		GetActiveChannels(ctx context.Context) ([]*entity.Channel, error)
 		// IsChannelConnected 检查通道是否已连接
-		IsChannelConnected(ctx context.Context, id int64) bool
+		IsChannelConnected(ctx context.Context, id string) bool
 	}
 
 	// BotUseCase 机器人管理业务逻辑
@@ -56,9 +56,9 @@ type (
 		// UpdateBot 更新机器人
 		UpdateBot(ctx context.Context, req UpdateBotRequest) (*entity.Bot, error)
 		// DeleteBot 删除机器人
-		DeleteBot(ctx context.Context, id int64) error
+		DeleteBot(ctx context.Context, id string) error
 		// GetBot 获取机器人信息
-		GetBot(ctx context.Context, id int64) (*entity.Bot, error)
+		GetBot(ctx context.Context, id string) (*entity.Bot, error)
 		// ListBots 获取机器人列表
 		ListBots(ctx context.Context, params ListBotsParams) (*BotListResult, error)
 	}
@@ -106,11 +106,11 @@ type (
 		// ListConnectionLogs 获取连接日志列表
 		ListConnectionLogs(ctx context.Context, params ListConnectionLogsParams) (*ConnectionLogListResult, error)
 		// GetConnectionLog 获取连接日志详情
-		GetConnectionLog(ctx context.Context, id int64) (*entity.ConnectionLog, error)
+		GetConnectionLog(ctx context.Context, id string) (*entity.ConnectionLog, error)
 		// ListAPICallLogs 获取API调用日志列表
 		ListAPICallLogs(ctx context.Context, params ListAPICallLogsParams) (*APICallLogListResult, error)
 		// GetAPICallLog 获取API调用日志详情
-		GetAPICallLog(ctx context.Context, id int64) (*entity.APICallLog, error)
+		GetAPICallLog(ctx context.Context, id string) (*entity.APICallLog, error)
 		// GetAPICallStats 获取API调用统计
 		GetAPICallStats(ctx context.Context, params GetAPICallStatsParams) (*APICallStatsResult, error)
 	}
@@ -120,11 +120,11 @@ type (
 		// ListQueueMessages 获取队列消息列表
 		ListQueueMessages(ctx context.Context, params ListQueueMessagesParams) (*QueueMessageListResult, error)
 		// GetQueueMessage 获取队列消息详情
-		GetQueueMessage(ctx context.Context, id int64) (*entity.MessageQueue, error)
+		GetQueueMessage(ctx context.Context, id string) (*entity.MessageQueue, error)
 		// RetryQueueMessage 重试队列消息
-		RetryQueueMessage(ctx context.Context, id int64) error
+		RetryQueueMessage(ctx context.Context, id string) error
 		// CancelQueueMessage 取消队列消息
-		CancelQueueMessage(ctx context.Context, id int64) error
+		CancelQueueMessage(ctx context.Context, id string) error
 		// GetQueueStats 获取队列统计
 		GetQueueStats(ctx context.Context, params GetQueueStatsParams) (*QueueStatsResult, error)
 		// CleanCompletedMessages 清理已完成消息
@@ -138,21 +138,21 @@ type (
 		// ListProcessors 获取处理器列表
 		ListProcessors(ctx context.Context, params ListProcessorsParams) (*ProcessorListResult, error)
 		// GetProcessor 获取处理器详情
-		GetProcessor(ctx context.Context, id int64) (*entity.MessageProcessor, error)
+		GetProcessor(ctx context.Context, id string) (*entity.MessageProcessor, error)
 		// UpdateProcessor 更新处理器
 		UpdateProcessor(ctx context.Context, req UpdateProcessorRequest) (*entity.MessageProcessor, error)
 		// DeleteProcessor 删除处理器
-		DeleteProcessor(ctx context.Context, id int64) error
+		DeleteProcessor(ctx context.Context, id string) error
 		// UpdateProcessorStatus 更新处理器状态
 		UpdateProcessorStatus(ctx context.Context, req UpdateProcessorStatusRequest) error
 		// CreateRoutingRule 创建路由规则
 		CreateRoutingRule(ctx context.Context, req CreateRoutingRuleRequest) (*entity.MessageRoutingRule, error)
 		// ListRoutingRules 获取路由规则列表
-		ListRoutingRules(ctx context.Context, processorID int64, params ListRoutingRulesParams) ([]*entity.MessageRoutingRule, error)
+		ListRoutingRules(ctx context.Context, processorID string, params ListRoutingRulesParams) ([]*entity.MessageRoutingRule, error)
 		// UpdateRoutingRule 更新路由规则
 		UpdateRoutingRule(ctx context.Context, req UpdateRoutingRuleRequest) (*entity.MessageRoutingRule, error)
 		// DeleteRoutingRule 删除路由规则
-		DeleteRoutingRule(ctx context.Context, ruleID int64) error
+		DeleteRoutingRule(ctx context.Context, ruleID string) error
 	}
 )
 
@@ -160,7 +160,7 @@ type (
 
 // CreateChannelRequest 创建通道请求
 type CreateChannelRequest struct {
-	BotID        int64                  `json:"bot_id" validate:"required"`
+	BotID        string                 `json:"bot_id" validate:"required"`
 	PlatformType string                 `json:"platform_type" validate:"required"`
 	ChannelName  string                 `json:"channel_name" validate:"required"`
 	Config       map[string]interface{} `json:"config"`
@@ -168,7 +168,7 @@ type CreateChannelRequest struct {
 
 // UpdateChannelRequest 更新通道请求
 type UpdateChannelRequest struct {
-	ID          int64                  `json:"id" validate:"required"`
+	ID          string                 `json:"id" validate:"required"`
 	ChannelName *string                `json:"channel_name,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
 	Status      *entity.Status         `json:"status,omitempty"`
@@ -176,7 +176,7 @@ type UpdateChannelRequest struct {
 
 // ListChannelsParams 获取通道列表参数
 type ListChannelsParams struct {
-	BotID        *int64         `json:"bot_id,omitempty"`
+	BotID        *string        `json:"bot_id,omitempty"`
 	PlatformType *string        `json:"platform_type,omitempty"`
 	Status       *entity.Status `json:"status,omitempty"`
 	Page         int            `json:"page" validate:"min=1"`
@@ -198,7 +198,7 @@ type CreateBotRequest struct {
 
 // UpdateBotRequest 更新机器人请求
 type UpdateBotRequest struct {
-	ID          int64                  `json:"id" validate:"required"`
+	ID          string                 `json:"id" validate:"required"`
 	BotName     *string                `json:"bot_name,omitempty"`
 	Description *string                `json:"description,omitempty"`
 	AvatarURL   *string                `json:"avatar_url,omitempty"`
@@ -229,7 +229,7 @@ type BotListResult = ListResult[entity.Bot]
 
 // GetMessageHistoryParams 获取消息历史参数
 type GetMessageHistoryParams struct {
-	ChannelID     *int64                   `json:"channel_id,omitempty"`
+	ChannelID     *string                  `json:"channel_id,omitempty"`
 	SenderID      *string                  `json:"sender_id,omitempty"`
 	ReceiverID    *string                  `json:"receiver_id,omitempty"`
 	MessageType   *string                  `json:"message_type,omitempty"`
@@ -371,7 +371,7 @@ type ComponentHealth struct {
 
 // ListConnectionLogsParams 获取连接日志列表参数
 type ListConnectionLogsParams struct {
-	ChannelID *int64  `json:"channel_id,omitempty"`
+	ChannelID *string `json:"channel_id,omitempty"`
 	LogLevel  *string `json:"log_level,omitempty"`
 	Page      int     `json:"page" validate:"min=1"`
 	PageSize  int     `json:"page_size" validate:"min=1,max=100"`
@@ -382,10 +382,10 @@ type ConnectionLogListResult = ListResult[entity.ConnectionLog]
 
 // ListAPICallLogsParams 获取API调用日志列表参数
 type ListAPICallLogsParams struct {
-	ChannelID   *int64 `json:"channel_id,omitempty"`
-	ProcessorID *int64 `json:"processor_id,omitempty"`
-	Page        int    `json:"page" validate:"min=1"`
-	PageSize    int    `json:"page_size" validate:"min=1,max=100"`
+	ChannelID   *string `json:"channel_id,omitempty"`
+	ProcessorID *string `json:"processor_id,omitempty"`
+	Page        int     `json:"page" validate:"min=1"`
+	PageSize    int     `json:"page_size" validate:"min=1,max=100"`
 }
 
 // APICallLogListResult API调用日志列表结果
@@ -393,8 +393,8 @@ type APICallLogListResult = ListResult[entity.APICallLog]
 
 // GetAPICallStatsParams 获取API调用统计参数
 type GetAPICallStatsParams struct {
-	ChannelID   *int64 `json:"channel_id,omitempty"`
-	ProcessorID *int64 `json:"processor_id,omitempty"`
+	ChannelID   *string `json:"channel_id,omitempty"`
+	ProcessorID *string `json:"processor_id,omitempty"`
 }
 
 // APICallStatsResult API调用统计结果
@@ -470,7 +470,7 @@ type ProcessorListResult = ListResult[entity.MessageProcessor]
 
 // UpdateProcessorRequest 更新处理器请求
 type UpdateProcessorRequest struct {
-	ID          int64                  `json:"id" validate:"required"`
+	ID          string                 `json:"id" validate:"required"`
 	Name        *string                `json:"name,omitempty"`
 	Description *string                `json:"description,omitempty"`
 	Config      map[string]interface{} `json:"config,omitempty"`
@@ -481,13 +481,13 @@ type UpdateProcessorRequest struct {
 
 // UpdateProcessorStatusRequest 更新处理器状态请求
 type UpdateProcessorStatusRequest struct {
-	ID     int64         `json:"id" validate:"required"`
+	ID     string        `json:"id" validate:"required"`
 	Status entity.Status `json:"status" validate:"required"`
 }
 
 // CreateRoutingRuleRequest 创建路由规则请求
 type CreateRoutingRuleRequest struct {
-	ProcessorID  int64                  `json:"processor_id" validate:"required"`
+	ProcessorID  string                 `json:"processor_id" validate:"required"`
 	RuleName     string                 `json:"rule_name" validate:"required"`
 	PlatformType string                 `json:"platform_type"`
 	MessageType  string                 `json:"message_type"`
@@ -508,8 +508,8 @@ type ListRoutingRulesParams struct {
 
 // UpdateRoutingRuleRequest 更新路由规则请求
 type UpdateRoutingRuleRequest struct {
-	ID           int64                  `json:"id" validate:"required"`
-	ProcessorID  *int64                 `json:"processor_id,omitempty"`
+	ID           string                 `json:"id" validate:"required"`
+	ProcessorID  *string                `json:"processor_id,omitempty"`
 	RuleName     *string                `json:"rule_name,omitempty"`
 	PlatformType *string                `json:"platform_type,omitempty"`
 	MessageType  *string                `json:"message_type,omitempty"`

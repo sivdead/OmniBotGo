@@ -132,7 +132,7 @@ func (r *SystemConfigRepo) UpdateValue(ctx context.Context, key, value string) e
 }
 
 // Delete 删除SystemConfig（软删除）
-func (r *SystemConfigRepo) Delete(ctx context.Context, id int64) error {
+func (r *SystemConfigRepo) Delete(ctx context.Context, id string) error {
 	return r.softDelete(ctx, &entity.SystemConfig{}, id)
 }
 

@@ -36,9 +36,9 @@ func (r *BotRepo) Create(ctx context.Context, bot *entity.Bot) error {
 }
 
 // GetByID 根据ID获取Bot
-func (r *BotRepo) GetByID(ctx context.Context, id int64) (*entity.Bot, error) {
+func (r *BotRepo) GetByID(ctx context.Context, id string) (*entity.Bot, error) {
 	var bot entity.Bot
-	err := r.db.GetGORM().WithContext(ctx).Preload("Channels").First(&bot, id).Error
+	err := r.db.GetGORM().WithContext(ctx).Preload("Channels").First(&bot, "id = ?", id).Error
 	if err != nil {
 		return nil, r.handleError(err, "get bot by id")
 	}
@@ -72,7 +72,7 @@ func (r *BotRepo) Update(ctx context.Context, bot *entity.Bot) error {
 }
 
 // Delete 删除Bot（软删除）
-func (r *BotRepo) Delete(ctx context.Context, id int64) error {
+func (r *BotRepo) Delete(ctx context.Context, id string) error {
 	return r.softDelete(ctx, &entity.Bot{}, id)
 }
 
@@ -105,7 +105,7 @@ func (r *BotRepo) ListActive(ctx context.Context) ([]*entity.Bot, error) {
 }
 
 // Exists 检查Bot是否存在
-func (r *BotRepo) Exists(ctx context.Context, id int64) (bool, error) {
+func (r *BotRepo) Exists(ctx context.Context, id string) (bool, error) {
 	return r.exists(ctx, &entity.Bot{}, "id = ?", id)
 }
 
@@ -115,7 +115,7 @@ func (r *BotRepo) ExistsByName(ctx context.Context, name string) (bool, error) {
 }
 
 // GetActiveChannelCount 获取Bot的活跃通道数量
-func (r *BotRepo) GetActiveChannelCount(ctx context.Context, id int64) (int64, error) {
+func (r *BotRepo) GetActiveChannelCount(ctx context.Context, id string) (int64, error) {
 	var count int64
 	err := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.Channel{}).

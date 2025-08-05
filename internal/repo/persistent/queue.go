@@ -37,9 +37,9 @@ func (r *MessageQueueRepo) Create(ctx context.Context, queue *entity.MessageQueu
 }
 
 // GetByID 根据ID获取MessageQueue
-func (r *MessageQueueRepo) GetByID(ctx context.Context, id int64) (*entity.MessageQueue, error) {
+func (r *MessageQueueRepo) GetByID(ctx context.Context, id string) (*entity.MessageQueue, error) {
 	var queue entity.MessageQueue
-	err := r.db.GetGORM().WithContext(ctx).First(&queue, id).Error
+	err := r.db.GetGORM().WithContext(ctx).First(&queue, "id = ?", id).Error
 	if err != nil {
 		return nil, r.handleError(err, "get message queue by id")
 	}
@@ -118,7 +118,7 @@ func (r *MessageQueueRepo) Update(ctx context.Context, queue *entity.MessageQueu
 }
 
 // Delete 删除MessageQueue（软删除）
-func (r *MessageQueueRepo) Delete(ctx context.Context, id int64) error {
+func (r *MessageQueueRepo) Delete(ctx context.Context, id string) error {
 	return r.softDelete(ctx, &entity.MessageQueue{}, id)
 }
 
@@ -139,7 +139,7 @@ func (r *MessageQueueRepo) List(ctx context.Context, params port.ListParams) (*p
 }
 
 // MarkAsRunning 标记任务为运行中
-func (r *MessageQueueRepo) MarkAsRunning(ctx context.Context, id int64) error {
+func (r *MessageQueueRepo) MarkAsRunning(ctx context.Context, id string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"status":     entity.QueueStatusRunning,
@@ -161,7 +161,7 @@ func (r *MessageQueueRepo) MarkAsRunning(ctx context.Context, id int64) error {
 }
 
 // MarkAsCompleted 标记任务为已完成
-func (r *MessageQueueRepo) MarkAsCompleted(ctx context.Context, id int64) error {
+func (r *MessageQueueRepo) MarkAsCompleted(ctx context.Context, id string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"status":       entity.QueueStatusCompleted,
@@ -183,7 +183,7 @@ func (r *MessageQueueRepo) MarkAsCompleted(ctx context.Context, id int64) error 
 }
 
 // MarkAsFailed 标记任务为失败
-func (r *MessageQueueRepo) MarkAsFailed(ctx context.Context, id int64, errorMsg string) error {
+func (r *MessageQueueRepo) MarkAsFailed(ctx context.Context, id string, errorMsg string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"status":        entity.QueueStatusFailed,
@@ -207,7 +207,7 @@ func (r *MessageQueueRepo) MarkAsFailed(ctx context.Context, id int64, errorMsg 
 }
 
 // MarkForRetry 标记任务为重试状态
-func (r *MessageQueueRepo) MarkForRetry(ctx context.Context, id int64, nextScheduleTime int64) error {
+func (r *MessageQueueRepo) MarkForRetry(ctx context.Context, id string, nextScheduleTime int64) error {
 	nextTime := time.Unix(nextScheduleTime, 0)
 	updates := map[string]interface{}{
 		"status":       entity.QueueStatusRetrying,
@@ -229,7 +229,7 @@ func (r *MessageQueueRepo) MarkForRetry(ctx context.Context, id int64, nextSched
 }
 
 // MarkAsCancelled 标记任务为已取消
-func (r *MessageQueueRepo) MarkAsCancelled(ctx context.Context, id int64) error {
+func (r *MessageQueueRepo) MarkAsCancelled(ctx context.Context, id string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"status":       entity.QueueStatusCancelled,
@@ -251,7 +251,7 @@ func (r *MessageQueueRepo) MarkAsCancelled(ctx context.Context, id int64) error 
 }
 
 // Exists 检查MessageQueue是否存在
-func (r *MessageQueueRepo) Exists(ctx context.Context, id int64) (bool, error) {
+func (r *MessageQueueRepo) Exists(ctx context.Context, id string) (bool, error) {
 	return r.exists(ctx, &entity.MessageQueue{}, "id = ?", id)
 }
 

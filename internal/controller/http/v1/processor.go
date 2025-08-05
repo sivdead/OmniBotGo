@@ -95,14 +95,9 @@ func (v *V1) GetProcessors(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/processors/{id} [get]
 func (v *V1) GetProcessorByID(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
 	}
 
 	result, err := v.processorUC.GetProcessor(c.Context(), id)
@@ -128,14 +123,9 @@ func (v *V1) GetProcessorByID(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/processors/{id} [put]
 func (v *V1) UpdateProcessor(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
 	}
 
 	var req usecase.UpdateProcessorRequest
@@ -174,17 +164,12 @@ func (v *V1) UpdateProcessor(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/processors/{id} [delete]
 func (v *V1) DeleteProcessor(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID不能为空")
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
-	}
-
-	err = v.processorUC.DeleteProcessor(c.Context(), id)
+	err := v.processorUC.DeleteProcessor(c.Context(), id)
 	if err != nil {
 		v.l.Error("删除处理器失败: %v", err)
 		return NewErrorResponse(c, http.StatusInternalServerError, "删除处理器失败")
@@ -210,14 +195,9 @@ func (v *V1) DeleteProcessor(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/processors/{id}/status [patch]
 func (v *V1) UpdateProcessorStatus(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
 	}
 
 	var req usecase.UpdateProcessorStatusRequest
@@ -234,7 +214,7 @@ func (v *V1) UpdateProcessorStatus(c *fiber.Ctx) error {
 	// 设置ID
 	req.ID = id
 
-	err = v.processorUC.UpdateProcessorStatus(c.Context(), req)
+	err := v.processorUC.UpdateProcessorStatus(c.Context(), req)
 	if err != nil {
 		v.l.Error("更新处理器状态失败: %v", err)
 		return NewErrorResponse(c, http.StatusInternalServerError, "更新处理器状态失败")
@@ -260,14 +240,9 @@ func (v *V1) UpdateProcessorStatus(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/processors/{id}/rules [post]
 func (v *V1) CreateRoutingRule(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	processorID := c.Params("id")
+	if processorID == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID不能为空")
-	}
-
-	processorID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
 	}
 
 	var req usecase.CreateRoutingRuleRequest
@@ -306,14 +281,9 @@ func (v *V1) CreateRoutingRule(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/processors/{id}/rules [get]
 func (v *V1) GetRoutingRules(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	processorID := c.Params("id")
+	if processorID == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID不能为空")
-	}
-
-	processorID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
 	}
 
 	var params usecase.ListRoutingRulesParams
@@ -354,21 +324,11 @@ func (v *V1) GetRoutingRules(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/processors/{id}/rules/{rule_id} [put]
 func (v *V1) UpdateRoutingRule(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	ruleIDStr := c.Params("rule_id")
+	processorID := c.Params("id")
+	ruleID := c.Params("rule_id")
 
-	if idStr == "" || ruleIDStr == "" {
+	if processorID == "" || ruleID == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID和规则ID不能为空")
-	}
-
-	processorID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
-	}
-
-	ruleID, err := strconv.ParseInt(ruleIDStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "规则ID格式错误")
 	}
 
 	var req usecase.UpdateRoutingRuleRequest
@@ -409,24 +369,14 @@ func (v *V1) UpdateRoutingRule(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/processors/{id}/rules/{rule_id} [delete]
 func (v *V1) DeleteRoutingRule(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	ruleIDStr := c.Params("rule_id")
+	processorID := c.Params("id")
+	ruleID := c.Params("rule_id")
 
-	if idStr == "" || ruleIDStr == "" {
+	if processorID == "" || ruleID == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID和规则ID不能为空")
 	}
 
-	processorID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "处理器ID格式错误")
-	}
-
-	ruleID, err := strconv.ParseInt(ruleIDStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "规则ID格式错误")
-	}
-
-	err = v.processorUC.DeleteRoutingRule(c.Context(), ruleID)
+	err := v.processorUC.DeleteRoutingRule(c.Context(), ruleID)
 	if err != nil {
 		v.l.Error("删除路由规则失败: %v", err)
 		return NewErrorResponse(c, http.StatusInternalServerError, "删除路由规则失败")

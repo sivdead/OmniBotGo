@@ -27,83 +27,83 @@ type PaginatedResult[T any] struct {
 // BotRepository Bot相关Repository接口
 type BotRepository interface {
 	Create(ctx context.Context, bot *entity.Bot) error
-	GetByID(ctx context.Context, id int64) (*entity.Bot, error)
+	GetByID(ctx context.Context, id string) (*entity.Bot, error)
 	GetByName(ctx context.Context, name string) (*entity.Bot, error)
 	Update(ctx context.Context, bot *entity.Bot) error
-	Delete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.Bot], error)
 	ListActive(ctx context.Context) ([]*entity.Bot, error)
-	Exists(ctx context.Context, id int64) (bool, error)
+	Exists(ctx context.Context, id string) (bool, error)
 	ExistsByName(ctx context.Context, name string) (bool, error)
-	GetActiveChannelCount(ctx context.Context, id int64) (int64, error)
+	GetActiveChannelCount(ctx context.Context, id string) (int64, error)
 }
 
 // ChannelRepository Channel相关Repository接口
 type ChannelRepository interface {
 	Create(ctx context.Context, channel *entity.Channel) error
-	GetByID(ctx context.Context, id int64) (*entity.Channel, error)
-	GetByBotID(ctx context.Context, botID int64) ([]*entity.Channel, error)
+	GetByID(ctx context.Context, id string) (*entity.Channel, error)
+	GetByBotID(ctx context.Context, botID string) ([]*entity.Channel, error)
 	GetByPlatformType(ctx context.Context, platformType string) ([]*entity.Channel, error)
 	GetByWebhookPath(ctx context.Context, path string) (*entity.Channel, error)
 	Update(ctx context.Context, channel *entity.Channel) error
-	Delete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.Channel], error)
 	ListActive(ctx context.Context) ([]*entity.Channel, error)
-	UpdateConnectionStatus(ctx context.Context, id int64, status entity.ConnectionStatus) error
-	UpdateAccessToken(ctx context.Context, id int64, token string, expiresAt *time.Time) error
-	Exists(ctx context.Context, id int64) (bool, error)
+	UpdateConnectionStatus(ctx context.Context, id string, status entity.ConnectionStatus) error
+	UpdateAccessToken(ctx context.Context, id string, token string, expiresAt *time.Time) error
+	Exists(ctx context.Context, id string) (bool, error)
 }
 
 // MessageRepository Message相关Repository接口
 type MessageRepository interface {
 	Create(ctx context.Context, message *entity.Message) error
-	GetByID(ctx context.Context, id int64) (*entity.Message, error)
+	GetByID(ctx context.Context, id string) (*entity.Message, error)
 	GetByMessageID(ctx context.Context, messageID string) (*entity.Message, error)
-	GetByPlatformMessageID(ctx context.Context, channelID int64, platformMessageID string) (*entity.Message, error)
-	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult[*entity.Message], error)
+	GetByPlatformMessageID(ctx context.Context, channelID string, platformMessageID string) (*entity.Message, error)
+	GetByChannelID(ctx context.Context, channelID string, params ListParams) (*PaginatedResult[*entity.Message], error)
 	GetByConversationID(ctx context.Context, conversationID string, params ListParams) (*PaginatedResult[*entity.Message], error)
 	GetPendingMessages(ctx context.Context, limit int) ([]*entity.Message, error)
 	GetFailedMessages(ctx context.Context, limit int) ([]*entity.Message, error)
 	Update(ctx context.Context, message *entity.Message) error
-	Delete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.Message], error)
-	UpdateStatus(ctx context.Context, id int64, status entity.MessageStatus) error
-	IncrementRetryCount(ctx context.Context, id int64) error
-	MarkAsProcessed(ctx context.Context, id int64) error
-	MarkAsSent(ctx context.Context, id int64) error
-	MarkAsFailed(ctx context.Context, id int64, errorMsg string) error
-	Exists(ctx context.Context, id int64) (bool, error)
+	UpdateStatus(ctx context.Context, id string, status entity.MessageStatus) error
+	IncrementRetryCount(ctx context.Context, id string) error
+	MarkAsProcessed(ctx context.Context, id string) error
+	MarkAsSent(ctx context.Context, id string) error
+	MarkAsFailed(ctx context.Context, id string, errorMsg string) error
+	Exists(ctx context.Context, id string) (bool, error)
 	ExistsByMessageID(ctx context.Context, messageID string) (bool, error)
 }
 
 // MessageProcessorRepository MessageProcessor相关Repository接口
 type MessageProcessorRepository interface {
 	Create(ctx context.Context, processor *entity.MessageProcessor) error
-	GetByID(ctx context.Context, id int64) (*entity.MessageProcessor, error)
+	GetByID(ctx context.Context, id string) (*entity.MessageProcessor, error)
 	GetByName(ctx context.Context, name string) (*entity.MessageProcessor, error)
 	GetByType(ctx context.Context, processorType string) ([]*entity.MessageProcessor, error)
 	Update(ctx context.Context, processor *entity.MessageProcessor) error
-	Delete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.MessageProcessor], error)
 	ListActive(ctx context.Context) ([]*entity.MessageProcessor, error)
 	ListByPriority(ctx context.Context) ([]*entity.MessageProcessor, error)
-	Exists(ctx context.Context, id int64) (bool, error)
+	Exists(ctx context.Context, id string) (bool, error)
 	ExistsByName(ctx context.Context, name string) (bool, error)
 }
 
 // MessageRoutingRuleRepository MessageRoutingRule相关Repository接口
 type MessageRoutingRuleRepository interface {
 	Create(ctx context.Context, rule *entity.MessageRoutingRule) error
-	GetByID(ctx context.Context, id int64) (*entity.MessageRoutingRule, error)
-	GetByProcessorID(ctx context.Context, processorID int64) ([]*entity.MessageRoutingRule, error)
+	GetByID(ctx context.Context, id string) (*entity.MessageRoutingRule, error)
+	GetByProcessorID(ctx context.Context, processorID string) ([]*entity.MessageRoutingRule, error)
 	GetActiveRules(ctx context.Context) ([]*entity.MessageRoutingRule, error)
-	GetMatchingRules(ctx context.Context, botID int64, platformType string, channelID int64, messageType string) ([]*entity.MessageRoutingRule, error)
+	GetMatchingRules(ctx context.Context, botID string, platformType string, channelID string, messageType string) ([]*entity.MessageRoutingRule, error)
 	GetFallbackRules(ctx context.Context) ([]*entity.MessageRoutingRule, error)
 	Update(ctx context.Context, rule *entity.MessageRoutingRule) error
-	Delete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.MessageRoutingRule], error)
 	ListByPriority(ctx context.Context) ([]*entity.MessageRoutingRule, error)
-	Exists(ctx context.Context, id int64) (bool, error)
+	Exists(ctx context.Context, id string) (bool, error)
 }
 
 // SystemConfigRepository SystemConfig相关Repository接口
@@ -116,7 +116,7 @@ type SystemConfigRepository interface {
 	GetSystemConfigs(ctx context.Context) ([]*entity.SystemConfig, error)
 	Update(ctx context.Context, config *entity.SystemConfig) error
 	UpdateValue(ctx context.Context, key, value string) error
-	Delete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.SystemConfig], error)
 	Exists(ctx context.Context, key string) (bool, error)
 }
@@ -124,29 +124,29 @@ type SystemConfigRepository interface {
 // MessageQueueRepository MessageQueue相关Repository接口
 type MessageQueueRepository interface {
 	Create(ctx context.Context, queue *entity.MessageQueue) error
-	GetByID(ctx context.Context, id int64) (*entity.MessageQueue, error)
+	GetByID(ctx context.Context, id string) (*entity.MessageQueue, error)
 	GetPendingJobs(ctx context.Context, queueName string, limit int) ([]*entity.MessageQueue, error)
 	GetRetryableJobs(ctx context.Context, limit int) ([]*entity.MessageQueue, error)
 	GetExpiredJobs(ctx context.Context, timeout int64) ([]*entity.MessageQueue, error)
 	Update(ctx context.Context, queue *entity.MessageQueue) error
-	Delete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.MessageQueue], error)
-	MarkAsRunning(ctx context.Context, id int64) error
-	MarkAsCompleted(ctx context.Context, id int64) error
-	MarkAsFailed(ctx context.Context, id int64, errorMsg string) error
-	MarkForRetry(ctx context.Context, id int64, nextScheduleTime int64) error
-	MarkAsCancelled(ctx context.Context, id int64) error
-	Exists(ctx context.Context, id int64) (bool, error)
+	MarkAsRunning(ctx context.Context, id string) error
+	MarkAsCompleted(ctx context.Context, id string) error
+	MarkAsFailed(ctx context.Context, id string, errorMsg string) error
+	MarkForRetry(ctx context.Context, id string, nextScheduleTime int64) error
+	MarkAsCancelled(ctx context.Context, id string) error
+	Exists(ctx context.Context, id string) (bool, error)
 }
 
 // ConnectionLogRepository ConnectionLog相关Repository接口
 type ConnectionLogRepository interface {
 	Create(ctx context.Context, log *entity.ConnectionLog) error
-	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult[*entity.ConnectionLog], error)
+	GetByChannelID(ctx context.Context, channelID string, params ListParams) (*PaginatedResult[*entity.ConnectionLog], error)
 	GetRecentLogs(ctx context.Context, limit int) ([]*entity.ConnectionLog, error)
-	GetErrorLogs(ctx context.Context, channelID int64, limit int) ([]*entity.ConnectionLog, error)
+	GetErrorLogs(ctx context.Context, channelID string, limit int) ([]*entity.ConnectionLog, error)
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.ConnectionLog], error)
-	Delete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id string) error
 	DeleteOldLogs(ctx context.Context, beforeDays int) error
 }
 
@@ -154,15 +154,15 @@ type ConnectionLogRepository interface {
 type APICallLogRepository interface {
 	Create(ctx context.Context, log *entity.APICallLog) error
 	GetByRequestID(ctx context.Context, requestID string) (*entity.APICallLog, error)
-	GetByChannelID(ctx context.Context, channelID int64, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
-	GetByProcessorID(ctx context.Context, processorID int64, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
+	GetByChannelID(ctx context.Context, channelID string, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
+	GetByProcessorID(ctx context.Context, processorID string, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
 	GetSlowCalls(ctx context.Context, thresholdMs int, limit int) ([]*entity.APICallLog, error)
 	GetFailedCalls(ctx context.Context, limit int) ([]*entity.APICallLog, error)
 	GetRecentCalls(ctx context.Context, limit int) ([]*entity.APICallLog, error)
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
-	Delete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id string) error
 	DeleteOldLogs(ctx context.Context, beforeDays int) error
-	GetStatistics(ctx context.Context, channelID *int64, processorID *int64) (*CallStatistics, error)
+	GetStatistics(ctx context.Context, channelID *string, processorID *string) (*CallStatistics, error)
 }
 
 // CallStatistics API调用统计信息

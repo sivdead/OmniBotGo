@@ -185,8 +185,8 @@ func (r *BaseRepo) exists(ctx context.Context, model interface{}, where string, 
 }
 
 // softDelete 软删除记录
-func (r *BaseRepo) softDelete(ctx context.Context, model interface{}, id int64) error {
-	result := r.db.GetGORM().WithContext(ctx).Delete(model, id)
+func (r *BaseRepo) softDelete(ctx context.Context, model interface{}, id string) error {
+	result := r.db.GetGORM().WithContext(ctx).Delete(model, "id = ?", id)
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete record: %w", result.Error)
 	}

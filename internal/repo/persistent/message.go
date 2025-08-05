@@ -30,8 +30,8 @@ func (r *MessageRepo) Create(ctx context.Context, message *entity.Message) error
 	if message.MessageID == "" {
 		return fmt.Errorf("消息ID不能为空")
 	}
-	if message.ChannelID <= 0 {
-		return fmt.Errorf("通道ID必须大于0")
+	if message.ChannelID == "" {
+		return fmt.Errorf("通道ID不能为空")
 	}
 	if message.MessageType == "" {
 		return fmt.Errorf("消息类型不能为空")
@@ -41,13 +41,13 @@ func (r *MessageRepo) Create(ctx context.Context, message *entity.Message) error
 }
 
 // GetByID 根据ID获取Message
-func (r *MessageRepo) GetByID(ctx context.Context, id int64) (*entity.Message, error) {
+func (r *MessageRepo) GetByID(ctx context.Context, id string) (*entity.Message, error) {
 	var message entity.Message
 	err := r.db.GetGORM().WithContext(ctx).
 		Preload("Channel").
 		Preload("ParentMessage").
 		Preload("Replies").
-		First(&message, id).Error
+		First(&message, "id = ?", id).Error
 	if err != nil {
 		return nil, r.handleError(err, "get message by id")
 	}
@@ -70,7 +70,7 @@ func (r *MessageRepo) GetByMessageID(ctx context.Context, messageID string) (*en
 }
 
 // GetByPlatformMessageID 根据平台消息ID获取Message
-func (r *MessageRepo) GetByPlatformMessageID(ctx context.Context, channelID int64, platformMessageID string) (*entity.Message, error) {
+func (r *MessageRepo) GetByPlatformMessageID(ctx context.Context, channelID string, platformMessageID string) (*entity.Message, error) {
 	var message entity.Message
 	err := r.db.GetGORM().WithContext(ctx).
 		Where("channel_id = ? AND platform_message_id = ?", channelID, platformMessageID).
@@ -85,7 +85,7 @@ func (r *MessageRepo) GetByPlatformMessageID(ctx context.Context, channelID int6
 }
 
 // GetByChannelID 根据通道ID获取消息列表
-func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID int64, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
+func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID string, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
 	// 转换参数类型为内部使用的类型
 	internalParams := convertToInternalParams(params)
 	internalParams = r.validateParams(internalParams)
@@ -159,8 +159,8 @@ func (r *MessageRepo) Update(ctx context.Context, message *entity.Message) error
 	if message.MessageID == "" {
 		return fmt.Errorf("消息ID不能为空")
 	}
-	if message.ChannelID <= 0 {
-		return fmt.Errorf("通道ID必须大于0")
+	if message.ChannelID == "" {
+		return fmt.Errorf("通道ID不能为空")
 	}
 	if message.MessageType == "" {
 		return fmt.Errorf("消息类型不能为空")
@@ -170,7 +170,7 @@ func (r *MessageRepo) Update(ctx context.Context, message *entity.Message) error
 }
 
 // Delete 删除Message（软删除）
-func (r *MessageRepo) Delete(ctx context.Context, id int64) error {
+func (r *MessageRepo) Delete(ctx context.Context, id string) error {
 	return r.softDelete(ctx, &entity.Message{}, id)
 }
 
@@ -191,7 +191,7 @@ func (r *MessageRepo) List(ctx context.Context, params port.ListParams) (*port.P
 }
 
 // UpdateStatus 更新消息状态
-func (r *MessageRepo) UpdateStatus(ctx context.Context, id int64, status entity.MessageStatus) error {
+func (r *MessageRepo) UpdateStatus(ctx context.Context, id string, status entity.MessageStatus) error {
 	result := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.Message{}).
 		Where("id = ?", id).
@@ -207,7 +207,7 @@ func (r *MessageRepo) UpdateStatus(ctx context.Context, id int64, status entity.
 }
 
 // IncrementRetryCount 增加重试次数
-func (r *MessageRepo) IncrementRetryCount(ctx context.Context, id int64) error {
+func (r *MessageRepo) IncrementRetryCount(ctx context.Context, id string) error {
 	result := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.Message{}).
 		Where("id = ?", id).
@@ -223,7 +223,7 @@ func (r *MessageRepo) IncrementRetryCount(ctx context.Context, id int64) error {
 }
 
 // MarkAsProcessed 标记消息为已处理
-func (r *MessageRepo) MarkAsProcessed(ctx context.Context, id int64) error {
+func (r *MessageRepo) MarkAsProcessed(ctx context.Context, id string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"message_status": entity.MessageStatusProcessed,
@@ -245,7 +245,7 @@ func (r *MessageRepo) MarkAsProcessed(ctx context.Context, id int64) error {
 }
 
 // MarkAsSent 标记消息为已发送
-func (r *MessageRepo) MarkAsSent(ctx context.Context, id int64) error {
+func (r *MessageRepo) MarkAsSent(ctx context.Context, id string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"message_status": entity.MessageStatusSent,
@@ -267,7 +267,7 @@ func (r *MessageRepo) MarkAsSent(ctx context.Context, id int64) error {
 }
 
 // MarkAsFailed 标记消息为失败
-func (r *MessageRepo) MarkAsFailed(ctx context.Context, id int64, errorMsg string) error {
+func (r *MessageRepo) MarkAsFailed(ctx context.Context, id string, errorMsg string) error {
 	updates := map[string]interface{}{
 		"message_status": entity.MessageStatusFailed,
 		"error_message":  errorMsg,
@@ -288,7 +288,7 @@ func (r *MessageRepo) MarkAsFailed(ctx context.Context, id int64, errorMsg strin
 }
 
 // Exists 检查Message是否存在
-func (r *MessageRepo) Exists(ctx context.Context, id int64) (bool, error) {
+func (r *MessageRepo) Exists(ctx context.Context, id string) (bool, error) {
 	return r.exists(ctx, &entity.Message{}, "id = ?", id)
 }
 

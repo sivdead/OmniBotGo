@@ -61,14 +61,9 @@ func (v *V1) GetConnectionLogs(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/logs/connections/{id} [get]
 func (v *V1) GetConnectionLogByID(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "日志ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "日志ID格式错误")
 	}
 
 	result, err := v.logUC.GetConnectionLog(c.Context(), id)
@@ -134,14 +129,9 @@ func (v *V1) GetAPICallLogs(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/logs/api-calls/{id} [get]
 func (v *V1) GetAPICallLogByID(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "日志ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "日志ID格式错误")
 	}
 
 	result, err := v.logUC.GetAPICallLog(c.Context(), id)

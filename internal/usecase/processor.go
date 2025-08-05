@@ -104,7 +104,7 @@ func (uc *processorUC) ListProcessors(ctx context.Context, params ListProcessors
 }
 
 // GetProcessor 获取处理器详情
-func (uc *processorUC) GetProcessor(ctx context.Context, id int64) (*entity.MessageProcessor, error) {
+func (uc *processorUC) GetProcessor(ctx context.Context, id string) (*entity.MessageProcessor, error) {
 	processor, err := uc.processorRepo.GetByID(ctx, id)
 	if err != nil {
 		uc.logger.Error("failed to get processor", "error", err, "id", id)
@@ -164,7 +164,7 @@ func (uc *processorUC) UpdateProcessor(ctx context.Context, req UpdateProcessorR
 }
 
 // DeleteProcessor 删除处理器
-func (uc *processorUC) DeleteProcessor(ctx context.Context, id int64) error {
+func (uc *processorUC) DeleteProcessor(ctx context.Context, id string) error {
 	// 检查是否有关联的路由规则
 	rules, err := uc.routingRuleRepo.GetByProcessorID(ctx, id)
 	if err != nil {
@@ -262,9 +262,9 @@ func (uc *processorUC) CreateRoutingRule(ctx context.Context, req CreateRoutingR
 }
 
 // ListRoutingRules 获取路由规则列表
-func (uc *processorUC) ListRoutingRules(ctx context.Context, processorID int64, params ListRoutingRulesParams) ([]*entity.MessageRoutingRule, error) {
+func (uc *processorUC) ListRoutingRules(ctx context.Context, processorID string, params ListRoutingRulesParams) ([]*entity.MessageRoutingRule, error) {
 	// 如果指定了处理器ID，直接使用专门的方法
-	if processorID > 0 {
+	if processorID != "" {
 		rules, err := uc.routingRuleRepo.GetByProcessorID(ctx, processorID)
 		if err != nil {
 			uc.logger.Error("failed to get routing rules by processor", "error", err, "processorID", processorID)
@@ -379,7 +379,7 @@ func (uc *processorUC) UpdateRoutingRule(ctx context.Context, req UpdateRoutingR
 }
 
 // DeleteRoutingRule 删除路由规则
-func (uc *processorUC) DeleteRoutingRule(ctx context.Context, ruleID int64) error {
+func (uc *processorUC) DeleteRoutingRule(ctx context.Context, ruleID string) error {
 	// 删除规则
 	if err := uc.routingRuleRepo.Delete(ctx, ruleID); err != nil {
 		uc.logger.Error("failed to delete routing rule", "error", err, "id", ruleID)

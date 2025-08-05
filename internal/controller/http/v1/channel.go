@@ -109,14 +109,9 @@ func (v *V1) GetChannels(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/channels/{id} [get]
 func (v *V1) GetChannelByID(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "通道ID格式错误")
 	}
 
 	result, err := v.channelUC.GetChannel(c.Context(), id)
@@ -128,7 +123,7 @@ func (v *V1) GetChannelByID(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "获取通道详情失败")
 	}
 
-	v.l.Debug("获取通道详情成功: %d", id)
+	v.l.Debug("获取通道详情成功: %s", id)
 
 	return NewSuccessResponse(c, http.StatusOK, "获取成功", result)
 }
@@ -148,14 +143,9 @@ func (v *V1) GetChannelByID(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/channels/{id} [put]
 func (v *V1) UpdateChannel(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "通道ID格式错误")
 	}
 
 	var req usecase.UpdateChannelRequest
@@ -185,7 +175,7 @@ func (v *V1) UpdateChannel(c *fiber.Ctx) error {
 		}
 	}
 
-	v.l.Info("通道更新成功: %d", id)
+	v.l.Info("通道更新成功: %s", id)
 
 	return NewSuccessResponse(c, http.StatusOK, "更新成功", result)
 }
@@ -203,17 +193,12 @@ func (v *V1) UpdateChannel(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/channels/{id} [delete]
 func (v *V1) DeleteChannel(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "通道ID格式错误")
-	}
-
-	err = v.channelUC.DeleteChannel(c.Context(), id)
+	err := v.channelUC.DeleteChannel(c.Context(), id)
 	if err != nil {
 		v.l.Error("删除通道失败: %v", err)
 		if err.Error() == "通道不存在" {
@@ -222,7 +207,7 @@ func (v *V1) DeleteChannel(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "删除通道失败")
 	}
 
-	v.l.Info("通道删除成功: %d", id)
+	v.l.Info("通道删除成功: %s", id)
 
 	return NewSuccessResponse(c, http.StatusOK, "删除成功", nil)
 }
@@ -246,14 +231,9 @@ type UpdateChannelStatusRequest struct {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/channels/{id}/status [patch]
 func (v *V1) UpdateChannelStatus(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "通道ID格式错误")
 	}
 
 	var req UpdateChannelStatusRequest
@@ -267,7 +247,7 @@ func (v *V1) UpdateChannelStatus(c *fiber.Ctx) error {
 		return NewValidationErrorResponse(c, err)
 	}
 
-	err = v.channelUC.UpdateChannelStatus(c.Context(), id, req.Status)
+	err := v.channelUC.UpdateChannelStatus(c.Context(), id, req.Status)
 	if err != nil {
 		v.l.Error("更新通道状态失败: %v", err)
 		if err.Error() == "通道不存在" {
@@ -276,7 +256,7 @@ func (v *V1) UpdateChannelStatus(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "更新通道状态失败")
 	}
 
-	v.l.Info("通道状态更新成功: %d", id)
+	v.l.Info("通道状态更新成功: %s", id)
 
 	return NewSuccessResponse(c, http.StatusOK, "状态更新成功", nil)
 }
@@ -294,17 +274,12 @@ func (v *V1) UpdateChannelStatus(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/channels/{id}/refresh-token [post]
 func (v *V1) RefreshChannelToken(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "通道ID格式错误")
-	}
-
-	err = v.channelUC.RefreshChannelToken(c.Context(), id)
+	err := v.channelUC.RefreshChannelToken(c.Context(), id)
 	if err != nil {
 		v.l.Error("刷新通道令牌失败: %v", err)
 		if err.Error() == "通道不存在" {
@@ -313,7 +288,7 @@ func (v *V1) RefreshChannelToken(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "刷新通道令牌失败")
 	}
 
-	v.l.Info("通道令牌刷新成功: %d", id)
+	v.l.Info("通道令牌刷新成功: %s", id)
 
 	return NewSuccessResponse(c, http.StatusOK, "令牌刷新成功", nil)
 }

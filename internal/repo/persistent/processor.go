@@ -36,12 +36,12 @@ func (r *MessageProcessorRepo) Create(ctx context.Context, processor *entity.Mes
 }
 
 // GetByID 根据ID获取MessageProcessor
-func (r *MessageProcessorRepo) GetByID(ctx context.Context, id int64) (*entity.MessageProcessor, error) {
+func (r *MessageProcessorRepo) GetByID(ctx context.Context, id string) (*entity.MessageProcessor, error) {
 	var processor entity.MessageProcessor
 	err := r.db.GetGORM().WithContext(ctx).
 		Preload("RoutingRules").
 		Preload("APICallLogs").
-		First(&processor, id).Error
+		First(&processor, "id = ?", id).Error
 	if err != nil {
 		return nil, r.handleError(err, "get processor by id")
 	}
@@ -90,7 +90,7 @@ func (r *MessageProcessorRepo) Update(ctx context.Context, processor *entity.Mes
 }
 
 // Delete 删除MessageProcessor（软删除）
-func (r *MessageProcessorRepo) Delete(ctx context.Context, id int64) error {
+func (r *MessageProcessorRepo) Delete(ctx context.Context, id string) error {
 	return r.softDelete(ctx, &entity.MessageProcessor{}, id)
 }
 
@@ -136,7 +136,7 @@ func (r *MessageProcessorRepo) ListByPriority(ctx context.Context) ([]*entity.Me
 }
 
 // Exists 检查MessageProcessor是否存在
-func (r *MessageProcessorRepo) Exists(ctx context.Context, id int64) (bool, error) {
+func (r *MessageProcessorRepo) Exists(ctx context.Context, id string) (bool, error) {
 	return r.exists(ctx, &entity.MessageProcessor{}, "id = ?", id)
 }
 
@@ -173,11 +173,11 @@ func (r *MessageRoutingRuleRepo) Create(ctx context.Context, rule *entity.Messag
 }
 
 // GetByID 根据ID获取MessageRoutingRule
-func (r *MessageRoutingRuleRepo) GetByID(ctx context.Context, id int64) (*entity.MessageRoutingRule, error) {
+func (r *MessageRoutingRuleRepo) GetByID(ctx context.Context, id string) (*entity.MessageRoutingRule, error) {
 	var rule entity.MessageRoutingRule
 	err := r.db.GetGORM().WithContext(ctx).
 		Preload("MessageProcessor").
-		First(&rule, id).Error
+		First(&rule, "id = ?", id).Error
 	if err != nil {
 		return nil, r.handleError(err, "get routing rule by id")
 	}
@@ -185,7 +185,7 @@ func (r *MessageRoutingRuleRepo) GetByID(ctx context.Context, id int64) (*entity
 }
 
 // GetByProcessorID 根据处理器ID获取MessageRoutingRule列表
-func (r *MessageRoutingRuleRepo) GetByProcessorID(ctx context.Context, processorID int64) ([]*entity.MessageRoutingRule, error) {
+func (r *MessageRoutingRuleRepo) GetByProcessorID(ctx context.Context, processorID string) ([]*entity.MessageRoutingRule, error) {
 	var rules []*entity.MessageRoutingRule
 	err := r.db.GetGORM().WithContext(ctx).
 		Where("processor_id = ?", processorID).
@@ -212,7 +212,7 @@ func (r *MessageRoutingRuleRepo) GetActiveRules(ctx context.Context) ([]*entity.
 }
 
 // GetMatchingRules 获取匹配指定条件的MessageRoutingRule列表
-func (r *MessageRoutingRuleRepo) GetMatchingRules(ctx context.Context, botID int64, platformType string, channelID int64, messageType string) ([]*entity.MessageRoutingRule, error) {
+func (r *MessageRoutingRuleRepo) GetMatchingRules(ctx context.Context, botID string, platformType string, channelID string, messageType string) ([]*entity.MessageRoutingRule, error) {
 	var rules []*entity.MessageRoutingRule
 
 	// 获取所有激活的规则，在应用层进行匹配逻辑
@@ -260,7 +260,7 @@ func (r *MessageRoutingRuleRepo) Update(ctx context.Context, rule *entity.Messag
 }
 
 // Delete 删除MessageRoutingRule（软删除）
-func (r *MessageRoutingRuleRepo) Delete(ctx context.Context, id int64) error {
+func (r *MessageRoutingRuleRepo) Delete(ctx context.Context, id string) error {
 	return r.softDelete(ctx, &entity.MessageRoutingRule{}, id)
 }
 
@@ -295,7 +295,7 @@ func (r *MessageRoutingRuleRepo) ListByPriority(ctx context.Context) ([]*entity.
 }
 
 // Exists 检查MessageRoutingRule是否存在
-func (r *MessageRoutingRuleRepo) Exists(ctx context.Context, id int64) (bool, error) {
+func (r *MessageRoutingRuleRepo) Exists(ctx context.Context, id string) (bool, error) {
 	return r.exists(ctx, &entity.MessageRoutingRule{}, "id = ?", id)
 }
 

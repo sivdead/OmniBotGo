@@ -47,7 +47,7 @@ CREATE TABLE channels (
     
     -- 状态管理
     connection_status TINYINT DEFAULT 0 COMMENT '连接状态: 0-未连接, 1-已连接, 2-连接失败',
-    last_connected_at TIMESTAMP COMMENT '最后连接时间',
+    last_connected_at TIMESTAMP NULL COMMENT '最后连接时间',
     status TINYINT DEFAULT 1 COMMENT '通道状态: 0-禁用, 1-启用',
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

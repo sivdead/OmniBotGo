@@ -168,7 +168,7 @@ func (uc *channelUseCase) UpdateChannel(ctx context.Context, req UpdateChannelRe
 }
 
 // DeleteChannel 删除通道
-func (uc *channelUseCase) DeleteChannel(ctx context.Context, id int64) error {
+func (uc *channelUseCase) DeleteChannel(ctx context.Context, id string) error {
 	uc.logger.Info("开始删除通道", "method", "DeleteChannel", "channel_id", id)
 
 	// 获取通道信息
@@ -198,7 +198,7 @@ func (uc *channelUseCase) DeleteChannel(ctx context.Context, id int64) error {
 }
 
 // GetChannel 获取通道信息
-func (uc *channelUseCase) GetChannel(ctx context.Context, id int64) (*entity.Channel, error) {
+func (uc *channelUseCase) GetChannel(ctx context.Context, id string) (*entity.Channel, error) {
 	uc.logger.Info("获取通道信息", "method", "GetChannel", "channel_id", id)
 
 	channel, err := uc.channelRepo.GetByID(ctx, id)
@@ -262,7 +262,7 @@ func (uc *channelUseCase) ListChannels(ctx context.Context, params ListChannelsP
 }
 
 // UpdateChannelStatus 更新通道状态
-func (uc *channelUseCase) UpdateChannelStatus(ctx context.Context, id int64, status entity.ConnectionStatus) error {
+func (uc *channelUseCase) UpdateChannelStatus(ctx context.Context, id string, status entity.ConnectionStatus) error {
 	uc.logger.Info("更新通道连接状态", "method", "UpdateChannelStatus", "channel_id", id, "status", status.String())
 
 	// 获取通道信息
@@ -287,7 +287,7 @@ func (uc *channelUseCase) UpdateChannelStatus(ctx context.Context, id int64, sta
 }
 
 // RefreshChannelToken 刷新通道令牌
-func (uc *channelUseCase) RefreshChannelToken(ctx context.Context, id int64) error {
+func (uc *channelUseCase) RefreshChannelToken(ctx context.Context, id string) error {
 	uc.logger.Info("刷新通道令牌", "method", "RefreshChannelToken", "channel_id", id)
 
 	// 获取通道信息
@@ -352,7 +352,7 @@ func (uc *channelUseCase) GetActiveChannels(ctx context.Context) ([]*entity.Chan
 }
 
 // IsChannelConnected 检查通道是否已连接
-func (uc *channelUseCase) IsChannelConnected(ctx context.Context, id int64) bool {
+func (uc *channelUseCase) IsChannelConnected(ctx context.Context, id string) bool {
 	uc.logger.Debug("检查通道连接状态", "method", "IsChannelConnected", "channel_id", id)
 
 	// 获取通道信息

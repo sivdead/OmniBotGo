@@ -60,14 +60,9 @@ func (v *V1) GetQueueMessages(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/queues/{id} [get]
 func (v *V1) GetQueueMessageByID(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "消息ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
 	}
 
 	result, err := v.queueUC.GetQueueMessage(c.Context(), id)
@@ -92,17 +87,12 @@ func (v *V1) GetQueueMessageByID(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/queues/{id}/retry [post]
 func (v *V1) RetryQueueMessage(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "消息ID不能为空")
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
-	}
-
-	err = v.queueUC.RetryQueueMessage(c.Context(), id)
+	err := v.queueUC.RetryQueueMessage(c.Context(), id)
 	if err != nil {
 		v.l.Error("重试队列消息失败: %v", err)
 		return NewErrorResponse(c, http.StatusInternalServerError, "重试队列消息失败")
@@ -127,17 +117,12 @@ func (v *V1) RetryQueueMessage(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/queues/{id}/cancel [patch]
 func (v *V1) CancelQueueMessage(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "消息ID不能为空")
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
-	}
-
-	err = v.queueUC.CancelQueueMessage(c.Context(), id)
+	err := v.queueUC.CancelQueueMessage(c.Context(), id)
 	if err != nil {
 		v.l.Error("取消队列消息失败: %v", err)
 		return NewErrorResponse(c, http.StatusInternalServerError, "取消队列消息失败")

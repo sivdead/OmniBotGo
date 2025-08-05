@@ -8,15 +8,29 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 // BaseEntity 包含所有数据库表的通用字段
 type BaseEntity struct {
-	ID        int64          `json:"id" gorm:"primaryKey;autoIncrement;comment:主键ID" example:"1"`
+	ID        string         `json:"id" gorm:"type:varchar(36);primaryKey;"`
 	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime;comment:创建时间" example:"2023-01-01T12:00:00Z"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime;comment:更新时间" example:"2023-01-01T12:00:00Z"`
 	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;comment:软删除时间" swaggertype:"string" format:"date-time" example:"2023-01-01T12:00:00Z"`
+}
+
+// BeforeCreate is a GORM hook that is called before a record is created.
+// It generates a new UUIDv7 for the ID field.
+func (b *BaseEntity) BeforeCreate(tx *gorm.DB) (err error) {
+	if b.ID == "" {
+		// a nil-receiver is a special case for uuid.NewRandom().
+		// For all other cases, we can ignore the error, as it's not
+		// really possible to get one.
+		u, _ := uuid.NewV7()
+		b.ID = u.String()
+	}
+	return
 }
 
 // JSONField 通用JSON字段类型，用于存储JSON格式的配置和数据

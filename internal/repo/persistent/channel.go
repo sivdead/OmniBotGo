@@ -37,14 +37,14 @@ func (r *ChannelRepo) Create(ctx context.Context, channel *entity.Channel) error
 }
 
 // GetByID 根据ID获取Channel
-func (r *ChannelRepo) GetByID(ctx context.Context, id int64) (*entity.Channel, error) {
+func (r *ChannelRepo) GetByID(ctx context.Context, id string) (*entity.Channel, error) {
 	var channel entity.Channel
 	err := r.db.GetGORM().WithContext(ctx).
 		Preload("Bot").
 		Preload("Messages").
 		Preload("ConnectionLogs").
 		Preload("APICallLogs").
-		First(&channel, id).Error
+		First(&channel, "id = ?", id).Error
 	if err != nil {
 		return nil, r.handleError(err, "get channel by id")
 	}
@@ -52,7 +52,7 @@ func (r *ChannelRepo) GetByID(ctx context.Context, id int64) (*entity.Channel, e
 }
 
 // GetByBotID 根据Bot ID获取所有Channel
-func (r *ChannelRepo) GetByBotID(ctx context.Context, botID int64) ([]*entity.Channel, error) {
+func (r *ChannelRepo) GetByBotID(ctx context.Context, botID string) ([]*entity.Channel, error) {
 	var channels []*entity.Channel
 	err := r.db.GetGORM().WithContext(ctx).
 		Where("bot_id = ?", botID).
@@ -88,7 +88,7 @@ func (r *ChannelRepo) GetByWebhookPath(ctx context.Context, path string) (*entit
 }
 
 // GetByName 根据机器人ID和通道名称获取Channel
-func (r *ChannelRepo) GetByName(ctx context.Context, botID int64, channelName string) (*entity.Channel, error) {
+func (r *ChannelRepo) GetByName(ctx context.Context, botID string, channelName string) (*entity.Channel, error) {
 	var channel entity.Channel
 	err := r.db.GetGORM().WithContext(ctx).
 		Where("bot_id = ? AND channel_name = ?", botID, channelName).
@@ -116,7 +116,7 @@ func (r *ChannelRepo) Update(ctx context.Context, channel *entity.Channel) error
 }
 
 // Delete 删除Channel（软删除）
-func (r *ChannelRepo) Delete(ctx context.Context, id int64) error {
+func (r *ChannelRepo) Delete(ctx context.Context, id string) error {
 	return r.softDelete(ctx, &entity.Channel{}, id)
 }
 
@@ -149,7 +149,7 @@ func (r *ChannelRepo) ListActive(ctx context.Context) ([]*entity.Channel, error)
 }
 
 // UpdateConnectionStatus 更新连接状态
-func (r *ChannelRepo) UpdateConnectionStatus(ctx context.Context, id int64, status entity.ConnectionStatus) error {
+func (r *ChannelRepo) UpdateConnectionStatus(ctx context.Context, id string, status entity.ConnectionStatus) error {
 	updates := map[string]interface{}{
 		"connection_status": status,
 	}
@@ -173,7 +173,7 @@ func (r *ChannelRepo) UpdateConnectionStatus(ctx context.Context, id int64, stat
 }
 
 // UpdateAccessToken 更新访问令牌
-func (r *ChannelRepo) UpdateAccessToken(ctx context.Context, id int64, token string, expiresAt *time.Time) error {
+func (r *ChannelRepo) UpdateAccessToken(ctx context.Context, id string, token string, expiresAt *time.Time) error {
 	updates := map[string]interface{}{
 		"access_token": token,
 	}
@@ -197,12 +197,12 @@ func (r *ChannelRepo) UpdateAccessToken(ctx context.Context, id int64, token str
 }
 
 // Exists 检查Channel是否存在
-func (r *ChannelRepo) Exists(ctx context.Context, id int64) (bool, error) {
+func (r *ChannelRepo) Exists(ctx context.Context, id string) (bool, error) {
 	return r.exists(ctx, &entity.Channel{}, "id = ?", id)
 }
 
 // GetPendingMessageCount 获取通道的待处理消息数量
-func (r *ChannelRepo) GetPendingMessageCount(ctx context.Context, channelID int64) (int64, error) {
+func (r *ChannelRepo) GetPendingMessageCount(ctx context.Context, channelID string) (int64, error) {
 	var count int64
 	err := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.Message{}).

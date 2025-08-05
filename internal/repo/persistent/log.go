@@ -36,7 +36,7 @@ func (r *ConnectionLogRepo) Create(ctx context.Context, log *entity.ConnectionLo
 }
 
 // GetByChannelID 根据通道ID获取ConnectionLog列表（分页）
-func (r *ConnectionLogRepo) GetByChannelID(ctx context.Context, channelID int64, params port.ListParams) (*port.PaginatedResult[*entity.ConnectionLog], error) {
+func (r *ConnectionLogRepo) GetByChannelID(ctx context.Context, channelID string, params port.ListParams) (*port.PaginatedResult[*entity.ConnectionLog], error) {
 	internalParams := convertToInternalParams(params)
 	internalParams = r.validateParams(internalParams)
 
@@ -74,13 +74,13 @@ func (r *ConnectionLogRepo) GetRecentLogs(ctx context.Context, limit int) ([]*en
 }
 
 // GetErrorLogs 获取错误连接日志
-func (r *ConnectionLogRepo) GetErrorLogs(ctx context.Context, channelID int64, limit int) ([]*entity.ConnectionLog, error) {
+func (r *ConnectionLogRepo) GetErrorLogs(ctx context.Context, channelID string, limit int) ([]*entity.ConnectionLog, error) {
 	var logs []*entity.ConnectionLog
 	query := r.db.GetGORM().WithContext(ctx).
 		Where("status = ?", entity.StatusInactive).
 		Order("created_at DESC")
 
-	if channelID > 0 {
+	if channelID != "" {
 		query = query.Where("channel_id = ?", channelID)
 	}
 
@@ -112,7 +112,7 @@ func (r *ConnectionLogRepo) List(ctx context.Context, params port.ListParams) (*
 }
 
 // Delete 删除ConnectionLog（软删除）
-func (r *ConnectionLogRepo) Delete(ctx context.Context, id int64) error {
+func (r *ConnectionLogRepo) Delete(ctx context.Context, id string) error {
 	return r.softDelete(ctx, &entity.ConnectionLog{}, id)
 }
 
@@ -164,7 +164,7 @@ func (r *APICallLogRepo) GetByRequestID(ctx context.Context, requestID string) (
 }
 
 // GetByChannelID 根据通道ID获取APICallLog列表（分页）
-func (r *APICallLogRepo) GetByChannelID(ctx context.Context, channelID int64, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
+func (r *APICallLogRepo) GetByChannelID(ctx context.Context, channelID string, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
 	internalParams := convertToInternalParams(params)
 	internalParams = r.validateParams(internalParams)
 
@@ -184,7 +184,7 @@ func (r *APICallLogRepo) GetByChannelID(ctx context.Context, channelID int64, pa
 }
 
 // GetByProcessorID 根据处理器ID获取APICallLog列表（分页）
-func (r *APICallLogRepo) GetByProcessorID(ctx context.Context, processorID int64, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
+func (r *APICallLogRepo) GetByProcessorID(ctx context.Context, processorID string, params port.ListParams) (*port.PaginatedResult[*entity.APICallLog], error) {
 	internalParams := convertToInternalParams(params)
 	internalParams = r.validateParams(internalParams)
 
@@ -279,7 +279,7 @@ func (r *APICallLogRepo) List(ctx context.Context, params port.ListParams) (*por
 }
 
 // Delete 删除APICallLog（软删除）
-func (r *APICallLogRepo) Delete(ctx context.Context, id int64) error {
+func (r *APICallLogRepo) Delete(ctx context.Context, id string) error {
 	return r.softDelete(ctx, &entity.APICallLog{}, id)
 }
 
@@ -290,7 +290,7 @@ func (r *APICallLogRepo) DeleteOldLogs(ctx context.Context, beforeDays int) erro
 }
 
 // GetStatistics 获取API调用统计信息
-func (r *APICallLogRepo) GetStatistics(ctx context.Context, channelID *int64, processorID *int64) (*port.CallStatistics, error) {
+func (r *APICallLogRepo) GetStatistics(ctx context.Context, channelID *string, processorID *string) (*port.CallStatistics, error) {
 	var stats port.CallStatistics
 
 	query := r.db.GetGORM().WithContext(ctx).Model(&entity.APICallLog{})

@@ -70,7 +70,7 @@ func (uc *logUC) ListConnectionLogs(ctx context.Context, params ListConnectionLo
 }
 
 // GetConnectionLog 获取连接日志详情
-func (uc *logUC) GetConnectionLog(ctx context.Context, id int64) (*entity.ConnectionLog, error) {
+func (uc *logUC) GetConnectionLog(ctx context.Context, id string) (*entity.ConnectionLog, error) {
 	// 由于ConnectionLogRepository没有GetByID方法，我们使用List方法来查询
 	filters := map[string]interface{}{
 		"id": id,
@@ -135,7 +135,7 @@ func (uc *logUC) ListAPICallLogs(ctx context.Context, params ListAPICallLogsPara
 }
 
 // GetAPICallLog 获取API调用日志详情
-func (uc *logUC) GetAPICallLog(ctx context.Context, id int64) (*entity.APICallLog, error) {
+func (uc *logUC) GetAPICallLog(ctx context.Context, id string) (*entity.APICallLog, error) {
 	// 由于APICallLogRepository没有GetByID方法，我们使用List方法来查询
 	filters := map[string]interface{}{
 		"id": id,

@@ -76,9 +76,11 @@ type Repository interface {
 ## 实体设计
 
 ### 基础实体结构
+为了同时获得全局唯一性和高性能的、基于时间的排序能力，主键ID采用 `UUIDv7`。
+
 ```go
 type BaseEntity struct {
-    ID        int64          `gorm:"primaryKey;autoIncrement"`
+    ID        string         `gorm:"type:varchar(36);primaryKey"`
     CreatedAt time.Time      `gorm:"autoCreateTime"`
     UpdatedAt time.Time      `gorm:"autoUpdateTime"`
     DeletedAt gorm.DeletedAt `gorm:"index"`

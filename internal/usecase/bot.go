@@ -147,7 +147,7 @@ func (uc *botUseCase) UpdateBot(ctx context.Context, req UpdateBotRequest) (*ent
 }
 
 // DeleteBot 删除机器人
-func (uc *botUseCase) DeleteBot(ctx context.Context, id int64) error {
+func (uc *botUseCase) DeleteBot(ctx context.Context, id string) error {
 	uc.logger.Info("开始删除机器人", "method", "DeleteBot", "bot_id", id)
 
 	// 获取机器人信息
@@ -183,7 +183,7 @@ func (uc *botUseCase) DeleteBot(ctx context.Context, id int64) error {
 }
 
 // GetBot 获取机器人信息
-func (uc *botUseCase) GetBot(ctx context.Context, id int64) (*entity.Bot, error) {
+func (uc *botUseCase) GetBot(ctx context.Context, id string) (*entity.Bot, error) {
 	uc.logger.Info("获取机器人信息", "method", "GetBot", "bot_id", id)
 
 	bot, err := uc.botRepo.GetByID(ctx, id)

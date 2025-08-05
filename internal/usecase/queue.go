@@ -68,7 +68,7 @@ func (uc *queueUC) ListQueueMessages(ctx context.Context, params ListQueueMessag
 }
 
 // GetQueueMessage 获取队列消息详情
-func (uc *queueUC) GetQueueMessage(ctx context.Context, id int64) (*entity.MessageQueue, error) {
+func (uc *queueUC) GetQueueMessage(ctx context.Context, id string) (*entity.MessageQueue, error) {
 	message, err := uc.queueRepo.GetByID(ctx, id)
 	if err != nil {
 		uc.logger.Error("failed to get queue message", "error", err, "id", id)
@@ -78,7 +78,7 @@ func (uc *queueUC) GetQueueMessage(ctx context.Context, id int64) (*entity.Messa
 }
 
 // RetryQueueMessage 重试队列消息
-func (uc *queueUC) RetryQueueMessage(ctx context.Context, id int64) error {
+func (uc *queueUC) RetryQueueMessage(ctx context.Context, id string) error {
 	// 获取消息
 	message, err := uc.queueRepo.GetByID(ctx, id)
 	if err != nil {
@@ -103,7 +103,7 @@ func (uc *queueUC) RetryQueueMessage(ctx context.Context, id int64) error {
 }
 
 // CancelQueueMessage 取消队列消息
-func (uc *queueUC) CancelQueueMessage(ctx context.Context, id int64) error {
+func (uc *queueUC) CancelQueueMessage(ctx context.Context, id string) error {
 	// 获取消息
 	message, err := uc.queueRepo.GetByID(ctx, id)
 	if err != nil {

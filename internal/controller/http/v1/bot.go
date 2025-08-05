@@ -106,14 +106,9 @@ func (v *V1) GetBots(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/bots/{id} [get]
 func (v *V1) GetBotByID(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "机器人ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "机器人ID格式错误")
 	}
 
 	result, err := v.botUC.GetBot(c.Context(), id)
@@ -125,7 +120,7 @@ func (v *V1) GetBotByID(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "获取机器人详情失败")
 	}
 
-	v.l.Debug("获取机器人详情成功: %d", id)
+	v.l.Debug("获取机器人详情成功: %s", id)
 
 	return NewSuccessResponse(c, http.StatusOK, "获取成功", result)
 }
@@ -145,14 +140,9 @@ func (v *V1) GetBotByID(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/bots/{id} [put]
 func (v *V1) UpdateBot(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "机器人ID不能为空")
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "机器人ID格式错误")
 	}
 
 	var req usecase.UpdateBotRequest
@@ -182,7 +172,7 @@ func (v *V1) UpdateBot(c *fiber.Ctx) error {
 		}
 	}
 
-	v.l.Info("机器人更新成功: %d", id)
+	v.l.Info("机器人更新成功: %s", id)
 
 	return NewSuccessResponse(c, http.StatusOK, "更新成功", result)
 }
@@ -200,17 +190,12 @@ func (v *V1) UpdateBot(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/bots/{id} [delete]
 func (v *V1) DeleteBot(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	if idStr == "" {
+	id := c.Params("id")
+	if id == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "机器人ID不能为空")
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "机器人ID格式错误")
-	}
-
-	err = v.botUC.DeleteBot(c.Context(), id)
+	err := v.botUC.DeleteBot(c.Context(), id)
 	if err != nil {
 		v.l.Error("删除机器人失败: %v", err)
 		if err.Error() == "机器人不存在" {
@@ -219,7 +204,7 @@ func (v *V1) DeleteBot(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "删除机器人失败")
 	}
 
-	v.l.Info("机器人删除成功: %d", id)
+	v.l.Info("机器人删除成功: %s", id)
 
 	return NewSuccessResponse(c, http.StatusOK, "删除成功", nil)
 }
