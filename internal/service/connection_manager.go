@@ -18,7 +18,7 @@ type ConnectionManager struct {
 	channelRepo    port.ChannelRepository
 	adapterManager port.AdapterManager
 	messageUseCase usecase.MessageUseCase
-	connections    map[int64]ConnectionInfo // channelID -> ConnectionInfo
+	connections    map[string]ConnectionInfo // channelID -> ConnectionInfo
 	mu             sync.RWMutex
 	ctx            context.Context
 	cancel         context.CancelFunc
@@ -26,7 +26,7 @@ type ConnectionManager struct {
 
 // ConnectionInfo 连接信息
 type ConnectionInfo struct {
-	ChannelID     int64
+	ChannelID     string
 	PlatformType  string
 	StreamAdapter port.StreamAdapter
 	Config        map[string]interface{}
@@ -47,7 +47,7 @@ func NewConnectionManager(
 		channelRepo:    channelRepo,
 		adapterManager: adapterManager,
 		messageUseCase: messageUseCase,
-		connections:    make(map[int64]ConnectionInfo),
+		connections:    make(map[string]ConnectionInfo),
 		ctx:            ctx,
 		cancel:         cancel,
 	}
@@ -68,11 +68,11 @@ func (cm *ConnectionManager) Start(ctx context.Context) error {
 	// 为每个通道启动连接
 	for _, channel := range channels {
 		if err := cm.startChannelConnection(ctx, channel); err != nil {
-			cm.logger.Error().
-				Err(err).
-				Int64("channel_id", channel.ID).
-				Str("platform_type", channel.PlatformType).
-				Msg("failed to start channel connection")
+					cm.logger.Error().
+			Err(err).
+			Str("channel_id", channel.ID).
+			Str("platform_type", channel.PlatformType).
+			Msg("failed to start channel connection")
 		}
 	}
 
@@ -105,7 +105,7 @@ func (cm *ConnectionManager) Stop(ctx context.Context) error {
 	}
 
 	// 清空连接信息
-	cm.connections = make(map[int64]ConnectionInfo)
+	cm.connections = make(map[string]ConnectionInfo)
 
 	cm.logger.Info().Msg("connection manager stopped")
 	return nil
@@ -122,10 +122,10 @@ func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel
 	// 检查适配器是否支持Stream模式
 	streamAdapter, ok := platformAdapter.(port.StreamAdapter)
 	if !ok {
-		cm.logger.Debug().
-			Int64("channel_id", channel.ID).
-			Str("platform_type", channel.PlatformType).
-			Msg("platform does not support stream mode, skipping")
+			cm.logger.Debug().
+		Str("channel_id", channel.ID).
+		Str("platform_type", channel.PlatformType).
+		Msg("platform does not support stream mode, skipping")
 		return nil
 	}
 
@@ -146,7 +146,7 @@ func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel
 	for k, v := range channel.Config {
 		configWithChannelID[k] = v
 	}
-	configWithChannelID["channel_id"] = float64(channel.ID) // JSON数字默认解析为float64
+	configWithChannelID["channel_id"] = channel.ID
 
 	// 启动Stream连接，传递包含channel_id的配置
 	if err := streamAdapter.Start(cm.ctx, messageHandler, configWithChannelID); err != nil {
@@ -161,7 +161,7 @@ func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel
 	cm.mu.Unlock()
 
 	cm.logger.Info().
-		Int64("channel_id", channel.ID).
+		Str("channel_id", channel.ID).
 		Str("platform_type", channel.PlatformType).
 		Msg("stream connection started")
 
@@ -169,7 +169,7 @@ func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel
 }
 
 // createChannelMessageHandler 创建带有channelID的消息处理器
-func (cm *ConnectionManager) createChannelMessageHandler(channelID int64) port.MessageHandler {
+func (cm *ConnectionManager) createChannelMessageHandler(channelID string) port.MessageHandler {
 	// 创建基础处理器
 	baseHandler := cm.messageUseCase.CreateStreamMessageHandler()
 

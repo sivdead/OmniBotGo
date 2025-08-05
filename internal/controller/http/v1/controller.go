@@ -80,7 +80,7 @@ func NewV1Controller(
 
 // SendMessageRequest 发送消息请求
 type SendMessageRequest struct {
-	ChannelID      int64  `json:"channel_id" validate:"required"`
+	ChannelID      string `json:"channel_id" validate:"required"`
 	MessageType    string `json:"message_type" validate:"required"`
 	ReceiverID     string `json:"receiver_id" validate:"required"`
 	ReceiverName   string `json:"receiver_name,omitempty"`
@@ -93,7 +93,7 @@ type SendMessageRequest struct {
 
 // GetMessageHistoryRequest 获取消息历史请求
 type GetMessageHistoryRequest struct {
-	ChannelID     *int64                   `json:"channel_id,omitempty"`
+	ChannelID     *string                  `json:"channel_id,omitempty"`
 	SenderID      *string                  `json:"sender_id,omitempty"`
 	ReceiverID    *string                  `json:"receiver_id,omitempty"`
 	MessageType   *string                  `json:"message_type,omitempty"`
@@ -261,10 +261,9 @@ func (v *V1) GetMessageHistory(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/messages/{id} [get]
 func (v *V1) GetMessage(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	id, err := v.parseInt64(idStr, "id")
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
+	id := c.Params("id")
+	if id == "" {
+		return NewErrorResponse(c, http.StatusBadRequest, "消息ID不能为空")
 	}
 
 	// 调用usecase获取消息
@@ -290,10 +289,9 @@ func (v *V1) GetMessage(c *fiber.Ctx) error {
 // @Failure 500 {object} StandardResponse "内部服务器错误"
 // @Router /api/v1/messages/{id}/retry [post]
 func (v *V1) RetryMessage(c *fiber.Ctx) error {
-	idStr := c.Params("id")
-	id, err := v.parseInt64(idStr, "id")
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "消息ID格式错误")
+	id := c.Params("id")
+	if id == "" {
+		return NewErrorResponse(c, http.StatusBadRequest, "消息ID不能为空")
 	}
 
 	// 调用usecase重试消息

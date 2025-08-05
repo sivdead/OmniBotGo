@@ -137,8 +137,6 @@ func PaginateTyped[T any](db *gorm.DB, ctx context.Context, query *gorm.DB, para
 	}, nil
 }
 
-
-
 // exists 检查记录是否存在
 func (r *BaseRepo) exists(ctx context.Context, model interface{}, where string, args ...interface{}) (bool, error) {
 	var count int64

@@ -8,7 +8,7 @@ import (
 type Message struct {
 	BaseEntity
 	MessageID         string           `json:"message_id" gorm:"column:message_id;type:varchar(100);uniqueIndex;not null;comment:消息唯一ID"`
-	ChannelID         string            `json:"channel_id" gorm:"column:channel_id;not null;index;comment:所属通道ID"`
+	ChannelID         string           `json:"channel_id" gorm:"column:channel_id;not null;index;comment:所属通道ID"`
 	PlatformMessageID string           `json:"platform_message_id" gorm:"column:platform_message_id;type:varchar(200);comment:平台消息ID"`
 	Direction         MessageDirection `json:"direction" gorm:"column:direction;type:tinyint;not null;comment:消息方向:1-入站,2-出站"`
 	MessageType       string           `json:"message_type" gorm:"column:message_type;type:varchar(50);not null;comment:消息类型"`

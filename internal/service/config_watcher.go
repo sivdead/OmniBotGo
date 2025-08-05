@@ -289,7 +289,7 @@ func (w *ConfigWatcher) handleChannelConfigChange(config *entity.SystemConfig) e
 
 	// 获取通道ID
 	var channelConfig struct {
-		ChannelID int64                  `json:"channel_id"`
+		ChannelID string                 `json:"channel_id"`
 		Config    map[string]interface{} `json:"config"`
 	}
 
@@ -319,7 +319,7 @@ func (w *ConfigWatcher) handleProcessorConfigChange(config *entity.SystemConfig)
 
 	// 获取处理器ID
 	var processorConfig struct {
-		ProcessorID int64                  `json:"processor_id"`
+		ProcessorID string                 `json:"processor_id"`
 		Config      map[string]interface{} `json:"config"`
 	}
 
