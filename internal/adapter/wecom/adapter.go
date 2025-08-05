@@ -9,16 +9,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
-	"github.com/rs/zerolog"
 )
 
 // WecomAdapter 企业微信平台适配器
 type WecomAdapter struct {
 	httpClient *http.Client
+	logger     zerolog.Logger
 }
 
 // NewWecomAdapter 创建企业微信适配器实例
@@ -27,6 +28,7 @@ func NewWecomAdapter(logger zerolog.Logger) *WecomAdapter {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		logger: logger,
 	}
 }
 

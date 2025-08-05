@@ -61,17 +61,18 @@ func (w *WecomAdapter) VerifyWebhook(ctx context.Context, signature string, time
 
 	// 比较签名
 	if calculatedSignature != signature {
-		w.logger.Warn("企业微信Webhook签名验证失败",
-			"expected", signature,
-			"calculated", calculatedSignature,
-			"token_length", len(token),
-			"timestamp", timestamp,
-			"nonce", nonce,
-			"has_encrypt", encrypt != "")
+		w.logger.Warn().
+			Str("expected", signature).
+			Str("calculated", calculatedSignature).
+			Int("token_length", len(token)).
+			Str("timestamp", timestamp).
+			Str("nonce", nonce).
+			Bool("has_encrypt", encrypt != "").
+			Msg("企业微信Webhook签名验证失败")
 		return fmt.Errorf("webhook signature verification failed")
 	}
 
-	w.logger.Debug("企业微信Webhook签名验证成功")
+	w.logger.Debug().Msg("企业微信Webhook签名验证成功")
 	return nil
 }
 
