@@ -30,7 +30,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/viper v1.20.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	github.com/swaggo/swag v1.16.6
 	google.golang.org/grpc v1.74.2
 	gorm.io/driver/mysql v1.6.0
