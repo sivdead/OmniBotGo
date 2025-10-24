@@ -17,7 +17,7 @@ tool (
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/ansrivas/fiberprometheus/v2 v2.14.0
-	github.com/cloudwego/eino v0.5.8
+	github.com/cloudwego/eino v0.5.9
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/goccy/go-json v0.10.5
 	github.com/gofiber/fiber/v2 v2.52.9
