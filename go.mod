@@ -36,7 +36,7 @@ require (
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
-	modernc.org/sqlite v1.38.2
+	modernc.org/sqlite v1.40.1
 )
 
 require (
@@ -429,10 +429,10 @@ require (
 	modernc.org/b v1.0.0 // indirect
 	modernc.org/db v1.0.0 // indirect
 	modernc.org/file v1.0.0 // indirect
-	modernc.org/fileutil v1.3.8 // indirect
+	modernc.org/fileutil v1.3.40 // indirect
 	modernc.org/golex v1.0.0 // indirect
 	modernc.org/internal v1.0.0 // indirect
-	modernc.org/libc v1.66.3 // indirect
+	modernc.org/libc v1.66.10 // indirect
 	modernc.org/lldb v1.0.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
