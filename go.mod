@@ -25,7 +25,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
-	github.com/larksuite/oapi-sdk-go/v3 v3.4.25
+	github.com/larksuite/oapi-sdk-go/v3 v3.4.26
 	github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/rs/zerolog v1.34.0
