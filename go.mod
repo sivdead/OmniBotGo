@@ -25,7 +25,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
-	github.com/larksuite/oapi-sdk-go/v3 v3.4.26
+	github.com/larksuite/oapi-sdk-go/v3 v3.5.2
 	github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/rs/zerolog v1.34.0
@@ -56,6 +56,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.5.2 // indirect
 	cloud.google.com/go/longrunning v0.6.7 // indirect
+	cloud.google.com/go/monitoring v1.24.2 // indirect
 	cloud.google.com/go/spanner v1.85.0 // indirect
 	cloud.google.com/go/storage v1.56.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
