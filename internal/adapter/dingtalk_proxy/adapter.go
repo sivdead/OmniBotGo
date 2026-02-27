@@ -17,6 +17,14 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
 
+// 编译期接口实现检查
+var _ port.MessageSender = (*DingtalkProxyAdapter)(nil)
+var _ port.WebhookProcessor = (*DingtalkProxyAdapter)(nil)
+var _ port.TokenManager = (*DingtalkProxyAdapter)(nil)
+var _ port.StreamAdapter = (*DingtalkProxyAdapter)(nil)
+var _ port.PlatformIdentifier = (*DingtalkProxyAdapter)(nil)
+var _ port.ConfigValidator = (*DingtalkProxyAdapter)(nil)
+
 // DingtalkProxyAdapter 钉钉适配器代理，根据配置选择具体实现
 type DingtalkProxyAdapter struct {
 	logger            zerolog.Logger
@@ -84,13 +92,7 @@ func (a *DingtalkProxyAdapter) ProcessWebhookMessage(ctx context.Context, reques
 }
 
 // VerifyWebhook 实现WebhookProcessor接口
-func (a *DingtalkProxyAdapter) VerifyWebhook(ctx context.Context, signature, timestamp, nonce string, body []byte, config entity.JSONField) error {
-	// 根据配置判断使用哪种验证方式
-	cfg := make(map[string]interface{})
-	if err := config.Scan(&cfg); err != nil {
-		return err
-	}
-
+func (a *DingtalkProxyAdapter) VerifyWebhook(ctx context.Context, signature, timestamp, nonce string, body []byte, cfg map[string]interface{}) error {
 	if isStreamMode(cfg) {
 		// Stream模式不需要验证Webhook
 		return fmt.Errorf("stream mode does not support webhook")
@@ -103,7 +105,6 @@ func (a *DingtalkProxyAdapter) VerifyWebhook(ctx context.Context, signature, tim
 		return fmt.Errorf("app_secret not found in config for webhook verification")
 	}
 
-	// 使用企业应用适配器的验证逻辑
 	// 钉钉企业应用的签名验证算法：
 	// 1. 把timestamp + "\n" + secret当做签名字符串
 	// 2. 使用HmacSHA256算法计算签名
@@ -121,12 +122,7 @@ func (a *DingtalkProxyAdapter) VerifyWebhook(ctx context.Context, signature, tim
 }
 
 // ParseInboundMessage 实现WebhookProcessor接口
-func (a *DingtalkProxyAdapter) ParseInboundMessage(ctx context.Context, body []byte, config entity.JSONField) (*dto.UnifiedMessage, error) {
-	cfg := make(map[string]interface{})
-	if err := config.Scan(&cfg); err != nil {
-		return nil, err
-	}
-
+func (a *DingtalkProxyAdapter) ParseInboundMessage(ctx context.Context, body []byte, cfg map[string]interface{}) (*dto.UnifiedMessage, error) {
 	if isStreamMode(cfg) {
 		return nil, fmt.Errorf("stream mode does not support webhook parsing")
 	}
@@ -138,6 +134,11 @@ func (a *DingtalkProxyAdapter) ParseInboundMessage(ctx context.Context, body []b
 	}
 
 	return webhookData.ToUnifiedMessage(), nil
+}
+
+// BuildWebhookPath 实现WebhookProcessor接口
+func (a *DingtalkProxyAdapter) BuildWebhookPath(channelID int64) string {
+	return fmt.Sprintf("/webhook/dingtalk/%d", channelID)
 }
 
 // Start 实现StreamAdapter接口

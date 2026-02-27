@@ -3,6 +3,7 @@ package dingtalk_stream
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
@@ -27,6 +28,7 @@ type StreamController struct {
 	config         *config.DingtalkStreamConfig
 	channelID      string
 	isRunning      bool
+	mu             sync.RWMutex
 }
 
 // NewStreamController 创建钉钉Stream控制器
@@ -47,6 +49,9 @@ func NewStreamController(
 
 // Start 启动钉钉Stream客户端
 func (c *StreamController) Start(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.isRunning {
 		return fmt.Errorf("dingtalk stream controller is already running")
 	}
@@ -66,10 +71,12 @@ func (c *StreamController) Start(ctx context.Context) error {
 
 	c.logger.Info().Msg("dingtalk stream controller started")
 
-	// 在goroutine中运行客户端
+	// 在goroutine中运行客户端，ctx取消时客户端退出
 	go func() {
 		defer func() {
+			c.mu.Lock()
 			c.isRunning = false
+			c.mu.Unlock()
 			c.logger.Info().Msg("dingtalk stream controller stopped")
 		}()
 
@@ -84,6 +91,9 @@ func (c *StreamController) Start(ctx context.Context) error {
 
 // Stop 停止钉钉Stream客户端
 func (c *StreamController) Stop() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if !c.isRunning {
 		return nil
 	}
@@ -100,6 +110,8 @@ func (c *StreamController) Stop() error {
 
 // IsRunning 检查是否正在运行
 func (c *StreamController) IsRunning() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.isRunning
 }
 

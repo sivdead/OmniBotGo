@@ -287,10 +287,10 @@ func (a *DingtalkStreamAdapter) Start(ctx context.Context, messageHandler port.M
 		logger:  a.logger,
 	}
 
-	// 创建Stream控制器（假设channelID从config中获取）
-	channelID := "1" // 这里应该从config中获取，或者作为参数传入
-	if channelIDValue, ok := cfg["channel_id"].(string); ok {
-		channelID = channelIDValue
+	// 从配置中获取channelID，channel_id为必填项
+	channelID, ok := cfg["channel_id"].(string)
+	if !ok || channelID == "" {
+		return fmt.Errorf("channel_id is required in dingtalk stream config")
 	}
 
 	a.streamController = NewStreamController(

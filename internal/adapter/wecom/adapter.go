@@ -44,7 +44,10 @@ func (w *WecomAdapter) ValidateConfig(cfg map[string]interface{}) error {
 
 // SendMessage 发送消息
 func (w *WecomAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, conf map[string]interface{}, accessToken string) error {
-	agentID := conf["agent_id"].(string)
+	agentID, ok := conf["agent_id"].(string)
+	if !ok || agentID == "" {
+		return fmt.Errorf("agent_id is required in wecom config")
+	}
 
 	// 构建企业微信消息格式
 	sendMsg := WecomSendMessage{

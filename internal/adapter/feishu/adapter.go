@@ -2,7 +2,9 @@ package feishu
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -111,8 +113,14 @@ func (f *FeishuAdapter) getClient(cfg map[string]interface{}) (*lark.Client, err
 		return f.client, nil
 	}
 
-	appID := cfg["app_id"].(string)
-	appSecret := cfg["app_secret"].(string)
+	appID, ok := cfg["app_id"].(string)
+	if !ok || appID == "" {
+		return nil, fmt.Errorf("app_id is required in feishu config")
+	}
+	appSecret, ok := cfg["app_secret"].(string)
+	if !ok || appSecret == "" {
+		return nil, fmt.Errorf("app_secret is required in feishu config")
+	}
 
 	// 创建飞书客户端
 	client := lark.NewClient(appID, appSecret, lark.WithLogLevel(larkcore.LogLevelError))
@@ -121,7 +129,103 @@ func (f *FeishuAdapter) getClient(cfg map[string]interface{}) (*lark.Client, err
 	return client, nil
 }
 
+// VerifyWebhook 实现WebhookProcessor接口
+// 飞书使用 challenge 机制进行验证，此处验证 verification_token
+func (f *FeishuAdapter) VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, cfg map[string]interface{}) error {
+	// 飞书的 URL 验证通过解析 challenge 完成，签名验证由 SDK 内部处理
+	// 这里仅做基础的 token 校验（如配置了 verification_token）
+	verificationToken, _ := cfg["verification_token"].(string)
+	if verificationToken == "" {
+		// 未配置 token 时跳过验证
+		return nil
+	}
+
+	// 解析请求体检查 token
+	var event map[string]interface{}
+	if err := json.Unmarshal(body, &event); err != nil {
+		return fmt.Errorf("failed to parse feishu webhook body: %w", err)
+	}
+
+	// 飞书回调中 token 字段在顶层
+	if token, ok := event["token"].(string); ok && token != verificationToken {
+		return fmt.Errorf("feishu webhook token mismatch")
+	}
+
+	return nil
+}
+
+// ParseInboundMessage 实现WebhookProcessor接口
+func (f *FeishuAdapter) ParseInboundMessage(ctx context.Context, body []byte, cfg map[string]interface{}) (*dto.UnifiedMessage, error) {
+	var event map[string]interface{}
+	if err := json.Unmarshal(body, &event); err != nil {
+		return nil, fmt.Errorf("failed to parse feishu webhook body: %w", err)
+	}
+
+	// 处理飞书 URL 验证挑战
+	if challenge, ok := event["challenge"].(string); ok {
+		return &dto.UnifiedMessage{
+			MessageID:   fmt.Sprintf("feishu_challenge_%d", time.Now().UnixNano()),
+			MessageType: entity.MessageTypeEvent,
+			Content:     challenge,
+			RawContent:  map[string]interface{}{"challenge": challenge, "type": "url_verification"},
+		}, nil
+	}
+
+	// 解析飞书事件消息
+	header, _ := event["header"].(map[string]interface{})
+	eventData, _ := event["event"].(map[string]interface{})
+
+	eventType := ""
+	if header != nil {
+		eventType, _ = header["event_type"].(string)
+	}
+
+	msg := &dto.UnifiedMessage{
+		MessageType:       entity.MessageTypeEvent,
+		RawContent:        event,
+		PlatformTimestamp: time.Now(),
+	}
+
+	if eventID, ok := header["event_id"].(string); ok {
+		msg.MessageID = fmt.Sprintf("feishu_%s", eventID)
+		msg.PlatformMessageID = eventID
+	}
+
+	switch eventType {
+	case "im.message.receive_v1":
+		if eventData != nil {
+			msg.MessageType = entity.MessageTypeText
+			if sender, ok := eventData["sender"].(map[string]interface{}); ok {
+				msg.SenderID, _ = sender["sender_id"].(string)
+				msg.SenderType = entity.SenderTypeUser
+			}
+			if message, ok := eventData["message"].(map[string]interface{}); ok {
+				msg.Content, _ = message["content"].(string)
+				if msgType, ok := message["msg_type"].(string); ok {
+					msg.MessageType = msgType
+				}
+				if msgID, ok := message["message_id"].(string); ok {
+					msg.PlatformMessageID = msgID
+					msg.MessageID = fmt.Sprintf("feishu_%s", msgID)
+				}
+				if chatID, ok := message["chat_id"].(string); ok {
+					msg.ConversationID = chatID
+					msg.ReceiverID = chatID
+				}
+			}
+		}
+	}
+
+	return msg, nil
+}
+
+// BuildWebhookPath 实现WebhookProcessor接口
+func (f *FeishuAdapter) BuildWebhookPath(channelID int64) string {
+	return fmt.Sprintf("/webhook/feishu/%d", channelID)
+}
+
 // 确保 FeishuAdapter 实现了所需的接口
 var _ port.MessageSender = (*FeishuAdapter)(nil)
+var _ port.WebhookProcessor = (*FeishuAdapter)(nil)
 var _ port.PlatformIdentifier = (*FeishuAdapter)(nil)
 var _ port.ConfigValidator = (*FeishuAdapter)(nil)

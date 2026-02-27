@@ -134,8 +134,14 @@ func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *dto.Un
 
 // GetAccessToken 获取访问令牌
 func (w *WechatOfficialAdapter) GetAccessToken(ctx context.Context, config map[string]interface{}) (*dto.AccessTokenResponse, error) {
-	appID := config["app_id"].(string)
-	appSecret := config["app_secret"].(string)
+	appID, ok := config["app_id"].(string)
+	if !ok || appID == "" {
+		return nil, fmt.Errorf("app_id is required in wechat official config")
+	}
+	appSecret, ok := config["app_secret"].(string)
+	if !ok || appSecret == "" {
+		return nil, fmt.Errorf("app_secret is required in wechat official config")
+	}
 
 	reqURL := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
 
@@ -181,7 +187,10 @@ func (w *WechatOfficialAdapter) RefreshAccessToken(ctx context.Context, config m
 
 // VerifyWebhook 验证Webhook请求
 func (w *WechatOfficialAdapter) VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error {
-	token := config["token"].(string)
+	token, ok := config["token"].(string)
+	if !ok || token == "" {
+		return fmt.Errorf("token is required in wechat official config for webhook verification")
+	}
 
 	// 微信公众号签名验证
 	tmpArr := []string{token, timestamp, nonce}
