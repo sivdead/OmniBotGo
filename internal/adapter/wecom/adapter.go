@@ -3,6 +3,7 @@ package wecom
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,8 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
+
+var errWecomMissingAgentID = errors.New("agent_id is required in wecom config")
 
 // WecomAdapter 企业微信平台适配器
 type WecomAdapter struct {
@@ -44,7 +47,10 @@ func (w *WecomAdapter) ValidateConfig(cfg map[string]interface{}) error {
 
 // SendMessage 发送消息
 func (w *WecomAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, conf map[string]interface{}, accessToken string) error {
-	agentID := conf["agent_id"].(string)
+	agentID, ok := conf["agent_id"].(string)
+	if !ok || agentID == "" {
+		return errWecomMissingAgentID
+	}
 
 	// 构建企业微信消息格式
 	sendMsg := WecomSendMessage{
@@ -281,8 +287,10 @@ func (w *WecomAdapter) RefreshAccessToken(ctx context.Context, config map[string
 	}, nil
 }
 
-// 确保 WecomAdapter 实现了所需的接口
-var _ port.MessageSender = (*WecomAdapter)(nil)
-var _ port.TokenManager = (*WecomAdapter)(nil)
-var _ port.PlatformIdentifier = (*WecomAdapter)(nil)
-var _ port.ConfigValidator = (*WecomAdapter)(nil)
+// 确保 WecomAdapter 实现了所需的接口。
+var (
+	_ port.MessageSender      = (*WecomAdapter)(nil)
+	_ port.TokenManager       = (*WecomAdapter)(nil)
+	_ port.PlatformIdentifier = (*WecomAdapter)(nil)
+	_ port.ConfigValidator    = (*WecomAdapter)(nil)
+)
