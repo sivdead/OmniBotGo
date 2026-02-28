@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -15,6 +16,8 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
+
+var errStreamMissingChannelID = errors.New("channel_id is required in dingtalk stream config")
 
 // DingtalkStreamAdapter 钉钉Stream适配器，实现MessageSender, StreamAdapter, PlatformIdentifier, ConfigValidator接口
 type DingtalkStreamAdapter struct {
@@ -290,7 +293,7 @@ func (a *DingtalkStreamAdapter) Start(ctx context.Context, messageHandler port.M
 	// 从配置中获取channelID，channel_id为必填项
 	channelID, ok := cfg["channel_id"].(string)
 	if !ok || channelID == "" {
-		return fmt.Errorf("channel_id is required in dingtalk stream config")
+		return errStreamMissingChannelID
 	}
 
 	a.streamController = NewStreamController(

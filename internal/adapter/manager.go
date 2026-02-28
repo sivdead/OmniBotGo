@@ -2,12 +2,15 @@ package adapter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
+
+var errAIModelNotImplemented = errors.New("AI model management is not implemented yet")
 
 // Manager 平台适配器管理器
 type Manager struct {
@@ -140,6 +143,7 @@ func (m *Manager) VerifyWebhook(ctx context.Context, platformType entity.Platfor
 	if err != nil {
 		return err
 	}
+
 	return processor.VerifyWebhook(ctx, signature, timestamp, nonce, body, map[string]interface{}(config))
 }
 
@@ -149,6 +153,7 @@ func (m *Manager) ParseInboundMessage(ctx context.Context, platformType entity.P
 	if err != nil {
 		return nil, err
 	}
+
 	return processor.ParseInboundMessage(ctx, body, map[string]interface{}(config))
 }
 
@@ -162,17 +167,17 @@ func (m *Manager) GetAIModelManager() port.AIModelManager {
 	return &notImplementedAIModelManager{}
 }
 
-// notImplementedAIModelManager 占位实现，所有方法返回"未实现"错误
+// notImplementedAIModelManager 占位实现，所有方法返回"未实现"错误。
 type notImplementedAIModelManager struct{}
 
-func (n *notImplementedAIModelManager) CreateChatModel(ctx context.Context, provider string, config map[string]interface{}) (interface{}, error) {
-	return nil, fmt.Errorf("AI model management is not implemented yet")
+func (n *notImplementedAIModelManager) CreateChatModel(_ context.Context, _ string, _ map[string]interface{}) (interface{}, error) {
+	return nil, errAIModelNotImplemented
 }
 
 func (n *notImplementedAIModelManager) GetSupportedProviders() []string {
 	return nil
 }
 
-func (n *notImplementedAIModelManager) ValidateConfig(provider string, config map[string]interface{}) error {
-	return fmt.Errorf("AI model management is not implemented yet")
+func (n *notImplementedAIModelManager) ValidateConfig(_ string, _ map[string]interface{}) error {
+	return errAIModelNotImplemented
 }

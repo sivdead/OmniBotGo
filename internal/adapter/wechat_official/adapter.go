@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,13 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
+)
+
+var (
+	errWechatOfficialMissingAppID     = errors.New("app_id is required in wechat official config")
+	errWechatOfficialMissingAppSecret = errors.New("app_secret is required in wechat official config")
+	errWechatOfficialMissingToken     = errors.New("token is required in wechat official config for webhook verification")
+	errWechatOfficialInvalidSignature = errors.New("invalid signature")
 )
 
 // WechatOfficialAdapter 微信公众号平台适配器
@@ -136,11 +144,12 @@ func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *dto.Un
 func (w *WechatOfficialAdapter) GetAccessToken(ctx context.Context, config map[string]interface{}) (*dto.AccessTokenResponse, error) {
 	appID, ok := config["app_id"].(string)
 	if !ok || appID == "" {
-		return nil, fmt.Errorf("app_id is required in wechat official config")
+		return nil, errWechatOfficialMissingAppID
 	}
+
 	appSecret, ok := config["app_secret"].(string)
 	if !ok || appSecret == "" {
-		return nil, fmt.Errorf("app_secret is required in wechat official config")
+		return nil, errWechatOfficialMissingAppSecret
 	}
 
 	reqURL := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
@@ -189,7 +198,7 @@ func (w *WechatOfficialAdapter) RefreshAccessToken(ctx context.Context, config m
 func (w *WechatOfficialAdapter) VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error {
 	token, ok := config["token"].(string)
 	if !ok || token == "" {
-		return fmt.Errorf("token is required in wechat official config for webhook verification")
+		return errWechatOfficialMissingToken
 	}
 
 	// 微信公众号签名验证
@@ -202,7 +211,7 @@ func (w *WechatOfficialAdapter) VerifyWebhook(ctx context.Context, signature str
 	expectedSignature := fmt.Sprintf("%x", hash.Sum(nil))
 
 	if signature != expectedSignature {
-		return fmt.Errorf("invalid signature")
+		return errWechatOfficialInvalidSignature
 	}
 
 	return nil
@@ -311,9 +320,11 @@ func getString(m map[string]interface{}, key string) string {
 	return ""
 }
 
-// 确保 WechatOfficialAdapter 实现了所需的接口
-var _ port.MessageSender = (*WechatOfficialAdapter)(nil)
-var _ port.TokenManager = (*WechatOfficialAdapter)(nil)
-var _ port.WebhookProcessor = (*WechatOfficialAdapter)(nil)
-var _ port.PlatformIdentifier = (*WechatOfficialAdapter)(nil)
-var _ port.ConfigValidator = (*WechatOfficialAdapter)(nil)
+// 确保 WechatOfficialAdapter 实现了所需的接口。
+var (
+	_ port.MessageSender      = (*WechatOfficialAdapter)(nil)
+	_ port.TokenManager       = (*WechatOfficialAdapter)(nil)
+	_ port.WebhookProcessor   = (*WechatOfficialAdapter)(nil)
+	_ port.PlatformIdentifier = (*WechatOfficialAdapter)(nil)
+	_ port.ConfigValidator    = (*WechatOfficialAdapter)(nil)
+)
