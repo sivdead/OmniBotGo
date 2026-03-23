@@ -1,6 +1,6 @@
 module github.com/sivdead/OmniBotGo
 
-go 1.24.0
+go 1.25.0
 
 tool (
 	github.com/daixiang0/gci
@@ -40,7 +40,7 @@ require (
 )
 
 require (
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.9.1
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	gorm.io/driver/postgres v1.6.0
