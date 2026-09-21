@@ -34,7 +34,7 @@ func (v *V1) GetPlatforms(c *fiber.Ctx) error {
 // @Tags platforms
 // @Accept json
 // @Produce json
-// @Param type path string true "平台类型" Enums(wecom,dingtalk,wechat_official,feishu)
+// @Param type path string true "平台类型" Enums(wecom,dingtalk,wechat_official,feishu,telegram)
 // @Success 200 {object} StandardResponse{data=usecase.PlatformInfo} "获取成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 404 {object} StandardResponse "平台不存在"
@@ -52,6 +52,7 @@ func (v *V1) GetPlatformByType(c *fiber.Ctx) error {
 		string(entity.PlatformTypeDingtalk):       true,
 		string(entity.PlatformTypeWechatOfficial): true,
 		string(entity.PlatformTypeFeishu):         true,
+		string(entity.PlatformTypeTelegram):       true,
 	}
 
 	if !validPlatformTypes[platformType] {
@@ -74,7 +75,7 @@ func (v *V1) GetPlatformByType(c *fiber.Ctx) error {
 // @Tags platforms
 // @Accept json
 // @Produce json
-// @Param type path string true "平台类型" Enums(wecom,dingtalk,wechat_official,feishu)
+// @Param type path string true "平台类型" Enums(wecom,dingtalk,wechat_official,feishu,telegram)
 // @Param request body usecase.ValidatePlatformConfigRequest true "验证平台配置请求"
 // @Success 200 {object} StandardResponse{data=usecase.PlatformConfigValidationResult} "验证成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
@@ -113,7 +114,7 @@ func (v *V1) ValidatePlatformConfig(c *fiber.Ctx) error {
 // @Tags platforms
 // @Accept json
 // @Produce json
-// @Param type path string true "平台类型" Enums(wecom,dingtalk,wechat_official,feishu)
+// @Param type path string true "平台类型" Enums(wecom,dingtalk,wechat_official,feishu,telegram)
 // @Success 200 {object} StandardResponse{data=usecase.PlatformStatusResult} "获取成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 500 {object} StandardResponse "内部服务器错误"
