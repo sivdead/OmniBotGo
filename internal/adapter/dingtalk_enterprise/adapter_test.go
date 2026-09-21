@@ -13,7 +13,7 @@ import (
 func TestNewAdapter(t *testing.T) {
 	logger := zerolog.Nop()
 	adapter := NewAdapter(logger)
-	
+
 	assert.NotNil(t, adapter)
 	assert.NotNil(t, adapter.httpClient)
 	assert.NotNil(t, adapter.tokenCache)
@@ -23,7 +23,7 @@ func TestNewAdapter(t *testing.T) {
 func TestGetPlatformType(t *testing.T) {
 	logger := zerolog.Nop()
 	adapter := NewAdapter(logger)
-	
+
 	platformType := adapter.GetPlatformType()
 	assert.Equal(t, entity.PlatformTypeDingtalk, platformType)
 }
@@ -31,7 +31,7 @@ func TestGetPlatformType(t *testing.T) {
 func TestValidateConfig(t *testing.T) {
 	logger := zerolog.Nop()
 	adapter := NewAdapter(logger)
-	
+
 	tests := []struct {
 		name    string
 		config  map[string]interface{}
@@ -71,7 +71,7 @@ func TestValidateConfig(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := adapter.ValidateConfig(tt.config)
@@ -121,12 +121,12 @@ func TestBuildDingtalkMessage(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := buildDingtalkMessage(tt.message)
 			assert.Equal(t, tt.expected["msgtype"], result["msgtype"])
-			
+
 			// 验证具体内容
 			if textContent, ok := tt.expected["text"]; ok {
 				assert.Equal(t, textContent, result["text"])
@@ -146,7 +146,7 @@ func TestParseEnterpriseConfig(t *testing.T) {
 		"corp_id":      "test_corp",
 		"message_mode": "group_chat",
 	}
-	
+
 	cfg, err := ParseEnterpriseConfig(config)
 	assert.NoError(t, err)
 	assert.NotNil(t, cfg)
@@ -160,16 +160,16 @@ func TestParseEnterpriseConfig(t *testing.T) {
 func TestTokenCaching(t *testing.T) {
 	logger := zerolog.Nop()
 	adapter := NewAdapter(logger)
-	
+
 	// 测试缓存键生成
 	config := map[string]interface{}{
 		"app_key":    "test_key",
 		"app_secret": "test_secret",
 	}
-	
+
 	// 由于GetAccessToken需要实际的API调用，这里只测试缓存逻辑
 	ctx := context.Background()
-	
+
 	// 第一次调用会失败（因为是测试环境），但应该不会panic
 	_, err := adapter.GetAccessToken(ctx, config)
 	assert.Error(t, err) // 预期会失败，因为没有真实的API
@@ -178,12 +178,12 @@ func TestTokenCaching(t *testing.T) {
 func TestSendMessageRouting(t *testing.T) {
 	logger := zerolog.Nop()
 	adapter := NewAdapter(logger)
-	
+
 	ctx := context.Background()
 	config := map[string]interface{}{
 		"agent_id": "test_agent",
 	}
-	
+
 	tests := []struct {
 		name         string
 		message      *dto.UnifiedMessage
@@ -206,7 +206,7 @@ func TestSendMessageRouting(t *testing.T) {
 			expectMethod: "group_message",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 由于需要实际的access token和API调用，这里只验证不会panic
@@ -214,4 +214,4 @@ func TestSendMessageRouting(t *testing.T) {
 			assert.Error(t, err) // 预期会失败，但不应该panic
 		})
 	}
-} 
+}
