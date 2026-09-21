@@ -51,6 +51,11 @@ type FeishuConfig struct {
 	WebhookURL string `json:"webhook_url,omitempty"`
 }
 
+// TelegramConfig Telegram Bot 配置（long-poll MVP）
+type TelegramConfig struct {
+	BotToken string `json:"bot_token" validate:"required"`
+}
+
 // DingtalkStreamConfig 钉钉Stream模式配置
 type DingtalkStreamConfig struct {
 	ClientID     string `json:"client_id" validate:"required"`
@@ -68,6 +73,8 @@ func ValidatePlatformConfig(platformType entity.PlatformType, config map[string]
 		return validateWechatOfficialConfig(config)
 	case entity.PlatformTypeFeishu:
 		return validateFeishuConfig(config)
+	case entity.PlatformTypeTelegram:
+		return validateTelegramConfig(config)
 	default:
 		return fmt.Errorf("unknown platform type: %s", platformType)
 	}
@@ -203,6 +210,25 @@ func ParseFeishuConfig(config map[string]interface{}) (*FeishuConfig, error) {
 		Token:      getStringOrDefault(config, "token", ""),
 		AESKey:     getStringOrDefault(config, "aes_key", ""),
 		WebhookURL: getStringOrDefault(config, "webhook_url", ""),
+	}, nil
+}
+
+
+// validateTelegramConfig 验证 Telegram 配置
+func validateTelegramConfig(config map[string]interface{}) error {
+	if val, ok := config["bot_token"].(string); !ok || val == "" {
+		return fmt.Errorf("bot_token is required for telegram platform")
+	}
+	return nil
+}
+
+// ParseTelegramConfig 解析 Telegram 配置
+func ParseTelegramConfig(config map[string]interface{}) (*TelegramConfig, error) {
+	if err := validateTelegramConfig(config); err != nil {
+		return nil, err
+	}
+	return &TelegramConfig{
+		BotToken: config["bot_token"].(string),
 	}, nil
 }
 
