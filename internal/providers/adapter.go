@@ -10,6 +10,7 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/adapter/dingtalk_proxy"
 	"github.com/sivdead/OmniBotGo/internal/adapter/dingtalk_stream"
 	"github.com/sivdead/OmniBotGo/internal/adapter/feishu"
+	"github.com/sivdead/OmniBotGo/internal/adapter/telegram"
 	"github.com/sivdead/OmniBotGo/internal/adapter/wechat_official"
 	"github.com/sivdead/OmniBotGo/internal/adapter/wecom"
 	"github.com/sivdead/OmniBotGo/internal/entity"
@@ -27,6 +28,7 @@ var AdapterSet = wire.NewSet(
 	NewDingtalkProxyAdapter,
 	NewWechatOfficialAdapter,
 	NewFeishuAdapter,
+	NewTelegramAdapter,
 	// 绑定接口和实现
 	wire.Bind(new(port.AdapterManager), new(*adapter.Manager)),
 )
@@ -74,12 +76,19 @@ func NewFeishuAdapter() *feishu.FeishuAdapter {
 	return feishu.NewFeishuAdapter()
 }
 
+// NewTelegramAdapter 创建 Telegram 适配器
+func NewTelegramAdapter() *telegram.Adapter {
+	logger := zerolog.New(os.Stdout).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	return telegram.NewAdapter(logger)
+}
+
 // NewAdapterRegistry 创建适配器注册表
 func NewAdapterRegistry(
 	wecom *wecom.WecomAdapter,
 	dingtalkProxy *dingtalk_proxy.DingtalkProxyAdapter,
 	wechat *wechat_official.WechatOfficialAdapter,
 	feishu *feishu.FeishuAdapter,
+	tg *telegram.Adapter,
 ) AdapterRegistry {
 	registry := make(AdapterRegistry)
 
@@ -88,6 +97,7 @@ func NewAdapterRegistry(
 	registry[entity.PlatformTypeDingtalk] = dingtalkProxy // 使用代理适配器
 	registry[entity.PlatformTypeWechatOfficial] = wechat
 	registry[entity.PlatformTypeFeishu] = feishu
+	registry[entity.PlatformTypeTelegram] = tg
 
 	return registry
 }
