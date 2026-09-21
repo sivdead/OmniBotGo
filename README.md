@@ -747,3 +747,14 @@ kubectl apply -f deployments/k8s/
 ---
 
 ⭐ 如果这个项目对你有帮助，请给它一个星标！
+
+
+## Telegram ↔ A2A（私有 MVP）
+
+薄网关金路径：`cmd/tg-a2a`（Telegram long-poll → 外部 A2A → 回覆）。配置见 `docs/development/TELEGRAM_A2A.md`。
+
+```bash
+go test ./internal/a2a/...
+./scripts/smoke_a2a.sh
+A2A_BASE_URL=http://127.0.0.1:10000 go run ./cmd/tg-a2a
+```

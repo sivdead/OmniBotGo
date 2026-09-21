@@ -231,9 +231,15 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 		return fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
-	if !channel.IsActive() || !channel.IsConnected() {
-		uc.logger.Warn("通道未就绪，无法发送消息")
+	if !channel.IsActive() {
+		uc.logger.Warn("通道未激活，无法发送消息")
 		return fmt.Errorf("通道未就绪")
+	}
+	// Outbound HTTP send (e.g. Telegram sendMessage) does not require a live stream.
+	// connection_status used to lag behind long-poll Start → false 「通道未就绪」.
+	// Warn only; ConnectionManager now also persists connected on Start.
+	if !channel.IsConnected() {
+		uc.logger.Warn("通道 connection_status 非已连接，仍尝试发送", "channel_id", channel.ID, "connection_status", channel.ConnectionStatus.String())
 	}
 
 	// 设置消息为出站方向
