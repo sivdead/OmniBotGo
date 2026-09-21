@@ -95,6 +95,32 @@ type (
 	}
 )
 
+// bindEnvKeys registers env bindings for nested keys so AutomaticEnv values
+// are visible to Unmarshal (Viper does not pick them up otherwise).
+func bindEnvKeys(v *viper.Viper) {
+	keys := []string{
+		"app.name", "app.version",
+		"http.port", "http.use_prefork_mode",
+		"log.level",
+		"db.type", "db.dsn", "db.max_connections", "db.log_level", "db.slow_threshold",
+		"grpc.port",
+		"rmq.url",
+		"metrics.enabled",
+		"swagger.enabled",
+		"rate_limit.global_max", "rate_limit.global_expiration",
+		"rate_limit.per_ip_max", "rate_limit.per_ip_expiration",
+		"rate_limit.per_user_max", "rate_limit.per_user_expiration",
+		"rate_limit.max_workers", "rate_limit.max_requests",
+		"a2a.base_url",
+	}
+	for _, key := range keys {
+		_ = v.BindEnv(key)
+	}
+	// docker-compose uses RMQ_RPC_* aliases historically
+	_ = v.BindEnv("rmq.server_exchange", "RMQ_SERVER_EXCHANGE", "RMQ_RPC_SERVER")
+	_ = v.BindEnv("rmq.client_exchange", "RMQ_CLIENT_EXCHANGE", "RMQ_RPC_CLIENT")
+}
+
 // NewConfig returns app config using Viper.
 // It supports multiple configuration sources with the following priority:
 // 1. Explicit calls to Set
@@ -122,6 +148,8 @@ func NewConfig() (*Config, error) {
 
 	// Set environment variable prefix
 	v.SetEnvPrefix("") // No prefix to keep compatibility
+
+	bindEnvKeys(v)
 
 	// Read config file
 	if err := v.ReadInConfig(); err != nil {
@@ -246,6 +274,7 @@ func init() {
 	// Enable reading from environment variables
 	globalViper.AutomaticEnv()
 	globalViper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	bindEnvKeys(globalViper)
 
 	// Try to read config file
 	if err := globalViper.ReadInConfig(); err != nil {
