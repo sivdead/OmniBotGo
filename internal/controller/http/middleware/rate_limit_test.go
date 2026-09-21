@@ -261,7 +261,7 @@ func TestRateLimiter(t *testing.T) {
 
 func TestMemoryStore(t *testing.T) {
 	store := NewMemoryStore()
-	defer store.Close()
+	defer store.Shutdown()
 
 	t.Run("基本操作测试", func(t *testing.T) {
 		key := "test_key"

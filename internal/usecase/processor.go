@@ -214,7 +214,7 @@ func (uc *processorUC) CreateRoutingRule(ctx context.Context, req CreateRoutingR
 		return nil, fmt.Errorf("failed to check processor existence: %w", err)
 	}
 	if !exists {
-		return nil, fmt.Errorf("processor with ID %d not found", req.ProcessorID)
+		return nil, fmt.Errorf("processor with ID %s not found", req.ProcessorID)
 	}
 
 	// 创建路由规则实体

@@ -83,7 +83,7 @@ func (uc *channelUseCase) CreateChannel(ctx context.Context, req CreateChannelRe
 	}
 
 	// 生成Webhook路径
-	channel.WebhookPath = fmt.Sprintf("/webhook/%s/%d/%d", req.PlatformType, req.BotID, time.Now().Unix())
+	channel.WebhookPath = fmt.Sprintf("/webhook/%s/%s/%d", req.PlatformType, req.BotID, time.Now().Unix())
 
 	// 验证通道数据
 	if err := channel.Validate(); err != nil {
