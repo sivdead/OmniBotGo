@@ -60,7 +60,12 @@ func healthCheck(attempts int) error {
 	for attempts > 0 {
 		statusCode, err := getHealthCheck(healthPath)
 		if err != nil {
-			return err
+			log.Printf("Integration tests: url %s is not available, attempts left: %d: %v", healthPath, attempts, err)
+			time.Sleep(time.Second)
+
+			attempts--
+
+			continue
 		}
 
 		if statusCode == http.StatusOK {
@@ -156,28 +161,36 @@ func TestHTTPListBots(t *testing.T) {
 	}
 
 	var body struct {
-		Items []struct {
-			ID          int64  `json:"id"`
-			BotName     string `json:"bot_name"`
-			BotType     string `json:"bot_type"`
-			Description string `json:"description"`
-			Status      string `json:"status"`
-		} `json:"items"`
-		Total      int64 `json:"total"`
-		Page       int   `json:"page"`
-		PageSize   int   `json:"page_size"`
-		TotalPages int   `json:"total_pages"`
+		Success bool `json:"success"`
+		Data    struct {
+			Items []struct {
+				ID          string `json:"id"`
+				BotName     string `json:"bot_name"`
+				BotType     string `json:"bot_type"`
+				Description string `json:"description"`
+				Status      int8   `json:"status"`
+			} `json:"items"`
+			Total      int64 `json:"total"`
+			Page       int   `json:"page"`
+			PageSize   int   `json:"page_size"`
+			TotalPages int   `json:"total_pages"`
+		} `json:"data"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("Failed to decode response body: %v", err)
 	}
 
-	// 检查响应结构是否正确
-	if body.Page == 0 {
+	if !body.Success {
+		t.Error("Expected success=true")
+	}
+
+	// 检查响应结构是否正确（StandardResponse.data 内的分页字段）
+	if body.Data.Page == 0 {
 		t.Error("Expected page > 0")
 	}
-	if body.PageSize == 0 {
+
+	if body.Data.PageSize == 0 {
 		t.Error("Expected page_size > 0")
 	}
 }
@@ -208,15 +221,22 @@ func TestHTTPCreateChannel(t *testing.T) {
 	}
 
 	var botResp struct {
-		ID int64 `json:"id"`
+		Success bool `json:"success"`
+		Data    struct {
+			ID string `json:"id"`
+		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&botResp); err != nil {
 		t.Fatalf("Failed to decode bot response: %v", err)
 	}
 
-	// 现在创建通道
+	if botResp.Data.ID == "" {
+		t.Fatal("Expected non-empty bot id (UUID string)")
+	}
+
+	// 现在创建通道（bot_id 为 UUID 字符串）
 	channelBody := fmt.Sprintf(`{
-		"bot_id": %d,
+		"bot_id": %q,
 		"platform_type": "wecom",
 		"channel_name": "测试通道",
 		"config": {
@@ -224,7 +244,7 @@ func TestHTTPCreateChannel(t *testing.T) {
 			"agent_id": "test_agent",
 			"secret": "test_secret"
 		}
-	}`, botResp.ID)
+	}`, botResp.Data.ID)
 
 	channelURL := basePathV1 + "/channels"
 	ctx2, cancel2 := context.WithTimeout(context.Background(), requestTimeout)
@@ -237,6 +257,11 @@ func TestHTTPCreateChannel(t *testing.T) {
 	defer channelResp.Body.Close()
 
 	if channelResp.StatusCode != http.StatusCreated {
-		t.Errorf("Expected status %d, got %d", http.StatusCreated, channelResp.StatusCode)
+		bodyBytes, readErr := io.ReadAll(channelResp.Body)
+		if readErr != nil {
+			t.Errorf("Expected status %d, got %d (also failed reading body: %v)", http.StatusCreated, channelResp.StatusCode, readErr)
+		} else {
+			t.Errorf("Expected status %d, got %d body=%s", http.StatusCreated, channelResp.StatusCode, string(bodyBytes))
+		}
 	}
 }
