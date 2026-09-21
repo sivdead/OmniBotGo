@@ -60,7 +60,12 @@ func healthCheck(attempts int) error {
 	for attempts > 0 {
 		statusCode, err := getHealthCheck(healthPath)
 		if err != nil {
-			return err
+			log.Printf("Integration tests: url %s is not available, attempts left: %d: %v", healthPath, attempts, err)
+			time.Sleep(time.Second)
+
+			attempts--
+
+			continue
 		}
 
 		if statusCode == http.StatusOK {
@@ -179,10 +184,12 @@ func TestHTTPListBots(t *testing.T) {
 	if !body.Success {
 		t.Error("Expected success=true")
 	}
+
 	// 检查响应结构是否正确（StandardResponse.data 内的分页字段）
 	if body.Data.Page == 0 {
 		t.Error("Expected page > 0")
 	}
+
 	if body.Data.PageSize == 0 {
 		t.Error("Expected page_size > 0")
 	}
@@ -222,6 +229,7 @@ func TestHTTPCreateChannel(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&botResp); err != nil {
 		t.Fatalf("Failed to decode bot response: %v", err)
 	}
+
 	if botResp.Data.ID == "" {
 		t.Fatal("Expected non-empty bot id (UUID string)")
 	}
@@ -249,7 +257,11 @@ func TestHTTPCreateChannel(t *testing.T) {
 	defer channelResp.Body.Close()
 
 	if channelResp.StatusCode != http.StatusCreated {
-		bodyBytes, _ := io.ReadAll(channelResp.Body)
-		t.Errorf("Expected status %d, got %d body=%s", http.StatusCreated, channelResp.StatusCode, string(bodyBytes))
+		bodyBytes, readErr := io.ReadAll(channelResp.Body)
+		if readErr != nil {
+			t.Errorf("Expected status %d, got %d (also failed reading body: %v)", http.StatusCreated, channelResp.StatusCode, readErr)
+		} else {
+			t.Errorf("Expected status %d, got %d body=%s", http.StatusCreated, channelResp.StatusCode, string(bodyBytes))
+		}
 	}
 }

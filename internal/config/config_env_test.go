@@ -25,6 +25,7 @@ func TestNewConfigReadsDBDSNFromEnv(t *testing.T) {
 			t.Errorf("chdir cleanup: %v", err)
 		}
 	})
+
 	tmp := t.TempDir()
 	require.NoError(t, os.Chdir(tmp))
 
