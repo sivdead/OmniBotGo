@@ -156,6 +156,26 @@ func (uc *platformUC) GetPlatforms(ctx context.Context) ([]*PlatformInfo, error)
 			IconURL: "/static/icons/feishu.png",
 		},
 		{
+			Type:        string(entity.PlatformTypeTelegram),
+			Name:        "Telegram",
+			Description: "Telegram Bot（MVP long-poll getUpdates）",
+			SupportedFeatures: []string{
+				"text_message",
+				"stream_connection",
+				"long_poll",
+			},
+			ConfigFields: []PlatformConfigField{
+				{Field: "bot_token", Label: "Bot Token", Type: "password", Required: true},
+			},
+			WebhookConfig: PlatformWebhookConfig{
+				URLPattern:  "", // long-poll，不使用 webhook
+				Method:      "",
+				ContentType: "",
+			},
+			Status:  "active",
+			IconURL: "/static/icons/telegram.png",
+		},
+		{
 			Type:        string(entity.PlatformTypeWechatOfficial),
 			Name:        "微信公众号",
 			Description: "微信公众号平台",

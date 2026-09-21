@@ -11,4 +11,5 @@ const (
 	PlatformTypeDingTalkEnterprise PlatformType = "dingtalk_enterprise" // 钉钉企业应用
 	PlatformTypeWechatOfficial     PlatformType = "wechat_official"     // 微信公众号
 	PlatformTypeFeishu             PlatformType = "feishu"              // 飞书
+	PlatformTypeTelegram           PlatformType = "telegram"            // Telegram
 )
