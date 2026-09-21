@@ -1197,7 +1197,7 @@ func (uc *messageUseCase) createAIReplyMessage(msg *entity.Message, content stri
 
 	return &entity.Message{
 		ChannelID:         msg.ChannelID,
-		PlatformMessageID: fmt.Sprintf("ai_reply_%d_%d", msg.ID, time.Now().Unix()),
+		PlatformMessageID: fmt.Sprintf("ai_reply_%s_%d", msg.ID, time.Now().Unix()),
 		Direction:         entity.MessageDirectionOutbound,
 		MessageType:       msg.MessageType,
 		ContentType:       "text",

@@ -9,12 +9,12 @@ import (
 
 func TestBaseEntity(t *testing.T) {
 	entity := BaseEntity{
-		ID:        1,
+		ID:        "1",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	assert.Equal(t, int64(1), entity.ID)
+	assert.Equal(t, "1", entity.ID)
 	assert.False(t, entity.CreatedAt.IsZero())
 	assert.False(t, entity.UpdatedAt.IsZero())
 }

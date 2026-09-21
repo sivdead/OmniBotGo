@@ -2,12 +2,15 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
+
+var errProcessorNotFound = errors.New("processor not found")
 
 // processorUC 处理器用例实现
 type processorUC struct {
@@ -214,7 +217,7 @@ func (uc *processorUC) CreateRoutingRule(ctx context.Context, req CreateRoutingR
 		return nil, fmt.Errorf("failed to check processor existence: %w", err)
 	}
 	if !exists {
-		return nil, fmt.Errorf("processor with ID %d not found", req.ProcessorID)
+		return nil, fmt.Errorf("%w: %s", errProcessorNotFound, req.ProcessorID)
 	}
 
 	// 创建路由规则实体
@@ -316,7 +319,7 @@ func (uc *processorUC) UpdateRoutingRule(ctx context.Context, req UpdateRoutingR
 			return nil, fmt.Errorf("failed to check processor existence: %w", err)
 		}
 		if !exists {
-			return nil, fmt.Errorf("processor with ID %s not found", *req.ProcessorID)
+			return nil, fmt.Errorf("%w: %s", errProcessorNotFound, *req.ProcessorID)
 		}
 		rule.ProcessorID = *req.ProcessorID
 	}

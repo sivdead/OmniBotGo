@@ -22,8 +22,8 @@ x-backend-app-environment: &x-backend-app-environment
   # Logger
   LOG_LEVEL: "debug"
   # MySQL
-  MYSQL_DSN: "user:myAwEsOm3pa55@w0rd@tcp(db:3306)/omnibotgo?charset=utf8mb4&parseTime=True&loc=Local"
-  MYSQL_MAX_CONNECTIONS: "10"
+  DB_DSN: "user:myAwEsOm3pa55@w0rd@tcp(db:3306)/omnibotgo?charset=utf8mb4&parseTime=True&loc=Local"
+  DB_MAX_CONNECTIONS: "10"
   # gRPC
   GRPC_PORT: "8081"
   # RMQ

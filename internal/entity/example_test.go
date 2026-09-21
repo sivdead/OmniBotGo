@@ -45,7 +45,7 @@ func TestExampleUsage(t *testing.T) {
 
 	// 2. 创建Channel实例，展示枚举类型使用
 	channel := Channel{
-		BotID:        1,
+		BotID:        "1",
 		PlatformType: "wecom",
 		ChannelName:  "企业微信通道",
 		WebhookPath:  "/webhook/wecom/123",
@@ -67,7 +67,7 @@ func TestExampleUsage(t *testing.T) {
 	// 3. 创建Message实例，展示消息相关枚举
 	message := Message{
 		MessageID:         "msg_20231201_001",
-		ChannelID:         1,
+		ChannelID:         "1",
 		PlatformMessageID: "wecom_msg_123456",
 		Direction:         MessageDirectionInbound,
 		MessageType:       "text",
@@ -132,7 +132,7 @@ func TestExampleUsage(t *testing.T) {
 		MessageTypes: JSONField{
 			"types": []string{"text", "image"},
 		},
-		ProcessorID:    1,
+		ProcessorID:    "1",
 		RouteType:      RouteTypeDirect,
 		Priority:       100,
 		IsFallback:     false,
@@ -214,13 +214,13 @@ func TestJSONFieldAdvancedUsage(t *testing.T) {
 func TestEntityRelationships(t *testing.T) {
 	// 模拟有关联关系的数据结构
 	bot := Bot{
-		BaseEntity: BaseEntity{ID: 1},
+		BaseEntity: BaseEntity{ID: "1"},
 		BotName:    "测试机器人",
 		Status:     StatusActive,
 	}
 
 	channel := Channel{
-		BaseEntity:       BaseEntity{ID: 1},
+		BaseEntity:       BaseEntity{ID: "1"},
 		BotID:            bot.ID,
 		PlatformType:     "wecom",
 		ChannelName:      "测试通道",
@@ -230,7 +230,7 @@ func TestEntityRelationships(t *testing.T) {
 	}
 
 	message := Message{
-		BaseEntity:    BaseEntity{ID: 1},
+		BaseEntity:    BaseEntity{ID: "1"},
 		MessageID:     "msg_001",
 		ChannelID:     channel.ID,
 		Direction:     MessageDirectionInbound,
