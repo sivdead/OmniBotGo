@@ -114,11 +114,17 @@ func bindEnvKeys(v *viper.Viper) {
 		"a2a.base_url",
 	}
 	for _, key := range keys {
-		_ = v.BindEnv(key)
+		mustBindEnv(v, key)
 	}
 	// docker-compose uses RMQ_RPC_* aliases historically
-	_ = v.BindEnv("rmq.server_exchange", "RMQ_SERVER_EXCHANGE", "RMQ_RPC_SERVER")
-	_ = v.BindEnv("rmq.client_exchange", "RMQ_CLIENT_EXCHANGE", "RMQ_RPC_CLIENT")
+	mustBindEnv(v, "rmq.server_exchange", "RMQ_SERVER_EXCHANGE", "RMQ_RPC_SERVER")
+	mustBindEnv(v, "rmq.client_exchange", "RMQ_CLIENT_EXCHANGE", "RMQ_RPC_CLIENT")
+}
+
+func mustBindEnv(v *viper.Viper, input ...string) {
+	if err := v.BindEnv(input...); err != nil {
+		panic(fmt.Sprintf("bind env %v: %v", input, err))
+	}
 }
 
 // NewConfig returns app config using Viper.

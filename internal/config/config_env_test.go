@@ -20,7 +20,11 @@ func TestNewConfigReadsDBDSNFromEnv(t *testing.T) {
 	// Ensure missing config file path does not hide env (cwd may still have config.yaml)
 	wd, err := os.Getwd()
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.Chdir(wd) })
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Errorf("chdir cleanup: %v", err)
+		}
+	})
 	tmp := t.TempDir()
 	require.NoError(t, os.Chdir(tmp))
 
