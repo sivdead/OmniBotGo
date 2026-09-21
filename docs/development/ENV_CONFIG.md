@@ -67,6 +67,18 @@ METRICS_ENABLED=true            # 是否启用监控指标
 SWAGGER_ENABLED=false           # 是否启用Swagger文档
 ```
 
+
+### A2A 外部 Agent（网关作 A2A client）
+```bash
+A2A_BASE_URL=http://127.0.0.1:10000   # 外部 A2A Agent 基址（Agent Card: /.well-known/agent.json）
+```
+
+对应 `config.yaml`:
+```yaml
+a2a:
+  base_url: "http://127.0.0.1:10000"
+```
+
 ## 使用示例
 
 ### 直接运行

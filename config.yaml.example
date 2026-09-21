@@ -58,3 +58,6 @@ rate_limit:
   # 并发限制（-1表示不限制）
   max_workers: 100        # 最大并发工作协程数
   max_requests: 1000      # 最大同时处理请求数
+# External A2A agent (OmniBotGo is a thin A2A client; no LLM inside)
+a2a:
+  base_url: "http://127.0.0.1:10000"
