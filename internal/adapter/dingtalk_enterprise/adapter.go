@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,13 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
+)
+
+var (
+	errDingtalkMissingAppKey        = errors.New("app_key is required in dingtalk enterprise config")
+	errDingtalkMissingAppSecret     = errors.New("app_secret is required in dingtalk enterprise config")
+	errDingtalkMissingWebhookSecret = errors.New("app_secret is required in dingtalk enterprise config for webhook verification")
+	errDingtalkWebhookSigFailed     = errors.New("webhook signature verification failed")
 )
 
 const (
@@ -72,13 +80,16 @@ func (a *DingtalkEnterpriseAdapter) ValidateConfig(cfg map[string]interface{}) e
 	return config.ValidatePlatformConfig(entity.PlatformTypeDingtalk, cfg)
 }
 
-// GetAccessToken 实现TokenManager接口
+// GetAccessToken 实现TokenManager接口。
 func (a *DingtalkEnterpriseAdapter) GetAccessToken(ctx context.Context, config map[string]interface{}) (*dto.AccessTokenResponse, error) {
-	appKey, _ := config["app_key"].(string)
-	appSecret, _ := config["app_secret"].(string)
+	appKey, ok := config["app_key"].(string)
+	if !ok || appKey == "" {
+		return nil, errDingtalkMissingAppKey
+	}
 
-	if appKey == "" || appSecret == "" {
-		return nil, fmt.Errorf("app_key and app_secret are required")
+	appSecret, ok := config["app_secret"].(string)
+	if !ok || appSecret == "" {
+		return nil, errDingtalkMissingAppSecret
 	}
 
 	// 检查缓存
@@ -195,6 +206,49 @@ func (a *DingtalkEnterpriseAdapter) RegisterWebhookHandler(channelID string, han
 	defer a.handlerMutex.Unlock()
 	a.webhookHandlers[channelID] = handler
 }
+
+// VerifyWebhook 实现WebhookProcessor接口。
+func (a *DingtalkEnterpriseAdapter) VerifyWebhook(_ context.Context, signature, timestamp, _ string, _ []byte, cfg map[string]interface{}) error {
+	appSecret, ok := cfg["app_secret"].(string)
+	if !ok || appSecret == "" {
+		return errDingtalkMissingWebhookSecret
+	}
+
+	if !a.verifyWebhookSignature(timestamp, appSecret, signature) {
+		a.logger.Warn().
+			Str("signature", signature).
+			Str("timestamp", timestamp).
+			Msg("钉钉企业应用Webhook签名验证失败")
+
+		return errDingtalkWebhookSigFailed
+	}
+
+	return nil
+}
+
+// ParseInboundMessage 实现WebhookProcessor接口。
+func (a *DingtalkEnterpriseAdapter) ParseInboundMessage(_ context.Context, body []byte, _ map[string]interface{}) (*dto.UnifiedMessage, error) {
+	var webhookData DingtalkWebhookData
+	if err := json.Unmarshal(body, &webhookData); err != nil {
+		return nil, fmt.Errorf("failed to parse dingtalk enterprise webhook data: %w", err)
+	}
+
+	return webhookData.ToUnifiedMessage(), nil
+}
+
+// BuildWebhookPath 实现WebhookProcessor接口。
+func (a *DingtalkEnterpriseAdapter) BuildWebhookPath(channelID int64) string {
+	return fmt.Sprintf("/webhook/dingtalk/%d", channelID)
+}
+
+// 编译期接口实现检查。
+var (
+	_ port.MessageSender      = (*DingtalkEnterpriseAdapter)(nil)
+	_ port.TokenManager       = (*DingtalkEnterpriseAdapter)(nil)
+	_ port.WebhookProcessor   = (*DingtalkEnterpriseAdapter)(nil)
+	_ port.PlatformIdentifier = (*DingtalkEnterpriseAdapter)(nil)
+	_ port.ConfigValidator    = (*DingtalkEnterpriseAdapter)(nil)
+)
 
 // sendWorkNotice 发送工作通知
 func (a *DingtalkEnterpriseAdapter) sendWorkNotice(ctx context.Context, message *dto.UnifiedMessage, config map[string]interface{}, accessToken string) error {
