@@ -19,6 +19,7 @@ type (
 		Metrics   Metrics   `mapstructure:"metrics"`
 		Swagger   Swagger   `mapstructure:"swagger"`
 		RateLimit RateLimit `mapstructure:"rate_limit"`
+		A2A       A2A       `mapstructure:"a2a"`
 	}
 
 	// App -.
@@ -86,6 +87,11 @@ type (
 		// 并发限制（-1表示不限制）
 		MaxWorkers  int `mapstructure:"max_workers"`
 		MaxRequests int `mapstructure:"max_requests"`
+	}
+
+	// A2A is the external Agent-to-Agent client target (gateway as thin IM + A2A client).
+	A2A struct {
+		BaseURL string `mapstructure:"base_url"`
 	}
 )
 
@@ -183,6 +189,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("rate_limit.per_user_expiration", 60) // 1分钟
 	v.SetDefault("rate_limit.max_workers", 100)
 	v.SetDefault("rate_limit.max_requests", 1000)
+
+	// A2A defaults (external sample agent)
+	v.SetDefault("a2a.base_url", "http://127.0.0.1:10000")
 }
 
 // validateConfig validates required configuration fields

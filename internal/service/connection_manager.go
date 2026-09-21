@@ -68,11 +68,11 @@ func (cm *ConnectionManager) Start(ctx context.Context) error {
 	// 为每个通道启动连接
 	for _, channel := range channels {
 		if err := cm.startChannelConnection(ctx, channel); err != nil {
-					cm.logger.Error().
-			Err(err).
-			Str("channel_id", channel.ID).
-			Str("platform_type", channel.PlatformType).
-			Msg("failed to start channel connection")
+			cm.logger.Error().
+				Err(err).
+				Str("channel_id", channel.ID).
+				Str("platform_type", channel.PlatformType).
+				Msg("failed to start channel connection")
 		}
 	}
 
@@ -101,6 +101,12 @@ func (cm *ConnectionManager) Stop(ctx context.Context) error {
 					Str("channel_id", channelID).
 					Msg("stream connection stopped")
 			}
+			if err := cm.channelRepo.UpdateConnectionStatus(ctx, channelID, entity.ConnectionStatusDisconnected); err != nil {
+				cm.logger.Warn().
+					Err(err).
+					Str("channel_id", channelID).
+					Msg("failed to persist connection_status=disconnected")
+			}
 		}
 	}
 
@@ -122,10 +128,10 @@ func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel
 	// 检查适配器是否支持Stream模式
 	streamAdapter, ok := platformAdapter.(port.StreamAdapter)
 	if !ok {
-			cm.logger.Debug().
-		Str("channel_id", channel.ID).
-		Str("platform_type", channel.PlatformType).
-		Msg("platform does not support stream mode, skipping")
+		cm.logger.Debug().
+			Str("channel_id", channel.ID).
+			Str("platform_type", channel.PlatformType).
+			Msg("platform does not support stream mode, skipping")
 		return nil
 	}
 
@@ -159,6 +165,15 @@ func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel
 	cm.mu.Lock()
 	cm.connections[channel.ID] = connInfo
 	cm.mu.Unlock()
+
+	// Persist connection_status so SendMessage does not fail with 「通道未就绪」
+	// when the long-poll is live but the DB row still says disconnected.
+	if err := cm.channelRepo.UpdateConnectionStatus(ctx, channel.ID, entity.ConnectionStatusConnected); err != nil {
+		cm.logger.Warn().
+			Err(err).
+			Str("channel_id", channel.ID).
+			Msg("failed to persist connection_status=connected")
+	}
 
 	cm.logger.Info().
 		Str("channel_id", channel.ID).
