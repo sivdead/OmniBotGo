@@ -67,8 +67,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: 1.24
+      - name: Install just
+        uses: extractions/setup-just@v2
       - name: Unit Tests
-        run: "make test"
+        run: just test
       - name: Upload coverage report
         run: bash <(curl -s https://codecov.io/bash)
 
@@ -77,5 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Install just
+        uses: extractions/setup-just@v2
       - name: Integration tests
-        run: "make compose-up-integration-test"
+        run: just compose-up-integration-test
