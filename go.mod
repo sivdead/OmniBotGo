@@ -27,7 +27,7 @@ require (
 	github.com/google/wire v0.7.0
 	github.com/larksuite/oapi-sdk-go/v3 v3.4.26
 	github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1
-	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/rabbitmq/amqp091-go v1.15.0
 	github.com/rs/zerolog v1.35.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
