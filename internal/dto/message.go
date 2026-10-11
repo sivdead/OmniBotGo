@@ -11,6 +11,7 @@ import (
 type UnifiedMessage struct {
 	// 基本信息
 	MessageID   string `json:"message_id"`
+	ChannelID   string `json:"channel_id,omitempty"`
 	MessageType string `json:"message_type"` // text, image, audio, video, file, event, markdown, card, etc.
 
 	// 发送者信息
