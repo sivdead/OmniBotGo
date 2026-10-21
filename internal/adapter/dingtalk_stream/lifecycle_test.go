@@ -7,9 +7,12 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/config"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/stretchr/testify/require"
 )
+
+func nopUnifiedHandler(context.Context, *dto.UnifiedMessage) error { return nil }
 
 func TestNewStreamSession_ReturnsIndependentAdapters(t *testing.T) {
 	t.Parallel()
@@ -29,7 +32,7 @@ func TestStreamController_StopClearsRunningWithoutClient(t *testing.T) {
 	t.Parallel()
 
 	ctrl := NewStreamController(
-		failHandler{},
+		nopUnifiedHandler,
 		zerolog.Nop(),
 		&config.DingtalkStreamConfig{ClientID: "id", ClientSecret: "sec"},
 		"ch-1",
@@ -54,7 +57,7 @@ func TestStreamController_StopClearsRunningWithoutClient(t *testing.T) {
 func TestStreamController_StopIdempotentWhenNotRunning(t *testing.T) {
 	t.Parallel()
 
-	ctrl := NewStreamController(failHandler{}, zerolog.Nop(), &config.DingtalkStreamConfig{}, "ch-2")
+	ctrl := NewStreamController(nopUnifiedHandler, zerolog.Nop(), &config.DingtalkStreamConfig{}, "ch-2")
 	require.NoError(t, ctrl.Stop())
 	require.False(t, ctrl.IsRunning())
 }
@@ -62,7 +65,7 @@ func TestStreamController_StopIdempotentWhenNotRunning(t *testing.T) {
 func TestStreamController_StopWaitsForDone(t *testing.T) {
 	t.Parallel()
 
-	ctrl := NewStreamController(failHandler{}, zerolog.Nop(), &config.DingtalkStreamConfig{}, "ch-3")
+	ctrl := NewStreamController(nopUnifiedHandler, zerolog.Nop(), &config.DingtalkStreamConfig{}, "ch-3")
 	done := make(chan struct{})
 	_, cancel := context.WithCancel(context.Background())
 

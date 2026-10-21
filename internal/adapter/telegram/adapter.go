@@ -87,6 +87,12 @@ func (a *Adapter) ValidateConfig(cfg map[string]interface{}) error {
 	return config.ValidatePlatformConfig(entity.PlatformTypeTelegram, cfg)
 }
 
+// SupportedMessageTypes implements port.MessageTypeSupport (T08).
+// Current sender only posts sendMessage text bodies.
+func (a *Adapter) SupportedMessageTypes() []string {
+	return []string{entity.MessageTypeText, entity.MessageTypeMarkdown}
+}
+
 // ParseInbound 将单个 Telegram Update JSON 解析为 UnifiedMessage。
 // 跳过 bot 消息与空文本时返回 (nil, nil)。
 func (a *Adapter) ParseInbound(raw []byte, channelID string) (*dto.UnifiedMessage, error) {
@@ -193,6 +199,14 @@ func (a *Adapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, 
 	chatID, err := resolveChatID(message)
 	if err != nil {
 		return err
+	}
+
+	switch message.MessageType {
+	case entity.MessageTypeText, entity.MessageTypeMarkdown, "":
+		// supported as text body
+	default:
+		// T08: do not silently send non-text types as plain text
+		return fmt.Errorf("%w: telegram cannot send %q", port.ErrUnsupportedMessageType, message.MessageType)
 	}
 
 	text := message.Content

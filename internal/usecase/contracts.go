@@ -21,8 +21,10 @@ type (
 		ReplyToOriginal(ctx context.Context, inboundRef string, req ReplyToOriginalRequest) (*entity.Message, error)
 		// GetMessageHistory 获取消息历史
 		GetMessageHistory(ctx context.Context, params GetMessageHistoryParams) (*MessageHistoryResult, error)
-		// GetMessage 根据ID获取消息
+		// GetMessage 根据业务 message_id 或 DB PK 获取消息
 		GetMessage(ctx context.Context, id string) (*entity.Message, error)
+		// TroubleshootMessage 单消息排障视图：阶段 + 可恢复性（T11）
+		TroubleshootMessage(ctx context.Context, id string) (*MessageTroubleshootResult, error)
 		// RetryFailedMessage 重试失败的消息
 		RetryFailedMessage(ctx context.Context, messageID string) error
 		// CreateStreamMessageHandler 创建用于Stream适配器的消息处理回调函数
@@ -228,6 +230,35 @@ type ListResult[T any] struct {
 
 // BotListResult 机器人列表结果（使用泛型）
 type BotListResult = ListResult[entity.Bot]
+
+// MessagePipelineStage is the receive / process / deliver stage for ops (T10/T11).
+type MessagePipelineStage string
+
+const (
+	MessageStageReceive MessagePipelineStage = "receive"
+	MessageStageProcess MessagePipelineStage = "process"
+	MessageStageDeliver MessagePipelineStage = "deliver"
+	MessageStageUnknown MessagePipelineStage = "unknown"
+)
+
+// MessageTroubleshootResult surfaces a single message's pipeline stage and recoverability (T11).
+type MessageTroubleshootResult struct {
+	ID              string               `json:"id"`
+	MessageID       string               `json:"message_id"`
+	ChannelID       string               `json:"channel_id"`
+	Direction       string               `json:"direction"`
+	Status          string               `json:"status"`
+	Stage           MessagePipelineStage `json:"stage"`
+	Recoverable     bool                 `json:"recoverable"`
+	CanRetry        bool                 `json:"can_retry"`
+	RetryCount      int                  `json:"retry_count"`
+	ErrorMessage    string               `json:"error_message,omitempty"`
+	ConversationID  string               `json:"conversation_id,omitempty"`
+	SuggestedAction string               `json:"suggested_action"`
+	ReceivedAt      *string              `json:"received_at,omitempty"`
+	ProcessedAt     *string              `json:"processed_at,omitempty"`
+	SentAt          *string              `json:"sent_at,omitempty"`
+}
 
 // ReplyToOriginalRequest is the body for reply-by-inbound-message-id (T04).
 type ReplyToOriginalRequest struct {

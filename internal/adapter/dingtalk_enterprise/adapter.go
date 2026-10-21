@@ -256,7 +256,21 @@ var (
 	_ port.WebhookProcessor   = (*DingtalkEnterpriseAdapter)(nil)
 	_ port.PlatformIdentifier = (*DingtalkEnterpriseAdapter)(nil)
 	_ port.ConfigValidator    = (*DingtalkEnterpriseAdapter)(nil)
+	_ port.MessageTypeSupport = (*DingtalkEnterpriseAdapter)(nil)
 )
+
+// SupportedMessageTypes implements port.MessageTypeSupport (T08).
+func (a *DingtalkEnterpriseAdapter) SupportedMessageTypes() []string {
+	return []string{
+		entity.MessageTypeText,
+		entity.MessageTypeMarkdown,
+		entity.MessageTypeCard,
+		entity.MessageTypeLink,
+		entity.MessageTypeImage,
+		entity.MessageTypeFile,
+		entity.MessageTypeNews,
+	}
+}
 
 // sendWorkNotice 发送工作通知
 func (a *DingtalkEnterpriseAdapter) sendWorkNotice(ctx context.Context, message *dto.UnifiedMessage, config map[string]interface{}, accessToken string) error {
@@ -265,8 +279,10 @@ func (a *DingtalkEnterpriseAdapter) sendWorkNotice(ctx context.Context, message 
 		return fmt.Errorf("agent_id is required for work notice")
 	}
 
-	// 构建请求
-	msg := buildDingtalkMessage(message)
+	msg, err := buildDingtalkMessage(message)
+	if err != nil {
+		return err
+	}
 
 	reqBody := map[string]interface{}{
 		"agent_id":    agentID,
@@ -280,8 +296,10 @@ func (a *DingtalkEnterpriseAdapter) sendWorkNotice(ctx context.Context, message 
 
 // sendGroupMessage 发送群消息
 func (a *DingtalkEnterpriseAdapter) sendGroupMessage(ctx context.Context, message *dto.UnifiedMessage, config map[string]interface{}, accessToken string) error {
-	// 构建消息
-	msg := buildDingtalkMessage(message)
+	msg, err := buildDingtalkMessage(message)
+	if err != nil {
+		return err
+	}
 
 	reqBody := map[string]interface{}{
 		"chatid": message.ReceiverID,
@@ -340,8 +358,10 @@ func (a *DingtalkEnterpriseAdapter) sendAPIRequest(ctx context.Context, apiURL, 
 	return nil
 }
 
-// buildDingtalkMessage 构建钉钉消息格式
-func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
+// buildDingtalkMessage 构建钉钉消息格式（T08：未知类型返回错误，不再降级为文本）.
+//
+//nolint:gocognit,gocyclo,cyclop,funlen // message-type switch retained; unknown types error out (T08)
+func buildDingtalkMessage(message *dto.UnifiedMessage) (map[string]interface{}, error) {
 	switch message.MessageType {
 	case entity.MessageTypeText:
 		return map[string]interface{}{
@@ -349,7 +369,7 @@ func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
 			"text": map[string]interface{}{
 				"content": message.Content,
 			},
-		}
+		}, nil
 
 	case entity.MessageTypeMarkdown:
 		title := "消息"
@@ -364,7 +384,7 @@ func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
 				"title": title,
 				"text":  content,
 			},
-		}
+		}, nil
 
 	case entity.MessageTypeCard:
 		if message.CardContent != nil {
@@ -397,8 +417,10 @@ func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
 				}
 			}
 
-			return actionCard
+			return actionCard, nil
 		}
+
+		return nil, fmt.Errorf("%w: dingtalk card message missing card content", port.ErrUnsupportedMessageType)
 
 	case entity.MessageTypeLink:
 		return map[string]interface{}{
@@ -409,7 +431,7 @@ func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
 				"picUrl":     "",
 				"messageUrl": "",
 			},
-		}
+		}, nil
 
 	case entity.MessageTypeImage:
 		// 企业应用发送图片需要先上传获取media_id
@@ -418,7 +440,7 @@ func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
 			"image": map[string]interface{}{
 				"media_id": message.RawContent["media_id"],
 			},
-		}
+		}, nil
 
 	case entity.MessageTypeFile:
 		// 企业应用发送文件需要先上传获取media_id
@@ -427,7 +449,7 @@ func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
 			"file": map[string]interface{}{
 				"media_id": message.RawContent["media_id"],
 			},
-		}
+		}, nil
 
 	case entity.MessageTypeNews:
 		// 图文消息
@@ -446,17 +468,13 @@ func buildDingtalkMessage(message *dto.UnifiedMessage) map[string]interface{} {
 				"news": map[string]interface{}{
 					"articles": articles,
 				},
-			}
+			}, nil
 		}
+
+		return nil, fmt.Errorf("%w: dingtalk news message missing news content", port.ErrUnsupportedMessageType)
 	}
 
-	// 默认返回文本消息
-	return map[string]interface{}{
-		"msgtype": "text",
-		"text": map[string]interface{}{
-			"content": message.Content,
-		},
-	}
+	return nil, fmt.Errorf("%w: dingtalk cannot send %q", port.ErrUnsupportedMessageType, message.MessageType)
 }
 
 // verifySignature 验证钉钉签名

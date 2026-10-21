@@ -168,28 +168,8 @@ func (w *WebhookController) HandleWebhook(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "消息解析失败")
 	}
 
-	// 转换为内部消息格式
-	message := &entity.Message{
-		MessageID:         unifiedMessage.MessageID,
-		ChannelID:         channelID,
-		PlatformMessageID: unifiedMessage.PlatformMessageID,
-		Direction:         entity.MessageDirectionInbound,
-		MessageType:       unifiedMessage.MessageType,
-		SenderID:          unifiedMessage.SenderID,
-		SenderName:        unifiedMessage.SenderName,
-		SenderType:        unifiedMessage.SenderType,
-		ReceiverID:        unifiedMessage.ReceiverID,
-		ReceiverName:      unifiedMessage.ReceiverName,
-		ReceiverType:      unifiedMessage.ReceiverType,
-		Content:           unifiedMessage.Content,
-		RawContent:        entity.JSONField(unifiedMessage.RawContent),
-		UnifiedContent:    unifiedMessage.BuildUnifiedContent(),
-		MediaURL:          unifiedMessage.MediaURL,
-		MediaType:         unifiedMessage.MediaType,
-		FileSize:          unifiedMessage.FileSize,
-		ConversationID:    unifiedMessage.ConversationID,
-		PlatformTimestamp: unifiedMessage.PlatformTimestamp,
-	}
+	// T02: shared Unified → entity conversion (same as Stream path)
+	message := unifiedMessage.ToInboundEntity(channelID)
 
 	// 处理入站消息
 	err = w.messageUC.ProcessInboundMessage(c.Context(), message)

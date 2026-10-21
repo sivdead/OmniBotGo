@@ -13,12 +13,8 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
-
-// MessageHandler 消息处理接口，用于解决循环依赖
-type MessageHandler interface {
-	ProcessInboundMessage(ctx context.Context, message *entity.Message) error
-}
 
 const (
 	receiverTypeBot = "bot"
@@ -27,7 +23,7 @@ const (
 
 // StreamController 钉钉Stream控制器
 type StreamController struct {
-	messageHandler MessageHandler
+	messageHandler port.MessageHandler
 	logger         zerolog.Logger
 	client         *client.StreamClient
 	config         *config.DingtalkStreamConfig
@@ -38,9 +34,9 @@ type StreamController struct {
 	mu             sync.RWMutex
 }
 
-// NewStreamController 创建钉钉Stream控制器
+// NewStreamController 创建钉钉Stream控制器（T02：直接传 UnifiedMessage，避免 entity 往返）.
 func NewStreamController(
-	messageHandler MessageHandler,
+	messageHandler port.MessageHandler,
 	logger zerolog.Logger,
 	config *config.DingtalkStreamConfig,
 	channelID string,
@@ -153,7 +149,7 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 		Str("message_type", data.Msgtype).
 		Msg("received dingtalk message")
 
-	// 直接转换为统一消息格式
+	// 直接转换为统一消息格式（T02：不再转 entity 再转回 Unified）
 	unifiedMsg, err := c.convertToUnifiedMessage(data)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("failed to convert dingtalk message")
@@ -161,33 +157,13 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 		return nil, fmt.Errorf("dingtalk message conversion failed: %w", err)
 	}
 
-	// 创建消息实体
-	message := &entity.Message{
-		MessageID:         unifiedMsg.MessageID,
-		ChannelID:         c.channelID,
-		PlatformMessageID: unifiedMsg.PlatformMessageID,
-		Direction:         entity.MessageDirectionInbound,
-		MessageType:       unifiedMsg.MessageType,
-		ContentType:       unifiedMsg.MediaType,
-		SenderID:          unifiedMsg.SenderID,
-		SenderName:        unifiedMsg.SenderName,
-		SenderType:        unifiedMsg.SenderType,
-		ReceiverID:        unifiedMsg.ReceiverID,
-		ReceiverName:      unifiedMsg.ReceiverName,
-		ReceiverType:      unifiedMsg.ReceiverType,
-		Content:           unifiedMsg.Content,
-		RawContent:        entity.JSONField(unifiedMsg.RawContent),
-		MediaURL:          unifiedMsg.MediaURL,
-		MediaType:         unifiedMsg.MediaType,
-		FileSize:          unifiedMsg.FileSize,
-		MessageStatus:     entity.MessageStatusPending,
-		ConversationID:    unifiedMsg.ConversationID,
-		PlatformTimestamp: unifiedMsg.PlatformTimestamp,
-		ReceivedAt:        time.Now(),
+	if unifiedMsg.RawContent == nil {
+		unifiedMsg.RawContent = make(map[string]interface{})
 	}
 
-	// 处理消息
-	err = c.messageHandler.ProcessInboundMessage(ctx, message)
+	unifiedMsg.RawContent["channel_id"] = c.channelID
+
+	err = c.messageHandler(ctx, unifiedMsg)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("failed to process inbound message")
 		// C04: failure ACK so upstream does not treat process errors as success.
@@ -196,8 +172,8 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 
 	// 这里可以根据业务逻辑决定是否返回响应
 	// 目前先返回一个简单的确认消息
-	if message.MessageType == "text" {
-		response := fmt.Sprintf(`{"text": "收到消息：%s"}`, message.Content)
+	if unifiedMsg.MessageType == string(DingtalkMessageTypeText) {
+		response := fmt.Sprintf(`{"text": "收到消息：%s"}`, unifiedMsg.Content)
 
 		return []byte(response), nil
 	}

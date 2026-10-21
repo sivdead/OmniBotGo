@@ -80,8 +80,11 @@ func (s *stubMessageUC) GetMessageHistory(context.Context, usecase.GetMessageHis
 }
 
 func (s *stubMessageUC) GetMessage(context.Context, string) (*entity.Message, error) { return nil, nil }
-func (s *stubMessageUC) RetryFailedMessage(context.Context, string) error            { return nil }
-func (s *stubMessageUC) CreateStreamMessageHandler() port.MessageHandler             { return nil }
+func (s *stubMessageUC) TroubleshootMessage(context.Context, string) (*usecase.MessageTroubleshootResult, error) {
+	return nil, nil
+}
+func (s *stubMessageUC) RetryFailedMessage(context.Context, string) error { return nil }
+func (s *stubMessageUC) CreateStreamMessageHandler() port.MessageHandler  { return nil }
 
 func newWebhookTestApp(t *testing.T, ch *entity.Channel) *fiber.App {
 	t.Helper()

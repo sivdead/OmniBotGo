@@ -126,3 +126,45 @@ func (m *UnifiedMessage) BuildUnifiedContent() entity.JSONField {
 
 	return out
 }
+
+// ToInboundEntity converts a UnifiedMessage into an inbound entity.Message.
+// Shared by Webhook and Stream paths (T02) so field mapping stays in one place.
+func (m *UnifiedMessage) ToInboundEntity(channelID string) *entity.Message {
+	if m == nil {
+		return nil
+	}
+
+	raw := m.RawContent
+	if raw == nil {
+		raw = make(map[string]interface{})
+	}
+
+	if channelID != "" {
+		raw["channel_id"] = channelID
+	}
+
+	return &entity.Message{
+		MessageID:         m.MessageID,
+		ChannelID:         channelID,
+		PlatformMessageID: m.PlatformMessageID,
+		Direction:         entity.MessageDirectionInbound,
+		MessageType:       m.MessageType,
+		ContentType:       m.MediaType,
+		SenderID:          m.SenderID,
+		SenderName:        m.SenderName,
+		SenderType:        m.SenderType,
+		ReceiverID:        m.ReceiverID,
+		ReceiverName:      m.ReceiverName,
+		ReceiverType:      m.ReceiverType,
+		Content:           m.Content,
+		RawContent:        entity.JSONField(raw),
+		UnifiedContent:    m.BuildUnifiedContent(),
+		MediaURL:          m.MediaURL,
+		MediaType:         m.MediaType,
+		FileSize:          m.FileSize,
+		MessageStatus:     entity.MessageStatusPending,
+		ConversationID:    m.ConversationID,
+		PlatformTimestamp: m.PlatformTimestamp,
+		ReceivedAt:        time.Now(),
+	}
+}

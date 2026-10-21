@@ -76,3 +76,5 @@ Inbound receive is via platform webhook/stream → `ProcessInboundMessage`.
 | Message stuck failed | `POST /api/v1/messages/{message_id}/retry`; statuses: receive→process→deliver (see `MessageStatus` in code) |
 
 Runnable script: [`scripts/init_access_loop.sh`](../../scripts/init_access_loop.sh).
+
+Real-platform E2E (when credentials exist): [`PLATFORM_E2E_CHECKLIST.md`](./PLATFORM_E2E_CHECKLIST.md).

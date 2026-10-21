@@ -196,9 +196,11 @@ func TestRetryQueueMessage_AllowsWhenUnderMax(t *testing.T) {
 }
 
 type msgRepoStub struct {
-	byPlatform map[string]*entity.Message
-	created    int
-	updated    int
+	byPlatform  map[string]*entity.Message
+	byMessageID map[string]*entity.Message
+	byID        map[string]*entity.Message
+	created     int
+	updated     int
 }
 
 func (m *msgRepoStub) key(channelID, platformID string) string {
@@ -211,11 +213,23 @@ func (m *msgRepoStub) Create(context.Context, *entity.Message) error {
 	return nil
 }
 
-func (m *msgRepoStub) GetByID(context.Context, string) (*entity.Message, error) {
+func (m *msgRepoStub) GetByID(_ context.Context, id string) (*entity.Message, error) {
+	if m.byID != nil {
+		if msg, ok := m.byID[id]; ok {
+			return msg, nil
+		}
+	}
+
 	return nil, errStubNotFound
 }
 
-func (m *msgRepoStub) GetByMessageID(context.Context, string) (*entity.Message, error) {
+func (m *msgRepoStub) GetByMessageID(_ context.Context, messageID string) (*entity.Message, error) {
+	if m.byMessageID != nil {
+		if msg, ok := m.byMessageID[messageID]; ok {
+			return msg, nil
+		}
+	}
+
 	return nil, errStubNotFound
 }
 
@@ -231,7 +245,7 @@ func (m *msgRepoStub) GetByChannelID(context.Context, string, port.ListParams) (
 	return nil, nil
 }
 
-func (m *msgRepoStub) GetByConversationID(context.Context, string, port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
+func (m *msgRepoStub) GetByConversationID(context.Context, string, string, port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
 	return nil, nil
 }
 

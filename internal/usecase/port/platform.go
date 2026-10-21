@@ -2,10 +2,15 @@ package port
 
 import (
 	"context"
+	"errors"
 
 	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 )
+
+// ErrUnsupportedMessageType is returned when a platform cannot send a message type
+// and must not silently rewrite it as text (T08).
+var ErrUnsupportedMessageType = errors.New("unsupported message type")
 
 // MessageSender 发送消息的能力接口
 type MessageSender interface {
@@ -55,6 +60,13 @@ type MessageHandler func(ctx context.Context, message *dto.UnifiedMessage) error
 type ConfigValidator interface {
 	// ValidateConfig 验证平台配置
 	ValidateConfig(config map[string]interface{}) error
+}
+
+// MessageTypeSupport declares which UnifiedMessage.MessageType values an adapter can send.
+// When implemented, SendMessage paths must reject undeclared types instead of silently
+// downgrading them to text (T08).
+type MessageTypeSupport interface {
+	SupportedMessageTypes() []string
 }
 
 // AIModelManager AI模型管理接口

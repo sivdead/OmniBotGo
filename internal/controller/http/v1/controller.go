@@ -244,11 +244,11 @@ func (v *V1) GetMessageHistory(c *fiber.Ctx) error {
 
 // GetMessage 获取消息详情
 // @Summary 获取消息详情
-// @Description 根据ID获取单个消息的详细信息
+// @Description 根据业务 message_id 或 DB PK 获取单个消息的详细信息
 // @Tags messages
 // @Accept json
 // @Produce json
-// @Param id path string true "消息ID"
+// @Param id path string true "消息ID（业务 message_id 或 DB PK）"
 // @Success 200 {object} StandardResponse{data=entity.Message} "获取成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 404 {object} StandardResponse "消息不存在"
@@ -268,6 +268,33 @@ func (v *V1) GetMessage(c *fiber.Ctx) error {
 	}
 
 	return NewSuccessResponse(c, message)
+}
+
+// TroubleshootMessage 单消息排障（T11）
+// @Summary 单消息排障
+// @Description 按 message_id 或 DB PK 返回 receive/process/deliver 阶段与可恢复性
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param id path string true "消息ID"
+// @Success 200 {object} StandardResponse{data=usecase.MessageTroubleshootResult} "获取成功"
+// @Failure 400 {object} StandardResponse "请求参数错误"
+// @Failure 404 {object} StandardResponse "消息不存在"
+// @Router /api/v1/messages/{id}/troubleshoot [get]
+func (v *V1) TroubleshootMessage(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return NewErrorResponse(c, http.StatusBadRequest, "消息ID不能为空")
+	}
+
+	result, err := v.messageUC.TroubleshootMessage(c.Context(), id)
+	if err != nil {
+		v.l.Error("消息排障查询失败: %v", err)
+
+		return NewErrorResponse(c, http.StatusNotFound, "消息不存在")
+	}
+
+	return NewSuccessResponse(c, result)
 }
 
 // RetryMessage 重试失败的消息

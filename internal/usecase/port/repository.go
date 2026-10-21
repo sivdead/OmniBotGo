@@ -61,7 +61,8 @@ type MessageRepository interface {
 	GetByMessageID(ctx context.Context, messageID string) (*entity.Message, error)
 	GetByPlatformMessageID(ctx context.Context, channelID, platformMessageID string) (*entity.Message, error)
 	GetByChannelID(ctx context.Context, channelID string, params ListParams) (*PaginatedResult[*entity.Message], error)
-	GetByConversationID(ctx context.Context, conversationID string, params ListParams) (*PaginatedResult[*entity.Message], error)
+	// GetByConversationID returns messages for a platform conversation scoped to a channel (T06).
+	GetByConversationID(ctx context.Context, channelID, conversationID string, params ListParams) (*PaginatedResult[*entity.Message], error)
 	GetPendingMessages(ctx context.Context, limit int) ([]*entity.Message, error)
 	GetFailedMessages(ctx context.Context, limit int) ([]*entity.Message, error)
 	Update(ctx context.Context, message *entity.Message) error
