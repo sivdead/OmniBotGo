@@ -168,6 +168,35 @@ func TestSendText_RPCError(t *testing.T) {
 	}
 }
 
+func TestEnsureURL_PreservesQueryAndUsesAsIs(t *testing.T) {
+	t.Parallel()
+
+	withQuery := "https://agent.example/rpc?token=abc&x=1"
+	got := ensureURL(withQuery)
+
+	if got != withQuery {
+		t.Fatalf("query mangled: got=%q want=%q", got, withQuery)
+	}
+
+	if strings.HasSuffix(got, "1/") {
+		t.Fatalf("must not append slash onto query: %q", got)
+	}
+
+	plain := "https://agent.example/rpc"
+	got = ensureURL(plain)
+
+	if got != plain {
+		t.Fatalf("plain RPC URL should be as-is: got=%q", got)
+	}
+
+	hostOnly := "https://agent.example"
+	got = ensureURL(hostOnly)
+
+	if got != "https://agent.example/" {
+		t.Fatalf("empty path should become /: got=%q", got)
+	}
+}
+
 func TestExtractFinalText_HistoryFallback(t *testing.T) {
 	t.Parallel()
 	raw := json.RawMessage(`{

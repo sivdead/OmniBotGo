@@ -183,7 +183,7 @@ func (w *WebhookController) HandleWebhook(c *fiber.Ctx) error {
 		ReceiverType:      unifiedMessage.ReceiverType,
 		Content:           unifiedMessage.Content,
 		RawContent:        entity.JSONField(unifiedMessage.RawContent),
-		UnifiedContent:    entity.JSONField(unifiedMessage.RawContent),
+		UnifiedContent:    unifiedMessage.BuildUnifiedContent(),
 		MediaURL:          unifiedMessage.MediaURL,
 		MediaType:         unifiedMessage.MediaType,
 		FileSize:          unifiedMessage.FileSize,

@@ -82,3 +82,47 @@ func (m *UnifiedMessage) GetCardType() string {
 	}
 	return ""
 }
+
+// BuildUnifiedContent builds structured UnifiedContent from typed rich fields (A05).
+// Does not copy RawContent — platform originals stay in Message.RawContent.
+func (m *UnifiedMessage) BuildUnifiedContent() entity.JSONField {
+	if m == nil {
+		return nil
+	}
+
+	out := make(entity.JSONField)
+
+	if m.LocationContent != nil {
+		out["location"] = m.LocationContent
+	}
+
+	if m.EventContent != nil {
+		out["event"] = m.EventContent
+	}
+
+	if m.MarkdownContent != nil {
+		out["markdown"] = m.MarkdownContent
+	}
+
+	if m.CardContent != nil {
+		out["card"] = m.CardContent
+	}
+
+	if m.NewsContent != nil {
+		out["news"] = m.NewsContent
+	}
+
+	if m.FileContent != nil {
+		out["file"] = m.FileContent
+	}
+
+	if m.TemplateContent != nil {
+		out["template"] = m.TemplateContent
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
+}

@@ -259,6 +259,26 @@ func TestRateLimiter(t *testing.T) {
 	})
 }
 
+func TestMemoryStoreFixedWindowNoRenew(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryStore()
+	t.Cleanup(store.Shutdown)
+
+	key := "fixed_window"
+	window := 80 * time.Millisecond
+
+	require.NoError(t, store.Set(key, 1, window))
+	time.Sleep(40 * time.Millisecond)
+	// Second hit within window must keep original expiry (A06).
+	require.NoError(t, store.Set(key, 2, window))
+	time.Sleep(50 * time.Millisecond)
+
+	hits, err := store.Get(key)
+	require.NoError(t, err)
+	assert.Equal(t, 0, hits, "window should have expired from first Set, not renewed by second")
+}
+
 func TestMemoryStore(t *testing.T) {
 	store := NewMemoryStore()
 	defer store.Shutdown()

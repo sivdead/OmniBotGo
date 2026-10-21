@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -264,15 +265,11 @@ func (w *WechatOfficialAdapter) ParseInboundMessage(ctx context.Context, body []
 		unifiedMsg.MediaURL = wechatMsg.MediaID
 		unifiedMsg.MediaType = "video/mp4"
 	case "location":
-		unifiedMsg.Content = fmt.Sprintf("位置: %s (%s, %s)", wechatMsg.Label, wechatMsg.LocationX, wechatMsg.LocationY)
+		applyWechatOfficialLocation(unifiedMsg, &wechatMsg)
 	case "link":
 		unifiedMsg.Content = fmt.Sprintf("%s\n%s\n%s", wechatMsg.Title, wechatMsg.Description, wechatMsg.URL)
 	case "event":
-		unifiedMsg.MessageType = "event"
-		unifiedMsg.Content = fmt.Sprintf("事件: %s", wechatMsg.Event)
-		if wechatMsg.EventKey != "" {
-			unifiedMsg.Content += fmt.Sprintf(" - %s", wechatMsg.EventKey)
-		}
+		applyWechatOfficialEvent(unifiedMsg, &wechatMsg)
 	}
 
 	return unifiedMsg, nil
@@ -328,6 +325,75 @@ func getString(m map[string]interface{}, key string) string {
 		return v
 	}
 	return ""
+}
+
+func applyWechatOfficialLocation(unifiedMsg *dto.UnifiedMessage, wechatMsg *WechatOfficialMessage) {
+	unifiedMsg.MessageType = entity.MessageTypeLocation
+
+	latitude, errLat := strconv.ParseFloat(wechatMsg.LocationX, 64)
+	if errLat != nil {
+		latitude = 0
+	}
+
+	longitude, errLng := strconv.ParseFloat(wechatMsg.LocationY, 64)
+	if errLng != nil {
+		longitude = 0
+	}
+
+	unifiedMsg.LocationContent = &entity.LocationMessage{
+		Latitude:  latitude,
+		Longitude: longitude,
+		Address:   wechatMsg.Label,
+	}
+	unifiedMsg.Content = wechatMsg.Label
+	unifiedMsg.RawContent["location"] = map[string]interface{}{
+		"latitude":  latitude,
+		"longitude": longitude,
+		"address":   wechatMsg.Label,
+	}
+}
+
+func applyWechatOfficialEvent(unifiedMsg *dto.UnifiedMessage, wechatMsg *WechatOfficialMessage) {
+	unifiedMsg.MessageType = entity.MessageTypeEvent
+	eventType := mapWechatOfficialEventType(wechatMsg.Event)
+	unifiedMsg.EventContent = &entity.EventMessage{
+		EventType: eventType,
+		EventKey:  wechatMsg.EventKey,
+		EventData: map[string]interface{}{
+			"original_event": wechatMsg.Event,
+		},
+	}
+	unifiedMsg.Content = wechatMsg.Event
+
+	if wechatMsg.EventKey != "" {
+		unifiedMsg.Content += " - " + wechatMsg.EventKey
+	}
+
+	unifiedMsg.RawContent["event"] = map[string]interface{}{
+		"event_type": eventType,
+		"event_key":  wechatMsg.EventKey,
+	}
+}
+
+func mapWechatOfficialEventType(event string) string {
+	switch strings.ToLower(event) {
+	case "subscribe":
+		return entity.EventTypeUserSubscribe
+	case "unsubscribe":
+		return entity.EventTypeUserUnsubscribe
+	case "click":
+		return entity.EventTypeMenuClick
+	case "view":
+		return entity.EventTypeMenuView
+	case "location":
+		return entity.EventTypeLocationReport
+	case "scancode_push", "scancode_waitmsg", "scan":
+		return entity.EventTypeScanQRCode
+	case "location_select":
+		return entity.EventTypeLocationSelect
+	default:
+		return entity.EventTypeCustom
+	}
 }
 
 // 确保 WechatOfficialAdapter 实现了所需的接口。

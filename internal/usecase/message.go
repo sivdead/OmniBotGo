@@ -72,6 +72,7 @@ func (uc *messageUseCase) CreateStreamMessageHandler() port.MessageHandler {
 			ReceiverType:      unifiedMessage.ReceiverType,
 			Content:           unifiedMessage.Content,
 			RawContent:        entity.JSONField(unifiedMessage.RawContent),
+			UnifiedContent:    unifiedMessage.BuildUnifiedContent(),
 			MediaURL:          unifiedMessage.MediaURL,
 			MediaType:         unifiedMessage.MediaType,
 			FileSize:          unifiedMessage.FileSize,

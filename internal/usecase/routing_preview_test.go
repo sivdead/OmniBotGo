@@ -14,17 +14,18 @@ import (
 )
 
 const (
-	previewChannelID   = "ch-preview-1"
-	previewBotID       = "bot-preview-1"
-	previewFallbackCh  = "ch-preview-fb"
-	previewBroadcastCh = "ch-preview-b"
-	previewProcNormal  = "p-normal"
-	previewProcFB      = "p-fb"
-	previewProc1       = "p1"
-	previewProc2       = "p2"
-	previewContent     = "hello"
-	previewSender      = "u-preview"
-	jsonIDsKey         = "ids"
+	previewChannelID       = "ch-preview-1"
+	previewBotID           = "bot-preview-1"
+	previewFallbackCh      = "ch-preview-fb"
+	previewBroadcastCh     = "ch-preview-b"
+	previewProcNormal      = "p-normal"
+	previewProcFB          = "p-fb"
+	previewProc1           = "p1"
+	previewProc2           = "p2"
+	previewContent         = "hello"
+	previewSender          = "u-preview"
+	jsonIDsKey             = "ids"
+	previewProcessorTypeWH = "webhook_forward"
 )
 
 var errPreviewNotFound = errors.New("not found")
@@ -170,7 +171,7 @@ func TestPreviewRoute_Over20RulesMatchesLive(t *testing.T) {
 		processors[pid] = &entity.MessageProcessor{
 			BaseEntity:    entity.BaseEntity{ID: pid},
 			ProcessorName: pid,
-			ProcessorType: "webhook_forward",
+			ProcessorType: previewProcessorTypeWH,
 			Status:        entity.StatusActive,
 		}
 
