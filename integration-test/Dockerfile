@@ -19,4 +19,5 @@ RUN go env -w CGO_ENABLED=0 \
     && go env -w GOOS=linux  \
     && go env -w GOARCH=amd64
 
-CMD ["go", "test", "-v", "./integration-test/..."]
+# -count=1 disables Go test cache so CI always re-runs (F04).
+CMD ["go", "test", "-v", "-count=1", "./integration-test/..."]

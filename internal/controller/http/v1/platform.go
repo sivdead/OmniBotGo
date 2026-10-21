@@ -47,7 +47,7 @@ func (v *V1) GetPlatformByType(c *fiber.Ctx) error {
 	}
 
 	// 验证平台类型
-	var validPlatformTypes = map[string]bool{
+	validPlatformTypes := map[string]bool{
 		string(entity.PlatformTypeWecom):          true,
 		string(entity.PlatformTypeDingtalk):       true,
 		string(entity.PlatformTypeWechatOfficial): true,

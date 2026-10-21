@@ -2,7 +2,6 @@ package v1
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -106,15 +105,6 @@ type GetMessageHistoryRequest struct {
 }
 
 // 工具函数
-
-// parseInt64 解析int64参数
-func (v *V1) parseInt64(value string, fieldName string) (int64, error) {
-	id, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return 0, &entity.ValidationError{Field: fieldName, Message: "必须是有效的数字"}
-	}
-	return id, nil
-}
 
 // setDefaultPagination 设置默认分页参数
 func setDefaultPagination(page, pageSize *int) {

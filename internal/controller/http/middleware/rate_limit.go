@@ -17,7 +17,7 @@ const (
 	DefaultGlobalExpiration  = 1 * time.Minute
 	DefaultPerIPExpiration   = 1 * time.Minute
 	DefaultPerUserExpiration = 1 * time.Minute
-	
+
 	// 垃圾回收间隔
 	GCInterval = 10 * time.Second
 )

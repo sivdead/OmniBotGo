@@ -2,7 +2,6 @@
 package http
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/ansrivas/fiberprometheus/v2"
@@ -61,8 +60,8 @@ func NewRouter(
 		app.Get("/swagger/*", swagger.HandlerDefault)
 	}
 
-	// K8s probe
-	app.Get("/healthz", func(ctx *fiber.Ctx) error { return ctx.SendStatus(http.StatusOK) })
+	// Health/readiness probes are registered by NewHealthRoutes (/healthz, /ready, /live).
+	// Do not register a placeholder /healthz here — it would always return 200 (F02).
 
 	// 添加并发限制中间件（在速率限制之前）
 	concurrentLimitConfig := middleware.ConcurrentLimitConfig{
@@ -82,6 +81,8 @@ func NewRouter(
 		SkipPaths: []string{
 			"/health",
 			"/healthz",
+			"/ready",
+			"/live",
 			"/metrics",
 			"/swagger",
 		},

@@ -1,7 +1,10 @@
 package server
 
 import (
+	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/goccy/go-json"
@@ -29,6 +32,12 @@ type Server struct {
 	timeout time.Duration
 
 	logger logger.Interface
+
+	stopOnce        sync.Once
+	errOnce         sync.Once
+	shuttingDown    atomic.Bool
+	reconnectMu     sync.Mutex
+	reconnectCancel context.CancelFunc
 }
 
 // New -.
@@ -41,7 +50,7 @@ func New(url, serverExchange string, router map[string]CallHandler, l logger.Int
 
 	s := &Server{
 		conn:    rmqrpc.New(serverExchange, cfg),
-		error:   make(chan error),
+		error:   make(chan error, 1),
 		stop:    make(chan struct{}),
 		router:  router,
 		timeout: _defaultTimeout,
@@ -124,19 +133,57 @@ func (s *Server) publish(d *amqp.Delivery, body []byte, status string) {
 }
 
 func (s *Server) reconnect() {
-	close(s.stop)
+	if s.shuttingDown.Load() {
+		return
+	}
 
-	err := s.conn.AttemptConnect()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	s.reconnectMu.Lock()
+	s.reconnectCancel = cancel
+	s.reconnectMu.Unlock()
+
+	defer func() {
+		cancel()
+
+		s.reconnectMu.Lock()
+		s.reconnectCancel = nil
+		s.reconnectMu.Unlock()
+	}()
+
+	err := s.conn.AttemptConnectContext(ctx)
 	if err != nil {
-		s.error <- err
-		close(s.error)
+		if s.shuttingDown.Load() || ctx.Err() != nil {
+			return
+		}
+
+		s.reportFatal(err)
 
 		return
 	}
 
-	s.stop = make(chan struct{})
+	if s.shuttingDown.Load() {
+		return
+	}
 
 	go s.consumer()
+}
+
+func (s *Server) reportFatal(err error) {
+	s.errOnce.Do(func() {
+		select {
+		case s.error <- err:
+		default:
+		}
+
+		close(s.error)
+	})
+}
+
+func (s *Server) signalStop() {
+	s.stopOnce.Do(func() {
+		close(s.stop)
+	})
 }
 
 // Notify -.
@@ -144,16 +191,26 @@ func (s *Server) Notify() <-chan error {
 	return s.error
 }
 
-// Shutdown -.
+// Shutdown stops the consumer, cancels in-flight reconnect, and closes AMQP (F01).
 func (s *Server) Shutdown() error {
-	select {
-	case <-s.error:
+	if !s.shuttingDown.CompareAndSwap(false, true) {
 		return nil
-	default:
 	}
 
-	close(s.stop)
+	s.reconnectMu.Lock()
+	cancel := s.reconnectCancel
+	s.reconnectMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+
+	s.signalStop()
 	time.Sleep(s.timeout)
+
+	if s.conn.Connection == nil {
+		return nil
+	}
 
 	err := s.conn.Connection.Close()
 	if err != nil {

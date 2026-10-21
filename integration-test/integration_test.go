@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
+	"github.com/google/uuid"
 )
 
 const (
@@ -19,9 +20,9 @@ const (
 	host     = "app"
 	attempts = 20
 
-	// Attempts connection
+	// Attempts connection — wait on readiness (deps up), not a placeholder always-200 probe (F02).
 	httpURL        = "http://" + host + ":8080"
-	healthPath     = httpURL + "/healthz"
+	healthPath     = httpURL + "/ready"
 	requestTimeout = 5 * time.Second
 
 	// HTTP REST
@@ -76,7 +77,7 @@ func healthCheck(attempts int) error {
 			return nil
 		}
 
-		log.Printf("Integration tests: url %s is not available, attempts left: %d", healthPath, attempts)
+		log.Printf("Integration tests: url %s returned %d, attempts left: %d", healthPath, statusCode, attempts)
 
 		time.Sleep(time.Second)
 
@@ -92,28 +93,52 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Integration tests: httpURL %s is not available: %s", httpURL, err)
 	}
 
-	log.Printf("Integration tests: httpURL %s is available", httpURL)
+	log.Printf("Integration tests: httpURL %s is available (ready)", httpURL)
 
 	code := m.Run()
 	os.Exit(code)
 }
 
+func uniqueName(prefix string) string {
+	return fmt.Sprintf("%s-%s", prefix, uuid.NewString())
+}
+
+func deleteResource(t *testing.T, path string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+
+	resp, err := doWebRequestWithTimeout(ctx, http.MethodDelete, basePathV1+path, http.NoBody)
+	if err != nil {
+		t.Logf("cleanup DELETE %s: %v", path, err)
+
+		return
+	}
+
+	_ = resp.Body.Close()
+}
+
 // HTTP POST: /api/v1/bots - 创建机器人
 func TestHTTPCreateBot(t *testing.T) {
+	botName := uniqueName("bot")
+
 	tests := []struct {
 		description string
 		body        string
 		expected    int
+		cleanup     bool
 	}{
 		{
 			description: "Create Bot Success",
-			body: `{
-				"bot_name": "测试机器人",
+			body: fmt.Sprintf(`{
+				"bot_name": %q,
 				"bot_type": "general",
 				"description": "集成测试机器人",
 				"created_by": "test"
-			}`,
+			}`, botName),
 			expected: http.StatusCreated,
+			cleanup:  true,
 		},
 		{
 			description: "Create Bot Fail - Missing Name",
@@ -140,8 +165,31 @@ func TestHTTPCreateBot(t *testing.T) {
 			defer resp.Body.Close()
 
 			if resp.StatusCode != tt.expected {
-				t.Errorf("Expected status %d, got %d", tt.expected, resp.StatusCode)
+				bodyBytes, readErr := io.ReadAll(resp.Body)
+				if readErr != nil {
+					t.Fatalf("Expected status %d, got %d (also failed reading body: %v)", tt.expected, resp.StatusCode, readErr)
+				}
+
+				t.Fatalf("Expected status %d, got %d body=%s", tt.expected, resp.StatusCode, string(bodyBytes))
 			}
+
+			if !tt.cleanup || resp.StatusCode != http.StatusCreated {
+				return
+			}
+
+			var created struct {
+				Data struct {
+					ID string `json:"id"`
+				} `json:"data"`
+			}
+
+			if err := json.NewDecoder(resp.Body).Decode(&created); err != nil || created.Data.ID == "" {
+				return
+			}
+
+			id := created.Data.ID
+
+			t.Cleanup(func() { deleteResource(t, "/bots/"+id) })
 		})
 	}
 }
@@ -201,13 +249,15 @@ func TestHTTPListBots(t *testing.T) {
 
 // HTTP POST: /api/v1/channels - 创建通道
 func TestHTTPCreateChannel(t *testing.T) {
-	// 首先创建一个机器人
-	botBody := `{
-		"bot_name": "通道测试机器人",
+	botName := uniqueName("channel-bot")
+	channelName := uniqueName("channel")
+
+	botBody := fmt.Sprintf(`{
+		"bot_name": %q,
 		"bot_type": "general",
 		"description": "用于通道测试的机器人",
 		"created_by": "test"
-	}`
+	}`, botName)
 
 	url := basePathV1 + "/bots"
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
@@ -220,8 +270,12 @@ func TestHTTPCreateChannel(t *testing.T) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		t.Skipf("Cannot create bot for channel test, status: %d", resp.StatusCode)
-		return
+		bodyBytes, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			t.Fatalf("Cannot create bot for channel test, status: %d (also failed reading body: %v)", resp.StatusCode, readErr)
+		}
+
+		t.Fatalf("Cannot create bot for channel test, status: %d body=%s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var botResp struct {
@@ -230,6 +284,7 @@ func TestHTTPCreateChannel(t *testing.T) {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
+
 	if err := json.NewDecoder(resp.Body).Decode(&botResp); err != nil {
 		t.Fatalf("Failed to decode bot response: %v", err)
 	}
@@ -238,17 +293,20 @@ func TestHTTPCreateChannel(t *testing.T) {
 		t.Fatal("Expected non-empty bot id (UUID string)")
 	}
 
-	// 现在创建通道（bot_id 为 UUID 字符串）
+	botID := botResp.Data.ID
+
+	t.Cleanup(func() { deleteResource(t, "/bots/"+botID) })
+
 	channelBody := fmt.Sprintf(`{
 		"bot_id": %q,
 		"platform_type": "wecom",
-		"channel_name": "测试通道",
+		"channel_name": %q,
 		"config": {
 			"corp_id": "test_corp",
 			"agent_id": "test_agent",
 			"secret": "test_secret"
 		}
-	}`, botResp.Data.ID)
+	}`, botID, channelName)
 
 	channelURL := basePathV1 + "/channels"
 	ctx2, cancel2 := context.WithTimeout(context.Background(), requestTimeout)
@@ -260,12 +318,26 @@ func TestHTTPCreateChannel(t *testing.T) {
 	}
 	defer channelResp.Body.Close()
 
+	bodyBytes, readErr := io.ReadAll(channelResp.Body)
 	if channelResp.StatusCode != http.StatusCreated {
-		bodyBytes, readErr := io.ReadAll(channelResp.Body)
 		if readErr != nil {
-			t.Errorf("Expected status %d, got %d (also failed reading body: %v)", http.StatusCreated, channelResp.StatusCode, readErr)
-		} else {
-			t.Errorf("Expected status %d, got %d body=%s", http.StatusCreated, channelResp.StatusCode, string(bodyBytes))
+			t.Fatalf("Expected status %d, got %d (also failed reading body: %v)", http.StatusCreated, channelResp.StatusCode, readErr)
 		}
+
+		t.Fatalf("Expected status %d, got %d body=%s", http.StatusCreated, channelResp.StatusCode, string(bodyBytes))
 	}
+
+	var channelRespBody struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(bodyBytes, &channelRespBody); err != nil || channelRespBody.Data.ID == "" {
+		return
+	}
+
+	id := channelRespBody.Data.ID
+
+	t.Cleanup(func() { deleteResource(t, "/channels/"+id) })
 }
