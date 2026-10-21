@@ -51,6 +51,16 @@ func (a *DingtalkStreamAdapter) ValidateConfig(cfg map[string]interface{}) error
 	return config.ValidatePlatformConfig(entity.PlatformTypeDingtalk, cfg)
 }
 
+// SupportedMessageTypes implements port.MessageTypeSupport (T08).
+func (a *DingtalkStreamAdapter) SupportedMessageTypes() []string {
+	return []string{
+		entity.MessageTypeText,
+		entity.MessageTypeMarkdown,
+		entity.MessageTypeCard,
+		entity.MessageTypeLink,
+	}
+}
+
 // SendMessage 实现MessageSender接口
 func (a *DingtalkStreamAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, config map[string]interface{}, accessToken string) error {
 	// 从统一消息体中获取sessionWebhook
@@ -162,36 +172,12 @@ func (a *DingtalkStreamAdapter) SendMessage(ctx context.Context, message *dto.Un
 
 		requestBody = linkData
 
-	case entity.MessageTypeFile:
-		// 文件消息 - 钉钉Stream模式不直接支持发送文件，转为文本提示
-		fileName := "文件"
-		if message.FileContent != nil {
-			fileName = message.FileContent.FileName
-		}
-		requestBody = map[string]interface{}{
-			"msgtype": "text",
-			"text": map[string]interface{}{
-				"content": fmt.Sprintf("[文件] %s", fileName),
-			},
-		}
-
-	case entity.MessageTypeImage:
-		// 图片消息 - 钉钉Stream模式不直接支持发送图片，转为文本提示
-		requestBody = map[string]interface{}{
-			"msgtype": "text",
-			"text": map[string]interface{}{
-				"content": "[图片]",
-			},
-		}
+	case entity.MessageTypeFile, entity.MessageTypeImage:
+		// T08: stream mode cannot send binary media via sessionWebhook — do not fake as text
+		return fmt.Errorf("%w: dingtalk stream cannot send %q", port.ErrUnsupportedMessageType, message.MessageType)
 
 	default:
-		// 默认发送文本消息
-		requestBody = map[string]interface{}{
-			"msgtype": "text",
-			"text": map[string]interface{}{
-				"content": message.Content,
-			},
-		}
+		return fmt.Errorf("%w: dingtalk stream cannot send %q", port.ErrUnsupportedMessageType, message.MessageType)
 	}
 
 	// 序列化请求体
@@ -289,20 +275,15 @@ func (a *DingtalkStreamAdapter) Start(ctx context.Context, messageHandler port.M
 		return fmt.Errorf("failed to parse dingtalk stream config: %w", err)
 	}
 
-	// 创建消息处理适配器
-	messageHandlerAdapter := &MessageHandlerAdapter{
-		handler: messageHandler,
-		logger:  a.logger,
-	}
-
 	// 从配置中获取channelID，channel_id为必填项
 	channelID, ok := cfg["channel_id"].(string)
 	if !ok || channelID == "" {
 		return errStreamMissingChannelID
 	}
 
+	// T02: pass port.MessageHandler directly (no entity round-trip adapter)
 	a.streamController = NewStreamController(
-		messageHandlerAdapter,
+		messageHandler,
 		a.logger,
 		streamConfig,
 		channelID,
@@ -351,35 +332,4 @@ func (a *DingtalkStreamAdapter) IsConnected() bool {
 	defer a.mu.RUnlock()
 
 	return a.isConnected && a.streamController != nil && a.streamController.IsRunning()
-}
-
-// MessageHandlerAdapter 消息处理适配器，将port.MessageHandler转换为StreamController需要的MessageHandler
-type MessageHandlerAdapter struct {
-	handler port.MessageHandler
-	logger  zerolog.Logger
-}
-
-// ProcessInboundMessage 实现StreamController的MessageHandler接口
-func (m *MessageHandlerAdapter) ProcessInboundMessage(ctx context.Context, message *entity.Message) error {
-	// 将entity.Message转换为dto.UnifiedMessage
-	unifiedMessage := &dto.UnifiedMessage{
-		MessageID:         message.MessageID,
-		MessageType:       message.MessageType,
-		SenderID:          message.SenderID,
-		SenderName:        message.SenderName,
-		SenderType:        message.SenderType,
-		ReceiverID:        message.ReceiverID,
-		ReceiverName:      message.ReceiverName,
-		ReceiverType:      message.ReceiverType,
-		Content:           message.Content,
-		RawContent:        message.RawContent,
-		MediaURL:          message.MediaURL,
-		MediaType:         message.MediaType,
-		FileSize:          message.FileSize,
-		ConversationID:    message.ConversationID,
-		PlatformMessageID: message.PlatformMessageID,
-		PlatformTimestamp: message.PlatformTimestamp,
-	}
-
-	return m.handler(ctx, unifiedMessage)
 }

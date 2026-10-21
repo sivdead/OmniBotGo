@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/sivdead/OmniBotGo/internal/entity"
+	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -124,7 +125,8 @@ func TestBuildDingtalkMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildDingtalkMessage(tt.message)
+			result, err := buildDingtalkMessage(tt.message)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.expected["msgtype"], result["msgtype"])
 
 			// 验证具体内容
@@ -136,6 +138,11 @@ func TestBuildDingtalkMessage(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("unknown type rejected", func(t *testing.T) {
+		_, err := buildDingtalkMessage(&dto.UnifiedMessage{MessageType: "sticker", Content: "x"})
+		assert.ErrorIs(t, err, port.ErrUnsupportedMessageType)
+	})
 }
 
 func TestParseEnterpriseConfig(t *testing.T) {

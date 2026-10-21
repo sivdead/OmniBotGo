@@ -8,23 +8,17 @@ import (
 	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 	"github.com/rs/zerolog"
 	"github.com/sivdead/OmniBotGo/internal/config"
-	"github.com/sivdead/OmniBotGo/internal/entity"
+	"github.com/sivdead/OmniBotGo/internal/dto"
 	"github.com/stretchr/testify/require"
 )
 
 var errProcessBoom = errors.New("process boom")
 
-type failHandler struct{}
-
-func (failHandler) ProcessInboundMessage(context.Context, *entity.Message) error {
-	return errProcessBoom
-}
-
 func TestHandleChatBotMessage_ReturnsErrorOnProcessFailure(t *testing.T) {
 	t.Parallel()
 
 	ctrl := NewStreamController(
-		failHandler{},
+		func(context.Context, *dto.UnifiedMessage) error { return errProcessBoom },
 		zerolog.Nop(),
 		&config.DingtalkStreamConfig{},
 		"ch-1",

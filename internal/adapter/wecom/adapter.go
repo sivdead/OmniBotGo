@@ -49,6 +49,21 @@ func (w *WecomAdapter) ValidateConfig(cfg map[string]interface{}) error {
 	return config.ValidatePlatformConfig(entity.PlatformTypeWecom, cfg)
 }
 
+// SupportedMessageTypes implements port.MessageTypeSupport (T08).
+func (w *WecomAdapter) SupportedMessageTypes() []string {
+	return []string{
+		entity.MessageTypeText,
+		entity.MessageTypeMarkdown,
+		entity.MessageTypeImage,
+		entity.MessageTypeAudio,
+		entity.MessageTypeVideo,
+		entity.MessageTypeFile,
+		entity.MessageTypeCard,
+		entity.MessageTypeNews,
+		entity.MessageTypeTemplate,
+	}
+}
+
 // SendMessage 发送消息
 func (w *WecomAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, conf map[string]interface{}, accessToken string) error {
 	agentID, ok := conf["agent_id"].(string)
@@ -161,11 +176,8 @@ func (w *WecomAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMess
 		return fmt.Errorf("不支持发送事件类型消息")
 
 	default:
-		// 默认作为文本消息处理
-		sendMsg.Text = &WecomTextMessage{
-			Content: message.Content,
-		}
-		sendMsg.MsgType = "text"
+		// T08: do not silently downgrade unknown types to text
+		return fmt.Errorf("%w: wecom cannot send %q", port.ErrUnsupportedMessageType, message.MessageType)
 	}
 
 	// 序列化消息
@@ -230,8 +242,10 @@ func mapToWecomMessageType(msgType string) string {
 		return "textcard"
 	case entity.MessageTypeNews:
 		return "news"
+	case entity.MessageTypeTemplate:
+		return "template_card"
 	default:
-		return "text"
+		return ""
 	}
 }
 

@@ -61,6 +61,18 @@ func (w *WechatOfficialAdapter) ValidateConfig(cfg map[string]interface{}) error
 	return config.ValidatePlatformConfig(entity.PlatformTypeWechatOfficial, cfg)
 }
 
+// SupportedMessageTypes implements port.MessageTypeSupport (T08).
+func (w *WechatOfficialAdapter) SupportedMessageTypes() []string {
+	return []string{
+		entity.MessageTypeText,
+		entity.MessageTypeImage,
+		entity.MessageTypeAudio,
+		entity.MessageTypeVideo,
+		entity.MessageTypeNews,
+		wechatOfficialMsgTypeVoice,
+	}
+}
+
 // SendMessage 发送消息
 func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, config map[string]interface{}, accessToken string) error {
 	// 构建微信公众号消息格式
@@ -109,11 +121,8 @@ func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *dto.Un
 			sendMsg.News = news
 		}
 	default:
-		// 默认作为文本消息处理
-		sendMsg.Text = &WechatOfficialTextMessage{
-			Content: message.Content,
-		}
-		sendMsg.MsgType = "text"
+		// T08: do not silently downgrade unknown types to text
+		return fmt.Errorf("%w: wechat_official cannot send %q", port.ErrUnsupportedMessageType, message.MessageType)
 	}
 
 	// 序列化消息

@@ -51,6 +51,20 @@ func (f *FeishuAdapter) ValidateConfig(cfg map[string]interface{}) error {
 	return config.ValidatePlatformConfig(entity.PlatformTypeFeishu, cfg)
 }
 
+// SupportedMessageTypes implements port.MessageTypeSupport (T08).
+func (f *FeishuAdapter) SupportedMessageTypes() []string {
+	return []string{
+		entity.MessageTypeText,
+		entity.MessageTypeMarkdown,
+		feishuMsgTypeMDAlias,
+		entity.MessageTypeImage,
+		entity.MessageTypeAudio,
+		entity.MessageTypeFile,
+		"media",
+		"sticker",
+	}
+}
+
 // SendMessage 发送消息
 func (f *FeishuAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, cfg map[string]interface{}, accessToken string) error {
 	client, err := f.getClient(cfg)
@@ -98,7 +112,8 @@ func (f *FeishuAdapter) buildMessageContent(message *dto.UnifiedMessage) (string
 	case entity.MessageTypeImage:
 		payload = map[string]string{"image_key": message.MediaURL}
 	default:
-		payload = map[string]string{feishuContentKeyText: message.Content}
+		// T08: do not silently downgrade unknown types to text
+		return "", fmt.Errorf("%w: feishu cannot send %q", port.ErrUnsupportedMessageType, message.MessageType)
 	}
 
 	raw, err := json.Marshal(payload)
@@ -127,7 +142,7 @@ func (f *FeishuAdapter) mapToFeishuMessageType(msgType string) string {
 	case "sticker":
 		return "sticker"
 	default:
-		return "text"
+		return ""
 	}
 }
 

@@ -105,14 +105,14 @@ func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID string, para
 	return result, nil
 }
 
-// GetByConversationID 根据会话ID获取消息列表
-func (r *MessageRepo) GetByConversationID(ctx context.Context, conversationID string, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
+// GetByConversationID 根据通道+会话ID获取消息列表（T06：按 channel 隔离 AI 历史）
+func (r *MessageRepo) GetByConversationID(ctx context.Context, channelID, conversationID string, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
 	validatedParams := r.validateParams(params)
 
 	var messages []*entity.Message
 	query := r.db.GetGORM().WithContext(ctx).
 		Model(&entity.Message{}).
-		Where("conversation_id = ?", conversationID)
+		Where("channel_id = ? AND conversation_id = ?", channelID, conversationID)
 
 	query, err := r.buildQuery(query, validatedParams)
 	if err != nil {

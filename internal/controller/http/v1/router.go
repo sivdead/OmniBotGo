@@ -31,6 +31,7 @@ func NewAPIRoutes(
 	{
 		messagesGroup.Post("/send", v1.SendMessage)
 		messagesGroup.Get("/", v1.GetMessageHistory)
+		messagesGroup.Get("/:id/troubleshoot", v1.TroubleshootMessage)
 		messagesGroup.Get("/:id", v1.GetMessage)
 		messagesGroup.Post("/:id/retry", v1.RetryMessage)
 		messagesGroup.Post("/:id/reply", v1.ReplyToOriginal)

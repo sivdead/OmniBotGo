@@ -248,6 +248,14 @@ func (cm *ConnectionManager) RestartConnection(ctx context.Context, channelID st
 		}
 	}
 
+	// T01: prefer a fresh per-channel session when the registry entry is a factory
+	// so restart does not reuse a session that may still be tearing down.
+	if platformAdapter, err := cm.adapterManager.GetAdapter(entity.PlatformType(connInfo.PlatformType)); err == nil {
+		if session, ok := cm.resolveStreamAdapter(platformAdapter); ok {
+			connInfo.StreamAdapter = session
+		}
+	}
+
 	// 创建新的消息处理器
 	messageHandler := cm.createChannelMessageHandler(channelID)
 

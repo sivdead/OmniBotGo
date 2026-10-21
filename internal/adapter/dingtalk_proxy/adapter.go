@@ -28,13 +28,35 @@ var (
 
 // 编译期接口实现检查。
 var (
-	_ port.MessageSender      = (*DingtalkProxyAdapter)(nil)
-	_ port.WebhookProcessor   = (*DingtalkProxyAdapter)(nil)
-	_ port.TokenManager       = (*DingtalkProxyAdapter)(nil)
-	_ port.StreamAdapter      = (*DingtalkProxyAdapter)(nil)
-	_ port.PlatformIdentifier = (*DingtalkProxyAdapter)(nil)
-	_ port.ConfigValidator    = (*DingtalkProxyAdapter)(nil)
+	_ port.MessageSender        = (*DingtalkProxyAdapter)(nil)
+	_ port.WebhookProcessor     = (*DingtalkProxyAdapter)(nil)
+	_ port.TokenManager         = (*DingtalkProxyAdapter)(nil)
+	_ port.StreamAdapter        = (*DingtalkProxyAdapter)(nil)
+	_ port.StreamSessionFactory = (*DingtalkProxyAdapter)(nil)
+	_ port.PlatformIdentifier   = (*DingtalkProxyAdapter)(nil)
+	_ port.ConfigValidator      = (*DingtalkProxyAdapter)(nil)
+	_ port.MessageTypeSupport   = (*DingtalkProxyAdapter)(nil)
 )
+
+// SupportedMessageTypes implements port.MessageTypeSupport via the active mode (T08).
+func (a *DingtalkProxyAdapter) SupportedMessageTypes() []string {
+	// Union of stream + enterprise; SendMessage still rejects per concrete adapter.
+	seen := make(map[string]struct{})
+	var out []string
+	for _, src := range [][]string{
+		a.streamAdapter.SupportedMessageTypes(),
+		a.enterpriseAdapter.SupportedMessageTypes(),
+	} {
+		for _, t := range src {
+			if _, ok := seen[t]; ok {
+				continue
+			}
+			seen[t] = struct{}{}
+			out = append(out, t)
+		}
+	}
+	return out
+}
 
 // DingtalkProxyAdapter 钉钉适配器代理，根据配置选择具体实现
 type DingtalkProxyAdapter struct {
@@ -153,6 +175,16 @@ func (a *DingtalkProxyAdapter) ParseInboundMessage(_ context.Context, body []byt
 // BuildWebhookPath 实现WebhookProcessor接口。
 func (a *DingtalkProxyAdapter) BuildWebhookPath(channelID string) string {
 	return fmt.Sprintf("/webhook/dingtalk/%s", channelID)
+}
+
+// NewStreamSession 实现 StreamSessionFactory（T01/C06：每通道独立 Stream 会话）。
+// Enterprise 适配器无状态可共享；Stream 会话每次新建。
+func (a *DingtalkProxyAdapter) NewStreamSession() port.StreamAdapter {
+	return &DingtalkProxyAdapter{
+		logger:            a.logger,
+		streamAdapter:     dingtalk_stream.NewAdapter(a.logger),
+		enterpriseAdapter: a.enterpriseAdapter,
+	}
 }
 
 // Start 实现StreamAdapter接口。
