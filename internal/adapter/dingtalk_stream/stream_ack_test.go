@@ -32,12 +32,12 @@ func TestHandleChatBotMessage_ReturnsErrorOnProcessFailure(t *testing.T) {
 
 	data := &chatbot.BotCallbackDataModel{
 		MsgId:            "mid-1",
-		Msgtype:          "text",
+		Msgtype:          string(DingtalkMessageTypeText),
 		SenderId:         "u1",
 		SenderNick:       "n",
 		ConversationId:   "c1",
 		ConversationType: "1",
-		ChatbotUserId:    "bot",
+		ChatbotUserId:    receiverTypeBot,
 		CreateAt:         1710000000000,
 		Text:             chatbot.BotCallbackDataTextModel{Content: "hi"},
 	}

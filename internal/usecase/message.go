@@ -172,7 +172,11 @@ func (uc *messageUseCase) prepareInboundMessage(msg *entity.Message) error {
 	return nil
 }
 
-const successfulProcessorsKey = "_successful_processor_ids"
+const (
+	successfulProcessorsKey = "_successful_processor_ids"
+	configKeyWebhookURL     = "webhook_url"
+	payloadKeyProcessorID   = "processor_id"
+)
 
 var (
 	errChannelNotReady         = errors.New("通道未就绪")
@@ -732,7 +736,7 @@ func (uc *messageUseCase) processMessageWithProcessor(ctx context.Context, msg *
 // processWebhookForwarder 处理Webhook转发
 func (uc *messageUseCase) processWebhookForwarder(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor) error {
 	// 获取Webhook URL配置
-	webhookURL := processor.GetConfigValue("webhook_url")
+	webhookURL := processor.GetConfigValue(configKeyWebhookURL)
 	if webhookURL == nil {
 		return fmt.Errorf("Webhook处理器缺少webhook_url配置")
 	}
@@ -903,10 +907,10 @@ func (uc *messageUseCase) enqueueWebhookMessage(ctx context.Context, msg *entity
 		Status:      entity.QueueStatusPending,
 		ScheduledAt: time.Now(),
 		Payload: entity.JSONField{
-			"message_id":   msg.ID,
-			"processor_id": processor.ID,
-			"webhook_url":  webhookURL,
-			"message_data": msg,
+			"message_id":          msg.ID,
+			payloadKeyProcessorID: processor.ID,
+			configKeyWebhookURL:   webhookURL,
+			"message_data":        msg,
 		},
 	}
 
@@ -1405,10 +1409,10 @@ func (uc *messageUseCase) createAIReplyMessage(msg *entity.Message, content stri
 }, processor *entity.MessageProcessor, toolCalls []map[string]interface{},
 ) *entity.Message {
 	unifiedContent := entity.JSONField{
-		"ai_provider":  aiConfig.Provider,
-		"ai_model":     aiConfig.Model,
-		"processor_id": processor.ID,
-		"stream_mode":  aiConfig.StreamMode,
+		"ai_provider":         aiConfig.Provider,
+		"ai_model":            aiConfig.Model,
+		payloadKeyProcessorID: processor.ID,
+		"stream_mode":         aiConfig.StreamMode,
 	}
 
 	if toolCalls != nil {

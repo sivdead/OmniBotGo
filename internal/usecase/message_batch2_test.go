@@ -155,7 +155,7 @@ func TestProcessWebhookForwarder_Non2xxIsFailure(t *testing.T) {
 	msg := &entity.Message{MessageID: "m1", ChannelID: testChannelID, MessageType: entity.MessageTypeText}
 	processor := &entity.MessageProcessor{
 		BaseEntity: entity.BaseEntity{ID: "p1"},
-		Config:     entity.JSONField{"webhook_url": srv.URL},
+		Config:     entity.JSONField{configKeyWebhookURL: srv.URL},
 	}
 
 	err := uc.processWebhookForwarder(context.Background(), msg, processor)

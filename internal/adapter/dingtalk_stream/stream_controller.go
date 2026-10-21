@@ -20,6 +20,8 @@ type MessageHandler interface {
 	ProcessInboundMessage(ctx context.Context, message *entity.Message) error
 }
 
+const receiverTypeBot = "bot"
+
 // StreamController 钉钉Stream控制器
 type StreamController struct {
 	messageHandler MessageHandler
@@ -191,7 +193,7 @@ func (c *StreamController) convertToUnifiedMessage(data *chatbot.BotCallbackData
 	// 设置接收者信息
 	if data.ConversationType == "1" { // 单聊
 		unifiedMsg.ReceiverID = data.ChatbotUserId
-		unifiedMsg.ReceiverType = "bot"
+		unifiedMsg.ReceiverType = receiverTypeBot
 	} else { // 群聊
 		unifiedMsg.ReceiverID = data.ConversationId
 		unifiedMsg.ReceiverType = "group"
