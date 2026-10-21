@@ -12,6 +12,12 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
+const (
+	filterDirection = "direction"
+	filterStartTime = "start_time"
+	filterEndTime   = "end_time"
+)
+
 func TestBuildQuery_MessageStatusAndDirectionEnums(t *testing.T) {
 	t.Parallel()
 
@@ -22,8 +28,8 @@ func TestBuildQuery_MessageStatusAndDirectionEnums(t *testing.T) {
 
 	query, err := repo.buildQuery(db.Model(&entity.Message{}), port.ListParams{
 		Filters: map[string]interface{}{
-			"message_status": status,
-			"direction":      dir,
+			filterMessageStatus: status,
+			filterDirection:     dir,
 		},
 	})
 	require.NoError(t, err)
@@ -31,8 +37,8 @@ func TestBuildQuery_MessageStatusAndDirectionEnums(t *testing.T) {
 	sql := query.ToSQL(func(tx *gorm.DB) *gorm.DB {
 		return tx.Find(&[]entity.Message{})
 	})
-	require.Contains(t, sql, "message_status")
-	require.Contains(t, sql, "direction")
+	require.Contains(t, sql, filterMessageStatus)
+	require.Contains(t, sql, filterDirection)
 }
 
 func TestBuildQuery_StartEndTimeAreRanges(t *testing.T) {
@@ -45,8 +51,8 @@ func TestBuildQuery_StartEndTimeAreRanges(t *testing.T) {
 
 	query, err := repo.buildQuery(db.Model(&entity.Message{}), port.ListParams{
 		Filters: map[string]interface{}{
-			"start_time": start,
-			"end_time":   end,
+			filterStartTime: start,
+			filterEndTime:   end,
 		},
 	})
 	require.NoError(t, err)

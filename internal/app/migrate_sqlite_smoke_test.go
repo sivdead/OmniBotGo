@@ -68,6 +68,7 @@ func findMigrationsDir(t *testing.T, rel string) string {
 		if parent == dir {
 			break
 		}
+
 		dir = parent
 	}
 

@@ -1,72 +1,77 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 )
 
+const (
+	dbTypeMySQL         = "mysql"
+	dbTypePostgres      = "postgres"
+	dbTypePostgreSQLAlt = "postgresql"
+	dbTypeSQLite        = "sqlite"
+	dbTypeSQLite3Alt    = "sqlite3"
+
+	sqliteMemoryDSN = ":memory:"
+)
+
+var (
+	errUnsupportedDBType = errors.New("unsupported database type")
+	errEmptyDatabaseDSN  = errors.New("database DSN is empty")
+	errPostgresMissingDB = errors.New("postgres keyword DSN missing dbname")
+)
+
 // MigrationSourceDir returns the dialect-specific migrations directory (E02).
 func MigrationSourceDir(dbType string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(dbType)) {
-	case "", "mysql":
-		return "migrations/mysql", nil
-	case "postgres", "postgresql":
-		return "migrations/postgres", nil
-	case "sqlite", "sqlite3":
-		return "migrations/sqlite", nil
+	case "", dbTypeMySQL:
+		return "migrations/" + dbTypeMySQL, nil
+	case dbTypePostgres, dbTypePostgreSQLAlt:
+		return "migrations/" + dbTypePostgres, nil
+	case dbTypeSQLite, dbTypeSQLite3Alt:
+		return "migrations/" + dbTypeSQLite, nil
 	default:
-		return "", fmt.Errorf("unsupported database type %q (supported: mysql, postgres, sqlite)", dbType)
+		return "", fmt.Errorf("%w: %q (supported: mysql, postgres, sqlite)", errUnsupportedDBType, dbType)
 	}
 }
 
 // BuildMigrationDatabaseURL builds a golang-migrate database URL (E03/E04).
-//
-// MySQL: mysql://user:pass@tcp(host:port)/db?...
-// Postgres: accepts full postgres(ql):// URLs as-is; converts keyword DSNs
-//
-//	(host=... user=... dbname=...) into a URL; otherwise prefixes postgres://.
-//
-// SQLite: sqlite://path or sqlite://file:path?_pragma=...
 func BuildMigrationDatabaseURL(dbType, dsn string) (string, error) {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
-		return "", fmt.Errorf("database DSN is empty")
+		return "", errEmptyDatabaseDSN
 	}
 
 	switch strings.ToLower(strings.TrimSpace(dbType)) {
-	case "", "mysql":
+	case "", dbTypeMySQL:
 		if strings.HasPrefix(dsn, "mysql://") {
 			return dsn, nil
 		}
 
 		return "mysql://" + dsn, nil
 
-	case "postgres", "postgresql":
+	case dbTypePostgres, dbTypePostgreSQLAlt:
 		return buildPostgresMigrationURL(dsn)
 
-	case "sqlite", "sqlite3":
+	case dbTypeSQLite, dbTypeSQLite3Alt:
 		return buildSQLiteMigrationURL(dsn)
 
 	default:
-		return "", fmt.Errorf("unsupported database type %q", dbType)
+		return "", fmt.Errorf("%w: %q", errUnsupportedDBType, dbType)
 	}
 }
 
 func buildPostgresMigrationURL(dsn string) (string, error) {
 	lower := strings.ToLower(dsn)
-	if strings.HasPrefix(lower, "postgres://") || strings.HasPrefix(lower, "postgresql://") {
+	if strings.HasPrefix(lower, dbTypePostgres+"://") || strings.HasPrefix(lower, dbTypePostgreSQLAlt+"://") {
 		return dsn, nil
 	}
 
 	// libpq keyword/value DSN (e.g. host=localhost user=x password=y dbname=z sslmode=disable)
 	if strings.Contains(dsn, "=") && !strings.Contains(dsn, "://") {
-		u, err := postgresKeywordDSNToURL(dsn)
-		if err != nil {
-			return "", err
-		}
-
-		return u, nil
+		return postgresKeywordDSNToURL(dsn)
 	}
 
 	// user:pass@host:port/db?sslmode=disable style (no scheme)
@@ -75,30 +80,35 @@ func buildPostgresMigrationURL(dsn string) (string, error) {
 
 func postgresKeywordDSNToURL(dsn string) (string, error) {
 	fields := parseLibpqKeywordDSN(dsn)
+
 	host := fields["host"]
 	if host == "" {
 		host = "localhost"
 	}
+
 	port := fields["port"]
 	if port == "" {
 		port = "5432"
 	}
+
 	dbname := fields["dbname"]
 	if dbname == "" {
 		dbname = fields["database"]
 	}
+
 	if dbname == "" {
-		return "", fmt.Errorf("postgres keyword DSN missing dbname")
+		return "", errPostgresMissingDB
 	}
 
 	user := fields["user"]
 	password := fields["password"]
 
 	u := &url.URL{
-		Scheme: "postgres",
+		Scheme: dbTypePostgres,
 		Host:   host + ":" + port,
 		Path:   "/" + dbname,
 	}
+
 	if user != "" {
 		if password != "" {
 			u.User = url.UserPassword(user, password)
@@ -108,6 +118,7 @@ func postgresKeywordDSNToURL(dsn string) (string, error) {
 	}
 
 	q := url.Values{}
+
 	for k, v := range fields {
 		switch k {
 		case "host", "port", "dbname", "database", "user", "password":
@@ -116,16 +127,21 @@ func postgresKeywordDSNToURL(dsn string) (string, error) {
 			q.Set(k, v)
 		}
 	}
+
 	u.RawQuery = q.Encode()
 
 	return u.String(), nil
 }
 
+//nolint:gocyclo,cyclop // simple libpq keyword tokenizer
 func parseLibpqKeywordDSN(dsn string) map[string]string {
 	out := make(map[string]string)
+
 	var key, val strings.Builder
+
 	inKey := true
 	inQuote := false
+
 	var quote byte
 
 	flush := func() {
@@ -133,13 +149,16 @@ func parseLibpqKeywordDSN(dsn string) map[string]string {
 		if k != "" {
 			out[k] = val.String()
 		}
+
 		key.Reset()
 		val.Reset()
+
 		inKey = true
 	}
 
 	for i := 0; i < len(dsn); i++ {
 		c := dsn[i]
+
 		switch {
 		case inQuote:
 			if c == quote {
@@ -160,6 +179,7 @@ func parseLibpqKeywordDSN(dsn string) map[string]string {
 			val.WriteByte(c)
 		}
 	}
+
 	flush()
 
 	return out
@@ -176,12 +196,12 @@ func buildSQLiteMigrationURL(dsn string) (string, error) {
 
 // EnsureSQLiteForeignKeysDSN appends modernc _pragma=foreign_keys(1) when missing (E08).
 func EnsureSQLiteForeignKeysDSN(dsn string) string {
-	if dsn == "" || dsn == ":memory:" {
-		if dsn == ":memory:" {
-			return "file::memory:?cache=shared&_pragma=foreign_keys(1)"
-		}
-
+	if dsn == "" {
 		return dsn
+	}
+
+	if dsn == sqliteMemoryDSN {
+		return "file::memory:?cache=shared&_pragma=foreign_keys(1)"
 	}
 
 	lower := strings.ToLower(dsn)
