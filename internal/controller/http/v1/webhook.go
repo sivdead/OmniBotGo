@@ -30,6 +30,7 @@ func (w *WebhookController) HandleWebhookGET(c *fiber.Ctx) error {
 	if isURLVerificationRequest(c) {
 		return w.handleURLVerificationGET(c)
 	}
+
 	return w.GetWebhookInfo(c)
 }
 
@@ -43,6 +44,7 @@ func isURLVerificationRequest(c *fiber.Ctx) bool {
 	if c.Query("msg_signature") != "" && c.Query("timestamp") != "" && c.Query("nonce") != "" {
 		return true
 	}
+
 	return false
 }
 
@@ -52,10 +54,13 @@ func (w *WebhookController) handleURLVerificationGET(c *fiber.Ctx) error {
 	channelID := c.Params("channel_id")
 
 	platformType := entity.PlatformType(platformStr)
+
 	if _, err := w.adapterManager.GetAdapter(platformType); err != nil {
 		w.l.Error("不支持的平台类型: %s", platformStr)
+
 		return NewErrorResponse(c, http.StatusBadRequest, "不支持的平台类型")
 	}
+
 	if channelID == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
 	}
@@ -63,8 +68,10 @@ func (w *WebhookController) handleURLVerificationGET(c *fiber.Ctx) error {
 	channel, err := w.channelUC.GetChannel(c.Context(), channelID)
 	if err != nil {
 		w.l.Error("获取通道信息失败: %v", err)
+
 		return NewErrorResponse(c, http.StatusNotFound, "通道不存在")
 	}
+
 	if channel.PlatformType != platformStr {
 		return NewErrorResponse(c, http.StatusBadRequest, "通道平台类型不匹配")
 	}
@@ -73,6 +80,7 @@ func (w *WebhookController) handleURLVerificationGET(c *fiber.Ctx) error {
 	if platformType == entity.PlatformTypeWecom {
 		signature = c.Query("msg_signature")
 	}
+
 	timestamp := c.Query("timestamp")
 	nonce := c.Query("nonce")
 	echoStr := c.Query("echostr")

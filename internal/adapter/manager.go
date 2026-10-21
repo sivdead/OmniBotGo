@@ -157,7 +157,7 @@ func (m *Manager) ParseInboundMessage(ctx context.Context, platformType entity.P
 	return processor.ParseInboundMessage(ctx, body, map[string]interface{}(config))
 }
 
-// BuildWebhookPath 构建Webhook路径（channelID 为 UUID 字符串，匹配 Fiber 路由）
+// BuildWebhookPath 构建Webhook路径（channelID 为 UUID 字符串，匹配 Fiber 路由）.
 func (m *Manager) BuildWebhookPath(platformType entity.PlatformType, channelID string) (string, error) {
 	return fmt.Sprintf("/webhook/%s/%s", string(platformType), channelID), nil
 }

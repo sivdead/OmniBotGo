@@ -8,23 +8,22 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/usecase"
 )
 
-// secretConfigKeys are never echoed in channel API responses.
-var secretConfigKeys = map[string]struct{}{
-	"access_token":       {},
-	"secret":             {},
-	"app_secret":         {},
-	"token":              {},
-	"verification_token": {},
-	"encoding_aes_key":   {},
-	"aes_key":            {},
-	"password":           {},
-	"api_key":            {},
-	"bot_token":          {},
-	"client_secret":      {},
-	"corp_secret":        {},
-	"private_key":        {},
-	"refresh_token":      {},
-}
+const (
+	configKeyAccessToken       = "access_token"
+	configKeySecret            = "secret"
+	configKeyAppSecret         = "app_secret"
+	configKeyToken             = "token"
+	configKeyVerificationToken = "verification_token"
+	configKeyEncodingAESKey    = "encoding_aes_key"
+	configKeyAESKey            = "aes_key"
+	configKeyPassword          = "password"
+	configKeyAPIKey            = "api_key"
+	configKeyBotToken          = "bot_token"
+	configKeyClientSecret      = "client_secret"
+	configKeyCorpSecret        = "corp_secret"
+	configKeyPrivateKey        = "private_key"
+	configKeyRefreshToken      = "refresh_token"
+)
 
 // ChannelResponse is the safe HTTP DTO for channel resources.
 // AccessToken and config secrets are never included.
@@ -57,6 +56,7 @@ func ToChannelResponse(ch *entity.Channel) ChannelResponse {
 	if ch == nil {
 		return ChannelResponse{}
 	}
+
 	return ChannelResponse{
 		ID:                   ch.ID,
 		BotID:                ch.BotID,
@@ -78,11 +78,14 @@ func ToChannelListResponse(result *usecase.ChannelListResult) ChannelListRespons
 	if result == nil {
 		return ChannelListResponse{Items: []ChannelResponse{}}
 	}
+
 	items := make([]ChannelResponse, 0, len(result.Items))
+
 	for i := range result.Items {
 		ch := result.Items[i]
 		items = append(items, ToChannelResponse(&ch))
 	}
+
 	return ChannelListResponse{
 		Items:      items,
 		Total:      result.Total,
@@ -97,17 +100,38 @@ func RedactConfigSecrets(cfg entity.JSONField) map[string]interface{} {
 	if cfg == nil {
 		return nil
 	}
+
 	out := make(map[string]interface{}, len(cfg))
+
 	for k, v := range cfg {
 		if isSecretConfigKey(k) {
 			continue
 		}
+
 		out[k] = v
 	}
+
 	return out
 }
 
 func isSecretConfigKey(key string) bool {
-	_, ok := secretConfigKeys[strings.ToLower(key)]
-	return ok
+	switch strings.ToLower(key) {
+	case configKeyAccessToken,
+		configKeySecret,
+		configKeyAppSecret,
+		configKeyToken,
+		configKeyVerificationToken,
+		configKeyEncodingAESKey,
+		configKeyAESKey,
+		configKeyPassword,
+		configKeyAPIKey,
+		configKeyBotToken,
+		configKeyClientSecret,
+		configKeyCorpSecret,
+		configKeyPrivateKey,
+		configKeyRefreshToken:
+		return true
+	default:
+		return false
+	}
 }

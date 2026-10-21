@@ -19,6 +19,8 @@ x-backend-app-environment: &x-backend-app-environment
   # HTTP settings
   HTTP_PORT: "8080"
   HTTP_USE_PREFORK_MODE: "false"
+  # Admin API Bearer key (integration tests and local compose)
+  HTTP_API_KEY: "integration-test-api-key"
   # Logger
   LOG_LEVEL: "debug"
   # MySQL

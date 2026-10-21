@@ -26,6 +26,9 @@ const (
 
 	// HTTP REST
 	basePathV1 = httpURL + "/api/v1"
+
+	// Must match docker-compose HTTP_API_KEY for admin /api/v1 routes.
+	adminAPIKey = "integration-test-api-key"
 )
 
 var errHealthCheck = fmt.Errorf("url %s is not available", healthPath)
@@ -37,6 +40,7 @@ func doWebRequestWithTimeout(ctx context.Context, method, url string, body io.Re
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminAPIKey)
 
 	return http.DefaultClient.Do(req)
 }

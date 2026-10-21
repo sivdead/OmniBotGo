@@ -78,8 +78,10 @@ func (uc *channelUseCase) CreateChannel(ctx context.Context, req CreateChannelRe
 	id, err := uuid.NewV7()
 	if err != nil {
 		uc.logger.Error("生成通道ID失败", "error", err)
+
 		return nil, fmt.Errorf("生成通道ID失败: %w", err)
 	}
+
 	channel.ID = id.String()
 	channel.WebhookPath = fmt.Sprintf("/webhook/%s/%s", req.PlatformType, channel.ID)
 
