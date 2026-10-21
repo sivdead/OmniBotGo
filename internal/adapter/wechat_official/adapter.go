@@ -27,7 +27,15 @@ var (
 	errWechatOfficialHTTPStatus       = errors.New("wechat official API HTTP error")
 )
 
-const wechatOfficialMsgTypeVoice = "voice"
+const (
+	wechatOfficialMsgTypeVoice     = "voice"
+	wechatOfficialMsgTypeLocation  = "location"
+	wechatOfficialMsgTypeEvent     = "event"
+	wechatOfficialEventSubscribe   = "subscribe"
+	wechatOfficialEventUnsubscribe = "unsubscribe"
+	rawKeyLocation                 = "location"
+	rawKeyEvent                    = "event"
+)
 
 // WechatOfficialAdapter 微信公众号平台适配器
 type WechatOfficialAdapter struct {
@@ -264,11 +272,11 @@ func (w *WechatOfficialAdapter) ParseInboundMessage(ctx context.Context, body []
 	case "video":
 		unifiedMsg.MediaURL = wechatMsg.MediaID
 		unifiedMsg.MediaType = "video/mp4"
-	case "location":
+	case wechatOfficialMsgTypeLocation:
 		applyWechatOfficialLocation(unifiedMsg, &wechatMsg)
 	case "link":
 		unifiedMsg.Content = fmt.Sprintf("%s\n%s\n%s", wechatMsg.Title, wechatMsg.Description, wechatMsg.URL)
-	case "event":
+	case wechatOfficialMsgTypeEvent:
 		applyWechatOfficialEvent(unifiedMsg, &wechatMsg)
 	}
 
@@ -309,12 +317,12 @@ func mapFromWechatOfficialMessageType(msgType string) string {
 		return "voice"
 	case "video":
 		return "video"
-	case "location":
-		return "location"
+	case wechatOfficialMsgTypeLocation:
+		return wechatOfficialMsgTypeLocation
 	case "link":
 		return "link"
-	case "event":
-		return "event"
+	case wechatOfficialMsgTypeEvent:
+		return wechatOfficialMsgTypeEvent
 	default:
 		return "text"
 	}
@@ -346,7 +354,7 @@ func applyWechatOfficialLocation(unifiedMsg *dto.UnifiedMessage, wechatMsg *Wech
 		Address:   wechatMsg.Label,
 	}
 	unifiedMsg.Content = wechatMsg.Label
-	unifiedMsg.RawContent["location"] = map[string]interface{}{
+	unifiedMsg.RawContent[rawKeyLocation] = map[string]interface{}{
 		"latitude":  latitude,
 		"longitude": longitude,
 		"address":   wechatMsg.Label,
@@ -369,7 +377,7 @@ func applyWechatOfficialEvent(unifiedMsg *dto.UnifiedMessage, wechatMsg *WechatO
 		unifiedMsg.Content += " - " + wechatMsg.EventKey
 	}
 
-	unifiedMsg.RawContent["event"] = map[string]interface{}{
+	unifiedMsg.RawContent[rawKeyEvent] = map[string]interface{}{
 		"event_type": eventType,
 		"event_key":  wechatMsg.EventKey,
 	}
@@ -377,15 +385,15 @@ func applyWechatOfficialEvent(unifiedMsg *dto.UnifiedMessage, wechatMsg *WechatO
 
 func mapWechatOfficialEventType(event string) string {
 	switch strings.ToLower(event) {
-	case "subscribe":
+	case wechatOfficialEventSubscribe:
 		return entity.EventTypeUserSubscribe
-	case "unsubscribe":
+	case wechatOfficialEventUnsubscribe:
 		return entity.EventTypeUserUnsubscribe
 	case "click":
 		return entity.EventTypeMenuClick
 	case "view":
 		return entity.EventTypeMenuView
-	case "location":
+	case wechatOfficialMsgTypeLocation:
 		return entity.EventTypeLocationReport
 	case "scancode_push", "scancode_waitmsg", "scan":
 		return entity.EventTypeScanQRCode

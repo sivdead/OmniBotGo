@@ -15,7 +15,7 @@ func TestParseInboundMessage_LocationSetsLocationContent(t *testing.T) {
 	t.Parallel()
 
 	body, err := json.Marshal(WechatOfficialMessage{
-		MsgType:      "location",
+		MsgType:      wechatOfficialMsgTypeLocation,
 		MsgID:        42,
 		FromUserName: "openid-1",
 		ToUserName:   testOfficialAccountToUser,
@@ -35,7 +35,7 @@ func TestParseInboundMessage_LocationSetsLocationContent(t *testing.T) {
 	require.Equal(t, "Shanghai", msg.LocationContent.Address)
 
 	unified := msg.BuildUnifiedContent()
-	require.Contains(t, unified, "location")
+	require.Contains(t, unified, rawKeyLocation)
 	require.NotContains(t, unified, "original_message")
 }
 
@@ -43,12 +43,12 @@ func TestParseInboundMessage_EventSetsEventContent(t *testing.T) {
 	t.Parallel()
 
 	body, err := json.Marshal(WechatOfficialMessage{
-		MsgType:      "event",
+		MsgType:      wechatOfficialMsgTypeEvent,
 		MsgID:        43,
 		FromUserName: "openid-2",
 		ToUserName:   testOfficialAccountToUser,
 		CreateTime:   1700000001,
-		Event:        "subscribe",
+		Event:        wechatOfficialEventSubscribe,
 		EventKey:     "qrscene_1",
 	})
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestParseInboundMessage_EventSetsEventContent(t *testing.T) {
 	require.Equal(t, "qrscene_1", msg.EventContent.EventKey)
 
 	unified := msg.BuildUnifiedContent()
-	require.Contains(t, unified, "event")
+	require.Contains(t, unified, rawKeyEvent)
 	_, hasRawDump := unified["original_message"]
 	require.False(t, hasRawDump)
 }
