@@ -76,11 +76,26 @@ mock:
     mockgen -source ./internal/repo/contracts.go -package usecase_test > ./internal/usecase/mocks_repo_test.go
     mockgen -source ./internal/usecase/contracts.go -package usecase_test > ./internal/usecase/mocks_usecase_test.go
 
-migrate-create name:
-    migrate create -ext sql -dir migrations '{{name}}'
+# Create a new migration in a dialect folder (default mysql). Example:
+#   just migrate-create add_foo
+#   just migrate-create add_foo postgres
+migrate-create name dialect="mysql":
+    migrate create -ext sql -dir migrations/{{dialect}} '{{name}}'
 
+# Apply migrations. Set DB_TYPE + database URL. Examples:
+#   just migrate-up                                 # uses PG_URL against migrations/postgres if DB_TYPE=postgres
+#   DB_TYPE=sqlite DB_URL="sqlite:///tmp/x.db" just migrate-up
 migrate-up:
-    migrate -path migrations -database "${PG_URL}?sslmode=disable" up
+    #!/usr/bin/env bash
+    set -euo pipefail
+    db_type="${DB_TYPE:-postgres}"
+    case "$db_type" in
+      mysql) path="migrations/mysql"; url="${DB_URL:-mysql://${MYSQL_DSN}}" ;;
+      postgres|postgresql) path="migrations/postgres"; url="${DB_URL:-${PG_URL}}" ;;
+      sqlite|sqlite3) path="migrations/sqlite"; url="${DB_URL:?set DB_URL=sqlite:///path/to.db}" ;;
+      *) echo "unsupported DB_TYPE=$db_type"; exit 1 ;;
+    esac
+    migrate -path "$path" -database "$url" up
 
 bin-deps:
     GOBIN={{local_bin}} go install tool

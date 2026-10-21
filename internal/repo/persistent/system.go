@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"gorm.io/gorm"
-
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
+	"gorm.io/gorm"
 )
 
 // SystemConfigRepo SystemConfig相关的数据访问层实现
@@ -141,7 +140,11 @@ func (r *SystemConfigRepo) List(ctx context.Context, params port.ListParams) (*p
 	validatedParams := r.validateParams(params)
 
 	var configs []*entity.SystemConfig
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.SystemConfig{}), validatedParams)
+
+	query, err := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.SystemConfig{}), validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &configs)
 	if err != nil {

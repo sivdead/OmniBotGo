@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
-
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
+	"gorm.io/gorm"
 )
 
 // MessageQueueRepo MessageQueue相关的数据访问层实现
@@ -127,7 +126,11 @@ func (r *MessageQueueRepo) List(ctx context.Context, params port.ListParams) (*p
 	validatedParams := r.validateParams(params)
 
 	var queues []*entity.MessageQueue
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageQueue{}), validatedParams)
+
+	query, err := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageQueue{}), validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &queues)
 	if err != nil {
@@ -182,7 +185,7 @@ func (r *MessageQueueRepo) MarkAsCompleted(ctx context.Context, id string) error
 }
 
 // MarkAsFailed 标记任务为失败
-func (r *MessageQueueRepo) MarkAsFailed(ctx context.Context, id string, errorMsg string) error {
+func (r *MessageQueueRepo) MarkAsFailed(ctx context.Context, id, errorMsg string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"status":        entity.QueueStatusFailed,

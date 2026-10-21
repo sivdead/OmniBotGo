@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
-
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
+	"gorm.io/gorm"
 )
 
 // MessageRepo Message相关的数据访问层实现
@@ -70,7 +69,7 @@ func (r *MessageRepo) GetByMessageID(ctx context.Context, messageID string) (*en
 }
 
 // GetByPlatformMessageID 根据平台消息ID获取Message
-func (r *MessageRepo) GetByPlatformMessageID(ctx context.Context, channelID string, platformMessageID string) (*entity.Message, error) {
+func (r *MessageRepo) GetByPlatformMessageID(ctx context.Context, channelID, platformMessageID string) (*entity.Message, error) {
 	var message entity.Message
 	err := r.db.GetGORM().WithContext(ctx).
 		Where("channel_id = ? AND platform_message_id = ?", channelID, platformMessageID).
@@ -93,7 +92,10 @@ func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID string, para
 		Model(&entity.Message{}).
 		Where("channel_id = ?", channelID)
 
-	query = r.buildQuery(query, validatedParams)
+	query, err := r.buildQuery(query, validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &messages)
 	if err != nil {
@@ -112,7 +114,10 @@ func (r *MessageRepo) GetByConversationID(ctx context.Context, conversationID st
 		Model(&entity.Message{}).
 		Where("conversation_id = ?", conversationID)
 
-	query = r.buildQuery(query, validatedParams)
+	query, err := r.buildQuery(query, validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &messages)
 	if err != nil {
@@ -176,7 +181,11 @@ func (r *MessageRepo) List(ctx context.Context, params port.ListParams) (*port.P
 	validatedParams := r.validateParams(params)
 
 	var messages []*entity.Message
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Message{}), validatedParams)
+
+	query, err := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Message{}), validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &messages)
 	if err != nil {
@@ -263,7 +272,7 @@ func (r *MessageRepo) MarkAsSent(ctx context.Context, id string) error {
 }
 
 // MarkAsFailed 标记消息为失败
-func (r *MessageRepo) MarkAsFailed(ctx context.Context, id string, errorMsg string) error {
+func (r *MessageRepo) MarkAsFailed(ctx context.Context, id, errorMsg string) error {
 	updates := map[string]interface{}{
 		"message_status": entity.MessageStatusFailed,
 		"error_message":  errorMsg,

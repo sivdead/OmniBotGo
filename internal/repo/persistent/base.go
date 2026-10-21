@@ -6,11 +6,20 @@ import (
 	"math"
 	"strings"
 
-	"gorm.io/gorm"
-
+	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
+	"gorm.io/gorm"
 )
+
+const (
+	filterMessageStatus = "message_status"
+	filterPlatformType  = "platform_type"
+	filterQueueName     = "queue_name"
+	filterConfigKey     = "config_key"
+)
+
+var errUnknownFilter = fmt.Errorf("unknown query filter")
 
 // BaseRepo 基础Repository，提供通用的数据库操作方法
 type BaseRepo struct {
@@ -27,78 +36,152 @@ func (r *BaseRepo) WithTx(ctx context.Context, fn func(tx *gorm.DB) error) error
 	return r.db.GetGORM().WithContext(ctx).Transaction(fn)
 }
 
-// buildQuery 构建查询条件
-func (r *BaseRepo) buildQuery(db *gorm.DB, params port.ListParams) *gorm.DB {
+// buildQuery 构建查询条件 (E05: enums, time ranges, unknown filters error).
+func (r *BaseRepo) buildQuery(db *gorm.DB, params port.ListParams) (*gorm.DB, error) {
 	query := db
 
-	// 应用过滤条件
 	for key, value := range params.Filters {
 		if value == nil {
 			continue
 		}
 
-		switch key {
-		case "id":
-			query = query.Where("id = ?", value)
-		case "status":
-			query = query.Where("status = ?", value)
-		case "created_at_gte":
-			query = query.Where("created_at >= ?", value)
-		case "created_at_lte":
-			query = query.Where("created_at <= ?", value)
-		case "updated_at_gte":
-			query = query.Where("updated_at >= ?", value)
-		case "updated_at_lte":
-			query = query.Where("updated_at <= ?", value)
-		default:
-			// 对于其他字段，使用LIKE查询
-			if str, ok := value.(string); ok && str != "" {
-				if strings.Contains(key, "_like") {
-					field := strings.TrimSuffix(key, "_like")
-					query = query.Where(fmt.Sprintf("%s LIKE ?", field), "%"+str+"%")
-				} else {
-					query = query.Where(fmt.Sprintf("%s = ?", key), value)
-				}
+		next, err := applyListFilter(query, key, value)
+		if err != nil {
+			return nil, err
+		}
+
+		query = next
+	}
+
+	return applyListOrder(query, params.OrderBy), nil
+}
+
+//nolint:gocyclo,cyclop,goconst,funlen // explicit allowlisted filter switch; short SQL identifiers
+func applyListFilter(query *gorm.DB, key string, value interface{}) (*gorm.DB, error) {
+	switch key {
+	case "id":
+		return query.Where("id = ?", value), nil
+	case "status":
+		return query.Where("status = ?", normalizeFilterValue(value)), nil
+	case filterMessageStatus:
+		return query.Where("message_status = ?", normalizeFilterValue(value)), nil
+	case "direction":
+		return query.Where("direction = ?", normalizeFilterValue(value)), nil
+	case "channel_id":
+		return query.Where("channel_id = ?", value), nil
+	case "processor_id":
+		return query.Where("processor_id = ?", value), nil
+	case "conversation_id":
+		return query.Where("conversation_id = ?", value), nil
+	case filterPlatformType:
+		return query.Where("platform_type = ?", value), nil
+	case filterQueueName:
+		return query.Where("queue_name = ?", value), nil
+	case filterConfigKey:
+		return query.Where("config_key = ?", value), nil
+	case "config_group":
+		return query.Where("config_group = ?", value), nil
+	case "created_at_gte":
+		return query.Where("created_at >= ?", value), nil
+	case "created_at_lte":
+		return query.Where("created_at <= ?", value), nil
+	case "updated_at_gte":
+		return query.Where("updated_at >= ?", value), nil
+	case "updated_at_lte":
+		return query.Where("updated_at <= ?", value), nil
+	case "start_time":
+		return query.Where("created_at >= ?", value), nil
+	case "end_time":
+		return query.Where("created_at <= ?", value), nil
+	default:
+		if strings.HasSuffix(key, "_like") {
+			field := strings.TrimSuffix(key, "_like")
+			if !isAllowedFilterField(field) {
+				return nil, fmt.Errorf("%w: %s", errUnknownFilter, key)
 			}
+
+			str, ok := value.(string)
+			if !ok || str == "" {
+				return query, nil
+			}
+
+			return query.Where(fmt.Sprintf("%s LIKE ?", field), "%"+str+"%"), nil
+		}
+
+		return nil, fmt.Errorf("%w: %s", errUnknownFilter, key)
+	}
+}
+
+func applyListOrder(query *gorm.DB, orderByRaw string) *gorm.DB {
+	if orderByRaw == "" {
+		return query.Order("id DESC")
+	}
+
+	const orderFieldName = "name"
+	allowedFields := []string{"id", "created_at", "updated_at", orderFieldName, "priority", "status"}
+	orderBy := strings.ToLower(orderByRaw)
+
+	direction := "ASC"
+	if strings.HasSuffix(orderBy, " desc") {
+		direction = "DESC"
+		orderBy = strings.TrimSuffix(orderBy, " desc")
+	} else if strings.HasSuffix(orderBy, " asc") {
+		orderBy = strings.TrimSuffix(orderBy, " asc")
+	}
+
+	for _, field := range allowedFields {
+		if orderBy == field {
+			return query.Order(fmt.Sprintf("%s %s", orderBy, direction))
 		}
 	}
 
-	// 应用排序
-	if params.OrderBy != "" {
-		// 防止SQL注入，只允许特定字段排序
-		allowedFields := []string{"id", "created_at", "updated_at", "name", "priority", "status"}
-		orderBy := strings.ToLower(params.OrderBy)
+	return query.Order("id DESC")
+}
 
-		// 解析排序方向
-		direction := "ASC"
-		if strings.HasSuffix(orderBy, " desc") {
-			direction = "DESC"
-			orderBy = strings.TrimSuffix(orderBy, " desc")
-		} else if strings.HasSuffix(orderBy, " asc") {
-			orderBy = strings.TrimSuffix(orderBy, " asc")
-		}
+func isAllowedFilterField(field string) bool {
+	switch field {
+	case "id", "status", "name", "bot_name", "channel_name", "processor_name",
+		"rule_name", filterConfigKey, "message_id", filterPlatformType, filterQueueName:
+		return true
+	default:
+		return false
+	}
+}
 
-		// 验证字段名
-		isAllowed := false
-		for _, field := range allowedFields {
-			if orderBy == field {
-				isAllowed = true
-				break
-			}
-		}
+//nolint:gocyclo,cyclop // enum type switch
+func normalizeFilterValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case entity.MessageStatus:
+		return int8(v)
+	case *entity.MessageStatus:
+		return enumPtrInt8(v)
+	case entity.MessageDirection:
+		return int8(v)
+	case *entity.MessageDirection:
+		return enumPtrInt8(v)
+	case entity.Status:
+		return int8(v)
+	case *entity.Status:
+		return enumPtrInt8(v)
+	case entity.QueueStatus:
+		return int8(v)
+	case *entity.QueueStatus:
+		return enumPtrInt8(v)
+	case entity.ConnectionStatus:
+		return int8(v)
+	case *entity.ConnectionStatus:
+		return enumPtrInt8(v)
+	default:
+		return value
+	}
+}
 
-		if isAllowed {
-			query = query.Order(fmt.Sprintf("%s %s", orderBy, direction))
-		} else {
-			// 默认排序
-			query = query.Order("id DESC")
-		}
-	} else {
-		// 默认排序
-		query = query.Order("id DESC")
+func enumPtrInt8[T ~int8](v *T) interface{} {
+	if v == nil {
+		return nil
 	}
 
-	return query
+	return int8(*v)
 }
 
 // exists 检查记录是否存在
@@ -108,6 +191,7 @@ func (r *BaseRepo) exists(ctx context.Context, model interface{}, where string, 
 	if err != nil {
 		return false, fmt.Errorf("failed to check existence: %w", err)
 	}
+
 	return count > 0, nil
 }
 
@@ -117,9 +201,11 @@ func (r *BaseRepo) softDelete(ctx context.Context, model interface{}, id string)
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete record: %w", result.Error)
 	}
+
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
+
 	return nil
 }
 
@@ -129,6 +215,7 @@ func (r *BaseRepo) hardDelete(ctx context.Context, model interface{}, where stri
 	if result.Error != nil {
 		return fmt.Errorf("failed to hard delete record: %w", result.Error)
 	}
+
 	return nil
 }
 
@@ -137,15 +224,19 @@ func (r *BaseRepo) validateParams(params port.ListParams) port.ListParams {
 	if params.Page <= 0 {
 		params.Page = 1
 	}
+
 	if params.PageSize <= 0 {
 		params.PageSize = 20
 	}
+
 	if params.PageSize > 100 {
 		params.PageSize = 100
 	}
+
 	if params.Filters == nil {
 		params.Filters = make(map[string]interface{})
 	}
+
 	return params
 }
 
@@ -169,19 +260,19 @@ func (r *BaseRepo) handleError(err error, operation string) error {
 
 // Paginate 执行泛型分页查询并返回分页结果
 func Paginate[T any](db *gorm.DB, ctx context.Context, query *gorm.DB, params port.ListParams, result *[]T) (*port.PaginatedResult[T], error) {
-	// 计算总数
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, fmt.Errorf("failed to count records: %w", err)
 	}
 
-	// 计算分页参数
 	if params.Page <= 0 {
 		params.Page = 1
 	}
+
 	if params.PageSize <= 0 {
 		params.PageSize = 20
 	}
+
 	if params.PageSize > 100 {
 		params.PageSize = 100
 	}
@@ -189,7 +280,6 @@ func Paginate[T any](db *gorm.DB, ctx context.Context, query *gorm.DB, params po
 	offset := (params.Page - 1) * params.PageSize
 	totalPages := int(math.Ceil(float64(total) / float64(params.PageSize)))
 
-	// 执行分页查询
 	if err := query.Offset(offset).Limit(params.PageSize).Find(result).Error; err != nil {
 		return nil, fmt.Errorf("failed to query records: %w", err)
 	}

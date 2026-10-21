@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
-
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
+	"gorm.io/gorm"
 )
 
 // ChannelRepo Channel相关的数据访问层实现
@@ -88,7 +87,7 @@ func (r *ChannelRepo) GetByWebhookPath(ctx context.Context, path string) (*entit
 }
 
 // GetByName 根据机器人ID和通道名称获取Channel
-func (r *ChannelRepo) GetByName(ctx context.Context, botID string, channelName string) (*entity.Channel, error) {
+func (r *ChannelRepo) GetByName(ctx context.Context, botID, channelName string) (*entity.Channel, error) {
 	var channel entity.Channel
 	err := r.db.GetGORM().WithContext(ctx).
 		Where("bot_id = ? AND channel_name = ?", botID, channelName).
@@ -125,7 +124,11 @@ func (r *ChannelRepo) List(ctx context.Context, params port.ListParams) (*port.P
 	validatedParams := r.validateParams(params)
 
 	var channels []*entity.Channel
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Channel{}), validatedParams)
+
+	query, err := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Channel{}), validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &channels)
 	if err != nil {
@@ -172,7 +175,7 @@ func (r *ChannelRepo) UpdateConnectionStatus(ctx context.Context, id string, sta
 }
 
 // UpdateAccessToken 更新访问令牌
-func (r *ChannelRepo) UpdateAccessToken(ctx context.Context, id string, token string, expiresAt *time.Time) error {
+func (r *ChannelRepo) UpdateAccessToken(ctx context.Context, id, token string, expiresAt *time.Time) error {
 	updates := map[string]interface{}{
 		"access_token": token,
 	}

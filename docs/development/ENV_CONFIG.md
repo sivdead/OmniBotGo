@@ -52,6 +52,14 @@ DB_LOG_LEVEL=warn              # 数据库日志级别
 DB_SLOW_THRESHOLD=200          # 慢查询阈值（毫秒）
 ```
 
+Migrations are dialect-specific under `migrations/{mysql,postgres,sqlite}` (selected by `DB_TYPE`).
+
+- **MySQL DSN**: `user:pass@tcp(host:3306)/db?...` (migrate prefixes `mysql://` if needed)
+- **Postgres DSN**: full `postgres://...` / `postgresql://...` URL, libpq keyword form (`host=... user=... dbname=...`), or `user:pass@host:5432/db`
+- **SQLite DSN**: file path; migrate/runtime append `_pragma=foreign_keys(1)` so FKs apply on every pool connection
+
+UUID→BIGINT MySQL down migration is **refused** (unsafe). Prefer restore-from-backup.
+
 ### gRPC配置
 ```bash
 GRPC_PORT=8081                  # gRPC服务端口

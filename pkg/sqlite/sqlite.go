@@ -3,6 +3,7 @@ package sqlite
 import (
 	"database/sql"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Masterminds/squirrel"
@@ -11,7 +12,6 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
-
 	// 使用纯Go SQLite驱动，无需CGO
 	_ "modernc.org/sqlite"
 )
@@ -54,6 +54,10 @@ func New(dsn string, opts ...Option) (*SQLite, error) {
 		Logger: gormLogger,
 	}
 
+	// E08: enable foreign_keys on every physical connection via modernc _pragma DSN,
+	// not only the first pooled connection from a one-shot PRAGMA Exec.
+	dsn = ensureForeignKeysPragma(dsn)
+
 	// 使用modernc.org/sqlite作为驱动
 	dialector := sqlite.Dialector{
 		DSN:        dsn,
@@ -75,9 +79,9 @@ func New(dsn string, opts ...Option) (*SQLite, error) {
 	sqlDB.SetMaxIdleConns(s.maxConnections)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	// SQLite特殊设置
-	db.Exec("PRAGMA foreign_keys = ON")  // 启用外键约束
-	db.Exec("PRAGMA journal_mode = WAL") // 使用WAL模式提高并发性能
+	// Best-effort on the current connection; DSN pragma covers subsequent pool conns.
+	db.Exec("PRAGMA foreign_keys = ON")
+	db.Exec("PRAGMA journal_mode = WAL")
 
 	s.gormDB = db
 	s.sqlDB = sqlDB
@@ -113,5 +117,28 @@ func (s *SQLite) Close() error {
 	if s.sqlDB != nil {
 		return s.sqlDB.Close()
 	}
+
 	return nil
+}
+
+// ensureForeignKeysPragma appends modernc.org/sqlite _pragma=foreign_keys(1) when absent.
+func ensureForeignKeysPragma(dsn string) string {
+	if dsn == "" {
+		return dsn
+	}
+
+	lower := strings.ToLower(dsn)
+	if strings.Contains(lower, "_pragma=foreign_keys") || strings.Contains(lower, "foreign_keys(1)") {
+		return dsn
+	}
+
+	if dsn == ":memory:" {
+		return "file::memory:?cache=shared&_pragma=foreign_keys(1)"
+	}
+
+	if strings.Contains(dsn, "?") {
+		return dsn + "&_pragma=foreign_keys(1)"
+	}
+
+	return dsn + "?_pragma=foreign_keys(1)"
 }

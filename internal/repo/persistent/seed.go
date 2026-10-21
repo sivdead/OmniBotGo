@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"gorm.io/gorm"
-
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/pkg/database"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
+	"gorm.io/gorm"
 )
 
 // DataSeeder 数据初始化器

@@ -44,7 +44,10 @@ func (r *ConnectionLogRepo) GetByChannelID(ctx context.Context, channelID string
 		Model(&entity.ConnectionLog{}).
 		Where("channel_id = ?", channelID)
 
-	query = r.buildQuery(query, validatedParams)
+	query, err := r.buildQuery(query, validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
@@ -99,7 +102,11 @@ func (r *ConnectionLogRepo) List(ctx context.Context, params port.ListParams) (*
 	validatedParams := r.validateParams(params)
 
 	var logs []*entity.ConnectionLog
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.ConnectionLog{}), validatedParams)
+
+	query, err := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.ConnectionLog{}), validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
@@ -170,7 +177,10 @@ func (r *APICallLogRepo) GetByChannelID(ctx context.Context, channelID string, p
 		Model(&entity.APICallLog{}).
 		Where("channel_id = ?", channelID)
 
-	query = r.buildQuery(query, validatedParams)
+	query, err := r.buildQuery(query, validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
@@ -189,7 +199,10 @@ func (r *APICallLogRepo) GetByProcessorID(ctx context.Context, processorID strin
 		Model(&entity.APICallLog{}).
 		Where("processor_id = ?", processorID)
 
-	query = r.buildQuery(query, validatedParams)
+	query, err := r.buildQuery(query, validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
@@ -200,7 +213,7 @@ func (r *APICallLogRepo) GetByProcessorID(ctx context.Context, processorID strin
 }
 
 // GetSlowCalls 获取慢调用记录
-func (r *APICallLogRepo) GetSlowCalls(ctx context.Context, thresholdMs int, limit int) ([]*entity.APICallLog, error) {
+func (r *APICallLogRepo) GetSlowCalls(ctx context.Context, thresholdMs, limit int) ([]*entity.APICallLog, error) {
 	var logs []*entity.APICallLog
 	query := r.db.GetGORM().WithContext(ctx).
 		Preload("Channel").
@@ -263,7 +276,11 @@ func (r *APICallLogRepo) List(ctx context.Context, params port.ListParams) (*por
 	validatedParams := r.validateParams(params)
 
 	var logs []*entity.APICallLog
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.APICallLog{}), validatedParams)
+
+	query, err := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.APICallLog{}), validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &logs)
 	if err != nil {
@@ -285,7 +302,7 @@ func (r *APICallLogRepo) DeleteOldLogs(ctx context.Context, beforeDays int) erro
 }
 
 // GetStatistics 获取API调用统计信息
-func (r *APICallLogRepo) GetStatistics(ctx context.Context, channelID *string, processorID *string) (*port.CallStatistics, error) {
+func (r *APICallLogRepo) GetStatistics(ctx context.Context, channelID, processorID *string) (*port.CallStatistics, error) {
 	var stats port.CallStatistics
 
 	query := r.db.GetGORM().WithContext(ctx).Model(&entity.APICallLog{})

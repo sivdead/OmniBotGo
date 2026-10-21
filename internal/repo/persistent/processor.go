@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"gorm.io/gorm"
-
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
+	"gorm.io/gorm"
 )
 
 // MessageProcessorRepo MessageProcessor相关的数据访问层实现
@@ -99,7 +98,11 @@ func (r *MessageProcessorRepo) List(ctx context.Context, params port.ListParams)
 	validatedParams := r.validateParams(params)
 
 	var processors []*entity.MessageProcessor
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageProcessor{}), validatedParams)
+
+	query, err := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageProcessor{}), validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &processors)
 	if err != nil {
@@ -211,7 +214,7 @@ func (r *MessageRoutingRuleRepo) GetActiveRules(ctx context.Context) ([]*entity.
 }
 
 // GetMatchingRules 获取匹配指定条件的MessageRoutingRule列表
-func (r *MessageRoutingRuleRepo) GetMatchingRules(ctx context.Context, botID string, platformType string, channelID string, messageType string) ([]*entity.MessageRoutingRule, error) {
+func (r *MessageRoutingRuleRepo) GetMatchingRules(ctx context.Context, _, _, _, _ string) ([]*entity.MessageRoutingRule, error) {
 	var rules []*entity.MessageRoutingRule
 
 	// 获取所有激活的规则，在应用层进行匹配逻辑
@@ -268,7 +271,11 @@ func (r *MessageRoutingRuleRepo) List(ctx context.Context, params port.ListParam
 	validatedParams := r.validateParams(params)
 
 	var rules []*entity.MessageRoutingRule
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageRoutingRule{}), validatedParams)
+
+	query, err := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.MessageRoutingRule{}), validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &rules)
 	if err != nil {
