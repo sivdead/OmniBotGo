@@ -155,8 +155,10 @@ func (f *FeishuAdapter) VerifyWebhook(_ context.Context, _, _, _ string, body []
 		return fmt.Errorf("failed to parse feishu webhook body: %w", err)
 	}
 
-	// 飞书回调中 token 字段在顶层
-	if token, ok := event["token"].(string); ok && token != verificationToken {
+	// When verification_token is configured, a matching string token is required.
+	// Missing, non-string, or wrong token must fail (do not treat absent as pass).
+	token, ok := event["token"].(string)
+	if !ok || token != verificationToken {
 		return errFeishuWebhookTokenMismatch
 	}
 
@@ -260,8 +262,8 @@ func (f *FeishuAdapter) handleMessageReceiveEvent(eventData map[string]interface
 }
 
 // BuildWebhookPath 实现WebhookProcessor接口。
-func (f *FeishuAdapter) BuildWebhookPath(channelID int64) string {
-	return fmt.Sprintf("/webhook/feishu/%d", channelID)
+func (f *FeishuAdapter) BuildWebhookPath(channelID string) string {
+	return fmt.Sprintf("/webhook/feishu/%s", channelID)
 }
 
 // 确保 FeishuAdapter 实现了所需的接口。

@@ -19,8 +19,8 @@ type WebhookProcessor interface {
 	VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error
 	// ParseInboundMessage 解析入站消息
 	ParseInboundMessage(ctx context.Context, body []byte, config map[string]interface{}) (*dto.UnifiedMessage, error)
-	// BuildWebhookPath 构建Webhook路径
-	BuildWebhookPath(channelID int64) string
+	// BuildWebhookPath 构建Webhook路径（channelID 为 UUID 字符串）
+	BuildWebhookPath(channelID string) string
 }
 
 // TokenManager Token管理的能力接口

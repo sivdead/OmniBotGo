@@ -193,8 +193,8 @@ func (w *WecomAdapter) ParseInboundMessage(ctx context.Context, body []byte, con
 }
 
 // BuildWebhookPath 构建Webhook路径
-func (w *WecomAdapter) BuildWebhookPath(channelID int64) string {
-	return fmt.Sprintf("/webhook/wecom/%d", channelID)
+func (w *WecomAdapter) BuildWebhookPath(channelID string) string {
+	return fmt.Sprintf("/webhook/wecom/%s", channelID)
 }
 
 // mapWecomEventType 映射企业微信事件类型到统一事件类型

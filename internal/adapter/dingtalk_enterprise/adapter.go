@@ -237,8 +237,8 @@ func (a *DingtalkEnterpriseAdapter) ParseInboundMessage(_ context.Context, body 
 }
 
 // BuildWebhookPath 实现WebhookProcessor接口。
-func (a *DingtalkEnterpriseAdapter) BuildWebhookPath(channelID int64) string {
-	return fmt.Sprintf("/webhook/dingtalk/%d", channelID)
+func (a *DingtalkEnterpriseAdapter) BuildWebhookPath(channelID string) string {
+	return fmt.Sprintf("/webhook/dingtalk/%s", channelID)
 }
 
 // 编译期接口实现检查。

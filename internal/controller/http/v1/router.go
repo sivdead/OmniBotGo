@@ -131,14 +131,14 @@ func NewAPIRoutes(
 func NewWebhookRoutes(
 	app fiber.Router,
 	v1Controller *V1,
+	adapterManager *adapter.Manager,
 ) {
-	adapterManager := adapter.NewManager()
 	webhookController := NewWebhookController(v1Controller, adapterManager)
 
-	// Webhook路由
+	// Webhook路由 — channel_id is a UUID string matching /webhook/{platform}/{channel_id}
 	webhookGroup := app.Group("/webhook")
 	{
-		webhookGroup.Get("/:platform/:channel_id", webhookController.GetWebhookInfo)
+		webhookGroup.Get("/:platform/:channel_id", webhookController.HandleWebhookGET)
 		webhookGroup.Post("/:platform/:channel_id", webhookController.HandleWebhook)
 	}
 }
@@ -147,11 +147,11 @@ func NewWebhookRoutes(
 func NewHealthRoutes(
 	app fiber.Router,
 	v1Controller *V1,
+	adapterManager *adapter.Manager,
 ) {
-	adapterManager := adapter.NewManager()
 	healthController := NewHealthController(v1Controller, adapterManager)
 
-	// 健康检查路由
+	// 健康检查路由（公开，不需要 admin API key）
 	app.Get("/healthz", healthController.GetHealth)
 	app.Get("/health", healthController.GetHealthSimple)
 	app.Get("/ready", healthController.GetReadiness)

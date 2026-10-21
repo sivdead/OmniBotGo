@@ -1,8 +1,8 @@
 package v1
 
 import (
+	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/sivdead/OmniBotGo/internal/adapter"
@@ -23,6 +23,63 @@ func NewWebhookController(v1 *V1, adapterManager *adapter.Manager) *WebhookContr
 	}
 }
 
+// HandleWebhookGET dispatches platform URL verification/handshake vs admin webhook info.
+// WeCom / WeChat Official GET handshakes use echostr (+ signature params).
+// Plain GET without handshake params returns webhook metadata for the UUID channel_id.
+func (w *WebhookController) HandleWebhookGET(c *fiber.Ctx) error {
+	if isURLVerificationRequest(c) {
+		return w.handleURLVerificationGET(c)
+	}
+	return w.GetWebhookInfo(c)
+}
+
+// isURLVerificationRequest detects WeCom / Official Account URL verification GETs.
+func isURLVerificationRequest(c *fiber.Ctx) bool {
+	if c.Query("echostr") != "" {
+		return true
+	}
+	// WeCom encrypted callback verification uses msg_signature without always requiring
+	// callers to treat echostr-only as the sole signal in all SDK variants.
+	if c.Query("msg_signature") != "" && c.Query("timestamp") != "" && c.Query("nonce") != "" {
+		return true
+	}
+	return false
+}
+
+// handleURLVerificationGET performs platform handshake for GET /webhook/{platform}/{channel_id}.
+func (w *WebhookController) handleURLVerificationGET(c *fiber.Ctx) error {
+	platformStr := c.Params("platform")
+	channelID := c.Params("channel_id")
+
+	platformType := entity.PlatformType(platformStr)
+	if _, err := w.adapterManager.GetAdapter(platformType); err != nil {
+		w.l.Error("不支持的平台类型: %s", platformStr)
+		return NewErrorResponse(c, http.StatusBadRequest, "不支持的平台类型")
+	}
+	if channelID == "" {
+		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
+	}
+
+	channel, err := w.channelUC.GetChannel(c.Context(), channelID)
+	if err != nil {
+		w.l.Error("获取通道信息失败: %v", err)
+		return NewErrorResponse(c, http.StatusNotFound, "通道不存在")
+	}
+	if channel.PlatformType != platformStr {
+		return NewErrorResponse(c, http.StatusBadRequest, "通道平台类型不匹配")
+	}
+
+	signature := c.Query("signature")
+	if platformType == entity.PlatformTypeWecom {
+		signature = c.Query("msg_signature")
+	}
+	timestamp := c.Query("timestamp")
+	nonce := c.Query("nonce")
+	echoStr := c.Query("echostr")
+
+	return w.handleURLVerification(c, platformType, signature, timestamp, nonce, echoStr, channel.Config)
+}
+
 // HandleWebhook 处理Webhook回调
 // @Summary 处理平台Webhook回调
 // @Description 接收并处理来自各个平台的消息回调
@@ -30,7 +87,7 @@ func NewWebhookController(v1 *V1, adapterManager *adapter.Manager) *WebhookContr
 // @Accept json
 // @Produce json
 // @Param platform path string true "平台类型" Enums(wecom,dingtalk,wechat_official,feishu)
-// @Param channel_id path int true "通道ID"
+// @Param channel_id path string true "通道ID (UUID)"
 // @Param signature query string false "签名"
 // @Param timestamp query string false "时间戳"
 // @Param nonce query string false "随机数"
@@ -42,7 +99,7 @@ func NewWebhookController(v1 *V1, adapterManager *adapter.Manager) *WebhookContr
 // @Router /webhook/{platform}/{channel_id} [post]
 func (w *WebhookController) HandleWebhook(c *fiber.Ctx) error {
 	platformStr := c.Params("platform")
-	channelIDStr := c.Params("channel_id")
+	channelID := c.Params("channel_id")
 
 	// 验证平台类型
 	platformType := entity.PlatformType(platformStr)
@@ -52,8 +109,6 @@ func (w *WebhookController) HandleWebhook(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusBadRequest, "不支持的平台类型")
 	}
 
-	// 验证通道ID
-	channelID := channelIDStr
 	if channelID == "" {
 		w.l.Error("通道ID不能为空")
 		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
@@ -86,8 +141,8 @@ func (w *WebhookController) HandleWebhook(c *fiber.Ctx) error {
 	// 读取请求体
 	body := c.Body()
 
-	// 如果是验证URL的请求（GET请求或有echostr参数）
-	if c.Method() == "GET" || echoStr != "" {
+	// POST with echostr is treated as URL verification (some platforms use POST for challenge)
+	if echoStr != "" {
 		return w.handleURLVerification(c, platformType, signature, timestamp, nonce, echoStr, channel.Config)
 	}
 
@@ -135,7 +190,7 @@ func (w *WebhookController) HandleWebhook(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "消息处理失败")
 	}
 
-	w.l.Info("成功处理Webhook消息: 平台=%s, 通道=%d, 消息ID=%s", platformStr, channelID, unifiedMessage.MessageID)
+	w.l.Info("成功处理Webhook消息: 平台=%s, 通道=%s, 消息ID=%s", platformStr, channelID, unifiedMessage.MessageID)
 
 	return NewSuccessResponse(c, http.StatusOK, "消息处理成功", nil)
 }
@@ -153,14 +208,14 @@ func (w *WebhookController) handleURLVerification(c *fiber.Ctx, platformType ent
 	return c.SendString(echoStr)
 }
 
-// GetWebhookInfo 获取Webhook信息
+// GetWebhookInfo 获取Webhook信息（非握手 GET）
 // @Summary 获取Webhook配置信息
-// @Description 获取指定通道的Webhook配置信息
+// @Description 获取指定通道的Webhook配置信息；channel_id 为 UUID 字符串
 // @Tags webhook
 // @Accept json
 // @Produce json
 // @Param platform path string true "平台类型"
-// @Param channel_id path int true "通道ID"
+// @Param channel_id path string true "通道ID (UUID)"
 // @Success 200 {object} StandardResponse{data=WebhookInfo} "获取成功"
 // @Failure 400 {object} StandardResponse "请求参数错误"
 // @Failure 404 {object} StandardResponse "通道不存在"
@@ -168,42 +223,36 @@ func (w *WebhookController) handleURLVerification(c *fiber.Ctx, platformType ent
 // @Router /webhook/{platform}/{channel_id} [get]
 func (w *WebhookController) GetWebhookInfo(c *fiber.Ctx) error {
 	platformStr := c.Params("platform")
-	channelIDStr := c.Params("channel_id")
+	channelID := c.Params("channel_id")
 
-	// 验证平台类型
 	platformType := entity.PlatformType(platformStr)
 	_, err := w.adapterManager.GetAdapter(platformType)
 	if err != nil {
 		return NewErrorResponse(c, http.StatusBadRequest, "不支持的平台类型")
 	}
 
-	// 验证通道ID
-	channelID := channelIDStr
 	if channelID == "" {
 		return NewErrorResponse(c, http.StatusBadRequest, "通道ID不能为空")
 	}
 
-	// 获取通道信息
 	channel, err := w.channelUC.GetChannel(c.Context(), channelID)
 	if err != nil {
 		return NewErrorResponse(c, http.StatusNotFound, "通道不存在")
 	}
 
-	// 构建Webhook路径
-	channelIDInt, err := strconv.ParseInt(channelID, 10, 64)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusBadRequest, "通道ID格式错误")
-	}
-	webhookPath, err := w.adapterManager.BuildWebhookPath(platformType, channelIDInt)
-	if err != nil {
-		return NewErrorResponse(c, http.StatusInternalServerError, "构建Webhook路径失败")
+	webhookPath := channel.WebhookPath
+	if webhookPath == "" {
+		webhookPath, err = w.adapterManager.BuildWebhookPath(platformType, channelID)
+		if err != nil {
+			return NewErrorResponse(c, http.StatusInternalServerError, "构建Webhook路径失败")
+		}
 	}
 
 	webhookInfo := WebhookInfo{
 		ChannelID:        channelID,
 		Platform:         platformStr,
 		WebhookPath:      webhookPath,
-		WebhookURL:       c.Protocol() + "://" + c.Get("Host") + webhookPath,
+		WebhookURL:       fmt.Sprintf("%s://%s%s", c.Protocol(), c.Get("Host"), webhookPath),
 		ChannelName:      channel.ChannelName,
 		Status:           channel.Status.String(),
 		ConnectionStatus: channel.ConnectionStatus.String(),

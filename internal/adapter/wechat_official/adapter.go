@@ -269,8 +269,8 @@ func (w *WechatOfficialAdapter) ParseInboundMessage(ctx context.Context, body []
 }
 
 // BuildWebhookPath 构建Webhook路径
-func (w *WechatOfficialAdapter) BuildWebhookPath(channelID int64) string {
-	return fmt.Sprintf("/webhook/wechat_official/%d", channelID)
+func (w *WechatOfficialAdapter) BuildWebhookPath(channelID string) string {
+	return fmt.Sprintf("/webhook/wechat_official/%s", channelID)
 }
 
 // 辅助函数

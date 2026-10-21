@@ -33,7 +33,7 @@ func (m *MockAdapter) ParseInboundMessage(ctx context.Context, body []byte, conf
 	return args.Get(0).(*dto.UnifiedMessage), args.Error(1)
 }
 
-func (m *MockAdapter) BuildWebhookPath(channelID int64) string {
+func (m *MockAdapter) BuildWebhookPath(channelID string) string {
 	args := m.Called(channelID)
 	return args.String(0)
 }

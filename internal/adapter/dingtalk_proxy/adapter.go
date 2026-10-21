@@ -151,8 +151,8 @@ func (a *DingtalkProxyAdapter) ParseInboundMessage(_ context.Context, body []byt
 }
 
 // BuildWebhookPath 实现WebhookProcessor接口。
-func (a *DingtalkProxyAdapter) BuildWebhookPath(channelID int64) string {
-	return fmt.Sprintf("/webhook/dingtalk/%d", channelID)
+func (a *DingtalkProxyAdapter) BuildWebhookPath(channelID string) string {
+	return fmt.Sprintf("/webhook/dingtalk/%s", channelID)
 }
 
 // Start 实现StreamAdapter接口。

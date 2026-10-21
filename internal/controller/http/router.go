@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/swagger"
 	_ "github.com/sivdead/OmniBotGo/docs" // Swagger docs.
+	"github.com/sivdead/OmniBotGo/internal/adapter"
 	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/controller/http/middleware"
 	v1 "github.com/sivdead/OmniBotGo/internal/controller/http/v1"
@@ -36,6 +37,7 @@ func NewRouter(
 	logUC usecase.LogUseCase,
 	queueUC usecase.QueueUseCase,
 	processorUC usecase.ProcessorUseCase,
+	adapterManager *adapter.Manager,
 	l logger.Interface,
 ) {
 	// Options
@@ -90,15 +92,15 @@ func NewRouter(
 	// 创建V1控制器实例（避免重复创建）
 	v1Controller := v1.NewV1Controller(messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
 
-	// API路由
-	apiV1Group := app.Group("/api/v1")
+	// Admin API routes — require Bearer HTTP_API_KEY; not applied to webhooks/probes.
+	apiV1Group := app.Group("/api/v1", middleware.RequireAPIKey(cfg.HTTP.APIKey))
 	{
 		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
 	}
 
-	// Webhook路由（在根路径下）
-	v1.NewWebhookRoutes(app, v1Controller)
+	// Webhook routes use platform signature/token verification only (no admin API key).
+	v1.NewWebhookRoutes(app, v1Controller, adapterManager)
 
-	// 健康检查路由
-	v1.NewHealthRoutes(app, v1Controller)
+	// Health/readiness probes stay public.
+	v1.NewHealthRoutes(app, v1Controller, adapterManager)
 }
