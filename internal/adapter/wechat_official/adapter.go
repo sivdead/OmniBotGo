@@ -26,6 +26,8 @@ var (
 	errWechatOfficialHTTPStatus       = errors.New("wechat official API HTTP error")
 )
 
+const wechatOfficialMsgTypeVoice = "voice"
+
 // WechatOfficialAdapter 微信公众号平台适配器
 type WechatOfficialAdapter struct {
 	httpClient *http.Client
@@ -60,19 +62,21 @@ func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *dto.Un
 
 	// 根据消息类型设置内容
 	switch message.MessageType {
-	case "text":
+	case entity.MessageTypeText:
 		sendMsg.Text = &WechatOfficialTextMessage{
 			Content: message.Content,
 		}
-	case "image":
+	case entity.MessageTypeImage:
 		sendMsg.Image = &WechatOfficialImageMessage{
 			MediaID: message.MediaURL,
 		}
-	case "voice":
+	case entity.MessageTypeAudio, wechatOfficialMsgTypeVoice:
+		// D05: entity.MessageTypeAudio → voice/media_id (not text fallback).
 		sendMsg.Voice = &WechatOfficialVoiceMessage{
 			MediaID: message.MediaURL,
 		}
-	case "video":
+		sendMsg.MsgType = wechatOfficialMsgTypeVoice
+	case entity.MessageTypeVideo:
 		sendMsg.Video = &WechatOfficialVideoMessage{
 			MediaID: message.MediaURL,
 			Title:   message.Content,
@@ -201,8 +205,8 @@ func (w *WechatOfficialAdapter) RefreshAccessToken(ctx context.Context, config m
 }
 
 // VerifyWebhook 验证Webhook请求
-func (w *WechatOfficialAdapter) VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error {
-	token, ok := config["token"].(string)
+func (w *WechatOfficialAdapter) VerifyWebhook(_ context.Context, signature, timestamp, nonce string, _ []byte, cfg map[string]interface{}) error {
+	token, ok := cfg["token"].(string)
 	if !ok || token == "" {
 		return errWechatOfficialMissingToken
 	}
@@ -283,15 +287,15 @@ func (w *WechatOfficialAdapter) BuildWebhookPath(channelID string) string {
 
 func mapToWechatOfficialMessageType(msgType string) string {
 	switch msgType {
-	case "text":
+	case entity.MessageTypeText:
 		return "text"
-	case "image":
+	case entity.MessageTypeImage:
 		return "image"
-	case "voice":
-		return "voice"
-	case "video":
+	case entity.MessageTypeAudio, wechatOfficialMsgTypeVoice:
+		return wechatOfficialMsgTypeVoice
+	case entity.MessageTypeVideo:
 		return "video"
-	case "news":
+	case entity.MessageTypeNews:
 		return "news"
 	default:
 		return "text"

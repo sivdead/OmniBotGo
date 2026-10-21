@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -22,14 +23,22 @@ var (
 	errFeishuWebhookTokenMismatch = errors.New("feishu webhook token mismatch")
 )
 
+const (
+	feishuMsgTypeMDAlias = "md"
+	feishuContentKeyText = "text"
+)
+
 // FeishuAdapter 飞书平台适配器
 type FeishuAdapter struct {
-	client *lark.Client
+	clients map[string]*lark.Client // D02: keyed by app_id + app_secret
+	mu      sync.Mutex
 }
 
 // NewFeishuAdapter 创建飞书适配器实例
 func NewFeishuAdapter() *FeishuAdapter {
-	return &FeishuAdapter{}
+	return &FeishuAdapter{
+		clients: make(map[string]*lark.Client),
+	}
 }
 
 // GetPlatformType 获取平台类型
@@ -77,19 +86,27 @@ func (f *FeishuAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMes
 	return nil
 }
 
-// buildMessageContent 构建消息内容
+// buildMessageContent 构建消息内容（D04: json.Marshal，避免引号/换行破坏 JSON）。
 func (f *FeishuAdapter) buildMessageContent(message *dto.UnifiedMessage) (string, error) {
+	var payload map[string]string
+
 	switch message.MessageType {
-	case "text":
-		return fmt.Sprintf(`{"text":"%s"}`, message.Content), nil
-	case "markdown", "md":
-		return fmt.Sprintf(`{"content":"%s"}`, message.Content), nil
-	case "image":
-		return fmt.Sprintf(`{"image_key":"%s"}`, message.MediaURL), nil
+	case entity.MessageTypeText:
+		payload = map[string]string{feishuContentKeyText: message.Content}
+	case entity.MessageTypeMarkdown, feishuMsgTypeMDAlias:
+		payload = map[string]string{"content": message.Content}
+	case entity.MessageTypeImage:
+		payload = map[string]string{"image_key": message.MediaURL}
 	default:
-		// 默认作为文本消息处理
-		return fmt.Sprintf(`{"text":"%s"}`, message.Content), nil
+		payload = map[string]string{feishuContentKeyText: message.Content}
 	}
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("marshal feishu message content: %w", err)
+	}
+
+	return string(raw), nil
 }
 
 // mapToFeishuMessageType 映射消息类型到飞书格式
@@ -97,7 +114,7 @@ func (f *FeishuAdapter) mapToFeishuMessageType(msgType string) string {
 	switch msgType {
 	case "text":
 		return "text"
-	case "markdown", "md":
+	case "markdown", feishuMsgTypeMDAlias:
 		return "interactive"
 	case "image":
 		return "image"
@@ -114,12 +131,12 @@ func (f *FeishuAdapter) mapToFeishuMessageType(msgType string) string {
 	}
 }
 
-// getClient 获取飞书客户端
-func (f *FeishuAdapter) getClient(cfg map[string]interface{}) (*lark.Client, error) {
-	if f.client != nil {
-		return f.client, nil
-	}
+func feishuClientCacheKey(appID, appSecret string) string {
+	return appID + "\x00" + appSecret
+}
 
+// getClient 获取飞书客户端（D02: 按 app_id+app_secret 缓存，凭证变更生效）。
+func (f *FeishuAdapter) getClient(cfg map[string]interface{}) (*lark.Client, error) {
 	appID, ok := cfg["app_id"].(string)
 	if !ok || appID == "" {
 		return nil, errFeishuMissingAppID
@@ -130,10 +147,21 @@ func (f *FeishuAdapter) getClient(cfg map[string]interface{}) (*lark.Client, err
 		return nil, errFeishuMissingAppSecret
 	}
 
-	// 创建飞书客户端
-	client := lark.NewClient(appID, appSecret, lark.WithLogLevel(larkcore.LogLevelError))
+	key := feishuClientCacheKey(appID, appSecret)
 
-	f.client = client
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.clients == nil {
+		f.clients = make(map[string]*lark.Client)
+	}
+
+	if client, ok := f.clients[key]; ok {
+		return client, nil
+	}
+
+	client := lark.NewClient(appID, appSecret, lark.WithLogLevel(larkcore.LogLevelError))
+	f.clients[key] = client
 
 	return client, nil
 }

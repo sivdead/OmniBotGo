@@ -29,6 +29,7 @@ const (
 var (
 	errAlreadyConnected = errors.New("telegram adapter is already connected")
 	errMissingBotToken  = errors.New("bot_token is required for telegram platform")
+	errStopTimedOut     = errors.New("telegram adapter stop timed out waiting for poll loop")
 )
 
 // Adapter Telegram long-poll 适配器，实现 MessageSender / StreamAdapter / PlatformIdentifier / ConfigValidator。
@@ -40,6 +41,7 @@ type Adapter struct {
 	config      map[string]interface{}
 	cancel      context.CancelFunc
 	isConnected bool
+	generation  uint64 // C05: scopes pollLoop defer so old gens cannot clear new connections
 	mu          sync.RWMutex
 	wg          sync.WaitGroup
 }
@@ -54,6 +56,15 @@ func NewAdapter(logger zerolog.Logger) *Adapter {
 		apiBase:     defaultAPIBase,
 		isConnected: false,
 	}
+}
+
+// NewStreamSession 实现 port.StreamSessionFactory（每通道独立 long-poll 会话）。
+func (a *Adapter) NewStreamSession() port.StreamAdapter {
+	session := NewAdapter(a.logger)
+	session.httpClient = a.httpClient
+	session.apiBase = a.apiBase
+
+	return session
 }
 
 // SetHTTPClient 注入 HTTP 客户端（测试用）。
@@ -109,23 +120,28 @@ func (a *Adapter) Start(ctx context.Context, messageHandler port.MessageHandler,
 	a.config = cfg
 	loopCtx, cancel := context.WithCancel(ctx)
 	a.cancel = cancel
+	a.generation++
+	gen := a.generation
 	a.isConnected = true
 
 	a.wg.Add(1)
-	go a.pollLoop(loopCtx, messageHandler, tgCfg.BotToken, channelID)
+	go a.pollLoop(loopCtx, messageHandler, tgCfg.BotToken, channelID, gen)
 
 	a.logger.Info().
 		Str("channel_id", channelID).
+		Uint64("generation", gen).
 		Msg("telegram adapter started (long-poll)")
 
 	return nil
 }
 
 // Stop 实现 StreamAdapter：取消 long-poll 并等待退出。
+// C05: timeout returns an error so callers do not treat a still-running old poll as stopped.
 func (a *Adapter) Stop(ctx context.Context) error {
 	a.mu.Lock()
 	if !a.isConnected {
 		a.mu.Unlock()
+
 		return nil
 	}
 	cancel := a.cancel
@@ -145,12 +161,14 @@ func (a *Adapter) Stop(ctx context.Context) error {
 
 	select {
 	case <-done:
+		a.logger.Info().Msg("telegram adapter stopped")
+
+		return nil
 	case <-ctx.Done():
 		a.logger.Warn().Msg("telegram adapter stop timed out waiting for poll loop")
-	}
 
-	a.logger.Info().Msg("telegram adapter stopped")
-	return nil
+		return fmt.Errorf("%w: %w", errStopTimedOut, ctx.Err())
+	}
 }
 
 // IsConnected 实现 StreamAdapter。
@@ -200,11 +218,14 @@ func (a *Adapter) SendMessage(ctx context.Context, message *dto.UnifiedMessage, 
 	return nil
 }
 
-func (a *Adapter) pollLoop(ctx context.Context, handler port.MessageHandler, botToken, channelID string) {
+func (a *Adapter) pollLoop(ctx context.Context, handler port.MessageHandler, botToken, channelID string, gen uint64) {
 	defer a.wg.Done()
 	defer func() {
+		// C05: only the current generation may clear connection state.
 		a.mu.Lock()
-		a.isConnected = false
+		if a.generation == gen {
+			a.isConnected = false
+		}
 		a.mu.Unlock()
 	}()
 
@@ -222,47 +243,63 @@ func (a *Adapter) pollLoop(ctx context.Context, handler port.MessageHandler, bot
 			if ctx.Err() != nil {
 				return
 			}
+
 			a.logger.Error().Err(err).Msg("telegram getUpdates error, retrying")
+
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(pollRetryBackoff):
 			}
+
 			continue
 		}
 
-		// C01: advance offset only past successfully handled (or intentionally skipped) updates.
-		for i := range updates {
-			msg, err := updateToUnified(&updates[i], channelID)
-			if err != nil {
-				a.logger.Warn().Err(err).Int64("update_id", updates[i].UpdateID).Msg("skip telegram update")
-
-				if updates[i].UpdateID+1 > offset {
-					offset = updates[i].UpdateID + 1
-				}
-
-				continue
-			}
-
-			if msg == nil {
-				if updates[i].UpdateID+1 > offset {
-					offset = updates[i].UpdateID + 1
-				}
-
-				continue
-			}
-
-			if err := handler(ctx, msg); err != nil {
-				a.logger.Error().Err(err).Str("message_id", msg.MessageID).Msg("telegram message handler error")
-				// Do not advance offset past this update so Telegram redelivers it.
-				break
-			}
-
-			if updates[i].UpdateID+1 > offset {
-				offset = updates[i].UpdateID + 1
-			}
-		}
+		offset = a.dispatchUpdates(ctx, handler, channelID, updates, offset)
 	}
+}
+
+// dispatchUpdates handles one getUpdates batch (C01 offset rules). Returns the next offset.
+func (a *Adapter) dispatchUpdates(
+	ctx context.Context,
+	handler port.MessageHandler,
+	channelID string,
+	updates []Update,
+	offset int64,
+) int64 {
+	for i := range updates {
+		msg, err := updateToUnified(&updates[i], channelID)
+		if err != nil {
+			a.logger.Warn().Err(err).Int64("update_id", updates[i].UpdateID).Msg("skip telegram update")
+			offset = advanceTelegramOffset(offset, updates[i].UpdateID)
+
+			continue
+		}
+
+		if msg == nil {
+			offset = advanceTelegramOffset(offset, updates[i].UpdateID)
+
+			continue
+		}
+
+		if err := handler(ctx, msg); err != nil {
+			a.logger.Error().Err(err).Str("message_id", msg.MessageID).Msg("telegram message handler error")
+			// Do not advance offset past this update so Telegram redelivers it.
+			break
+		}
+
+		offset = advanceTelegramOffset(offset, updates[i].UpdateID)
+	}
+
+	return offset
+}
+
+func advanceTelegramOffset(offset, updateID int64) int64 {
+	if updateID+1 > offset {
+		return updateID + 1
+	}
+
+	return offset
 }
 
 func (a *Adapter) getUpdates(ctx context.Context, botToken string, offset int64) ([]Update, int64, error) {

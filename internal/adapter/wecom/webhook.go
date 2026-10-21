@@ -16,7 +16,7 @@ import (
 )
 
 // VerifyWebhook 验证Webhook签名
-func (w *WecomAdapter) VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error {
+func (w *WecomAdapter) VerifyWebhook(_ context.Context, signature, timestamp, nonce string, body []byte, config map[string]interface{}) error {
 	// 从配置中获取token
 	token, ok := config["token"].(string)
 	if !ok || token == "" {

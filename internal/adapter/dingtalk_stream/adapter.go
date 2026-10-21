@@ -36,6 +36,11 @@ func NewAdapter(logger zerolog.Logger) *DingtalkStreamAdapter {
 	}
 }
 
+// NewStreamSession 实现 port.StreamSessionFactory（C06：每通道独立会话）。
+func (a *DingtalkStreamAdapter) NewStreamSession() port.StreamAdapter {
+	return NewAdapter(a.logger)
+}
+
 // GetPlatformType 实现PlatformIdentifier接口
 func (a *DingtalkStreamAdapter) GetPlatformType() entity.PlatformType {
 	return entity.PlatformTypeDingtalk
