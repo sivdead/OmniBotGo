@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"gorm.io/gorm"
-
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/database"
+	"gorm.io/gorm"
 )
 
 // BotRepo Bot相关的数据访问层实现
@@ -81,7 +80,11 @@ func (r *BotRepo) List(ctx context.Context, params port.ListParams) (*port.Pagin
 	validatedParams := r.validateParams(params)
 
 	var bots []*entity.Bot
-	query := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Bot{}), validatedParams)
+
+	query, err := r.buildQuery(r.db.GetGORM().WithContext(ctx).Model(&entity.Bot{}), validatedParams)
+	if err != nil {
+		return nil, err
+	}
 
 	result, err := Paginate(r.db.GetGORM(), ctx, query, validatedParams, &bots)
 	if err != nil {

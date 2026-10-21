@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,17 @@ var (
 	errWechatOfficialMissingAppSecret = errors.New("app_secret is required in wechat official config")
 	errWechatOfficialMissingToken     = errors.New("token is required in wechat official config for webhook verification")
 	errWechatOfficialInvalidSignature = errors.New("invalid signature")
+	errWechatOfficialHTTPStatus       = errors.New("wechat official API HTTP error")
+)
+
+const (
+	wechatOfficialMsgTypeVoice     = "voice"
+	wechatOfficialMsgTypeLocation  = "location"
+	wechatOfficialMsgTypeEvent     = "event"
+	wechatOfficialEventSubscribe   = "subscribe"
+	wechatOfficialEventUnsubscribe = "unsubscribe"
+	rawKeyLocation                 = "location"
+	rawKeyEvent                    = "event"
 )
 
 // WechatOfficialAdapter 微信公众号平台适配器
@@ -59,19 +71,21 @@ func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *dto.Un
 
 	// 根据消息类型设置内容
 	switch message.MessageType {
-	case "text":
+	case entity.MessageTypeText:
 		sendMsg.Text = &WechatOfficialTextMessage{
 			Content: message.Content,
 		}
-	case "image":
+	case entity.MessageTypeImage:
 		sendMsg.Image = &WechatOfficialImageMessage{
 			MediaID: message.MediaURL,
 		}
-	case "voice":
+	case entity.MessageTypeAudio, wechatOfficialMsgTypeVoice:
+		// D05: entity.MessageTypeAudio → voice/media_id (not text fallback).
 		sendMsg.Voice = &WechatOfficialVoiceMessage{
 			MediaID: message.MediaURL,
 		}
-	case "video":
+		sendMsg.MsgType = wechatOfficialMsgTypeVoice
+	case entity.MessageTypeVideo:
 		sendMsg.Video = &WechatOfficialVideoMessage{
 			MediaID: message.MediaURL,
 			Title:   message.Content,
@@ -122,6 +136,11 @@ func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *dto.Un
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// D06: reject non-2xx before treating as sent.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("%w: status %d", errWechatOfficialHTTPStatus, resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -195,8 +214,8 @@ func (w *WechatOfficialAdapter) RefreshAccessToken(ctx context.Context, config m
 }
 
 // VerifyWebhook 验证Webhook请求
-func (w *WechatOfficialAdapter) VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error {
-	token, ok := config["token"].(string)
+func (w *WechatOfficialAdapter) VerifyWebhook(_ context.Context, signature, timestamp, nonce string, _ []byte, cfg map[string]interface{}) error {
+	token, ok := cfg["token"].(string)
 	if !ok || token == "" {
 		return errWechatOfficialMissingToken
 	}
@@ -253,39 +272,35 @@ func (w *WechatOfficialAdapter) ParseInboundMessage(ctx context.Context, body []
 	case "video":
 		unifiedMsg.MediaURL = wechatMsg.MediaID
 		unifiedMsg.MediaType = "video/mp4"
-	case "location":
-		unifiedMsg.Content = fmt.Sprintf("位置: %s (%s, %s)", wechatMsg.Label, wechatMsg.LocationX, wechatMsg.LocationY)
+	case wechatOfficialMsgTypeLocation:
+		applyWechatOfficialLocation(unifiedMsg, &wechatMsg)
 	case "link":
 		unifiedMsg.Content = fmt.Sprintf("%s\n%s\n%s", wechatMsg.Title, wechatMsg.Description, wechatMsg.URL)
-	case "event":
-		unifiedMsg.MessageType = "event"
-		unifiedMsg.Content = fmt.Sprintf("事件: %s", wechatMsg.Event)
-		if wechatMsg.EventKey != "" {
-			unifiedMsg.Content += fmt.Sprintf(" - %s", wechatMsg.EventKey)
-		}
+	case wechatOfficialMsgTypeEvent:
+		applyWechatOfficialEvent(unifiedMsg, &wechatMsg)
 	}
 
 	return unifiedMsg, nil
 }
 
 // BuildWebhookPath 构建Webhook路径
-func (w *WechatOfficialAdapter) BuildWebhookPath(channelID int64) string {
-	return fmt.Sprintf("/webhook/wechat_official/%d", channelID)
+func (w *WechatOfficialAdapter) BuildWebhookPath(channelID string) string {
+	return fmt.Sprintf("/webhook/wechat_official/%s", channelID)
 }
 
 // 辅助函数
 
 func mapToWechatOfficialMessageType(msgType string) string {
 	switch msgType {
-	case "text":
+	case entity.MessageTypeText:
 		return "text"
-	case "image":
+	case entity.MessageTypeImage:
 		return "image"
-	case "voice":
-		return "voice"
-	case "video":
+	case entity.MessageTypeAudio, wechatOfficialMsgTypeVoice:
+		return wechatOfficialMsgTypeVoice
+	case entity.MessageTypeVideo:
 		return "video"
-	case "news":
+	case entity.MessageTypeNews:
 		return "news"
 	default:
 		return "text"
@@ -302,12 +317,12 @@ func mapFromWechatOfficialMessageType(msgType string) string {
 		return "voice"
 	case "video":
 		return "video"
-	case "location":
-		return "location"
+	case wechatOfficialMsgTypeLocation:
+		return wechatOfficialMsgTypeLocation
 	case "link":
 		return "link"
-	case "event":
-		return "event"
+	case wechatOfficialMsgTypeEvent:
+		return wechatOfficialMsgTypeEvent
 	default:
 		return "text"
 	}
@@ -318,6 +333,75 @@ func getString(m map[string]interface{}, key string) string {
 		return v
 	}
 	return ""
+}
+
+func applyWechatOfficialLocation(unifiedMsg *dto.UnifiedMessage, wechatMsg *WechatOfficialMessage) {
+	unifiedMsg.MessageType = entity.MessageTypeLocation
+
+	latitude, errLat := strconv.ParseFloat(wechatMsg.LocationX, 64)
+	if errLat != nil {
+		latitude = 0
+	}
+
+	longitude, errLng := strconv.ParseFloat(wechatMsg.LocationY, 64)
+	if errLng != nil {
+		longitude = 0
+	}
+
+	unifiedMsg.LocationContent = &entity.LocationMessage{
+		Latitude:  latitude,
+		Longitude: longitude,
+		Address:   wechatMsg.Label,
+	}
+	unifiedMsg.Content = wechatMsg.Label
+	unifiedMsg.RawContent[rawKeyLocation] = map[string]interface{}{
+		"latitude":  latitude,
+		"longitude": longitude,
+		"address":   wechatMsg.Label,
+	}
+}
+
+func applyWechatOfficialEvent(unifiedMsg *dto.UnifiedMessage, wechatMsg *WechatOfficialMessage) {
+	unifiedMsg.MessageType = entity.MessageTypeEvent
+	eventType := mapWechatOfficialEventType(wechatMsg.Event)
+	unifiedMsg.EventContent = &entity.EventMessage{
+		EventType: eventType,
+		EventKey:  wechatMsg.EventKey,
+		EventData: map[string]interface{}{
+			"original_event": wechatMsg.Event,
+		},
+	}
+	unifiedMsg.Content = wechatMsg.Event
+
+	if wechatMsg.EventKey != "" {
+		unifiedMsg.Content += " - " + wechatMsg.EventKey
+	}
+
+	unifiedMsg.RawContent[rawKeyEvent] = map[string]interface{}{
+		"event_type": eventType,
+		"event_key":  wechatMsg.EventKey,
+	}
+}
+
+func mapWechatOfficialEventType(event string) string {
+	switch strings.ToLower(event) {
+	case wechatOfficialEventSubscribe:
+		return entity.EventTypeUserSubscribe
+	case wechatOfficialEventUnsubscribe:
+		return entity.EventTypeUserUnsubscribe
+	case "click":
+		return entity.EventTypeMenuClick
+	case "view":
+		return entity.EventTypeMenuView
+	case wechatOfficialMsgTypeLocation:
+		return entity.EventTypeLocationReport
+	case "scancode_push", "scancode_waitmsg", "scan":
+		return entity.EventTypeScanQRCode
+	case "location_select":
+		return entity.EventTypeLocationSelect
+	default:
+		return entity.EventTypeCustom
+	}
 }
 
 // 确保 WechatOfficialAdapter 实现了所需的接口。

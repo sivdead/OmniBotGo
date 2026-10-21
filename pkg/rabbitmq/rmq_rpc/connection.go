@@ -1,6 +1,7 @@
 package rmqrpc
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -36,14 +37,29 @@ func New(consumerExchange string, cfg Config) *Connection {
 
 // AttemptConnect -.
 func (c *Connection) AttemptConnect() error {
+	return c.AttemptConnectContext(context.Background())
+}
+
+// AttemptConnectContext retries Dial until success, attempts exhausted, or ctx canceled (F01).
+func (c *Connection) AttemptConnectContext(ctx context.Context) error {
 	var err error
+
 	for i := c.Attempts; i > 0; i-- {
+		if ctx.Err() != nil {
+			return fmt.Errorf("rmq_rpc - AttemptConnectContext: %w", ctx.Err())
+		}
+
 		if err = c.connect(); err == nil {
-			break
+			return nil
 		}
 
 		log.Printf("RabbitMQ is trying to connect, attempts left: %d", i)
-		time.Sleep(c.WaitTime)
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("rmq_rpc - AttemptConnectContext: %w", ctx.Err())
+		case <-time.After(c.WaitTime):
+		}
 	}
 
 	if err != nil {

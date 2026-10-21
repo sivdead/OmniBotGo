@@ -41,9 +41,9 @@ func (v *V1) CreateChannel(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "创建通道失败")
 	}
 
-	v.l.Info("通道创建成功: %d", result.ID)
+	v.l.Info("通道创建成功: %s", result.ID)
 
-	return NewSuccessResponse(c, http.StatusCreated, "通道创建成功", result)
+	return NewSuccessResponse(c, http.StatusCreated, "通道创建成功", ToChannelResponse(result))
 }
 
 // GetChannels 获取通道列表
@@ -92,7 +92,7 @@ func (v *V1) GetChannels(c *fiber.Ctx) error {
 
 	v.l.Debug("获取通道列表成功，共 %d 条记录", result.Total)
 
-	return NewSuccessResponse(c, http.StatusOK, "获取成功", result)
+	return NewSuccessResponse(c, http.StatusOK, "获取成功", ToChannelListResponse(result))
 }
 
 // GetChannelByID 获取通道详情
@@ -124,7 +124,7 @@ func (v *V1) GetChannelByID(c *fiber.Ctx) error {
 
 	v.l.Debug("获取通道详情成功: %s", id)
 
-	return NewSuccessResponse(c, http.StatusOK, "获取成功", result)
+	return NewSuccessResponse(c, http.StatusOK, "获取成功", ToChannelResponse(result))
 }
 
 // UpdateChannel 更新通道
@@ -176,7 +176,7 @@ func (v *V1) UpdateChannel(c *fiber.Ctx) error {
 
 	v.l.Info("通道更新成功: %s", id)
 
-	return NewSuccessResponse(c, http.StatusOK, "更新成功", result)
+	return NewSuccessResponse(c, http.StatusOK, "更新成功", ToChannelResponse(result))
 }
 
 // DeleteChannel 删除通道

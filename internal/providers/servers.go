@@ -2,6 +2,7 @@ package providers
 
 import (
 	"github.com/google/wire"
+	"github.com/sivdead/OmniBotGo/internal/adapter"
 	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/controller/http"
 	"github.com/sivdead/OmniBotGo/internal/service"
@@ -33,6 +34,8 @@ func NewHTTPServer(
 	logUC usecase.LogUseCase,
 	queueUC usecase.QueueUseCase,
 	processorUC usecase.ProcessorUseCase,
+	routingUC usecase.RoutingUseCase,
+	adapterManager *adapter.Manager,
 	l logger.Interface,
 ) *httpserver.Server {
 	httpSrv := httpserver.New(
@@ -40,8 +43,8 @@ func NewHTTPServer(
 		httpserver.Prefork(cfg.HTTP.UsePreforkMode),
 	)
 
-	// 设置路由
-	http.NewRouter(httpSrv.App, cfg, messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l)
+	// 设置路由（注入 DI 管理的适配器注册表，避免 webhook 使用空 Manager）
+	http.NewRouter(httpSrv.App, cfg, messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, routingUC, adapterManager, l)
 
 	return httpSrv
 }

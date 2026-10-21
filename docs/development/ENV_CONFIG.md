@@ -29,7 +29,14 @@ APP_VERSION=1.0.0               # 应用版本
 ```bash
 HTTP_PORT=8080                  # HTTP服务端口
 HTTP_USE_PREFORK_MODE=false     # 是否使用prefork模式
+HTTP_API_KEY=change-me          # Admin /api/v1 Bearer API key（必填才能访问管理 API；未设置时管理接口拒绝访问）
 ```
+
+> **安全说明（Batch 1）**  
+> - `HTTP_API_KEY` 仅保护 `/api/v1/*` 管理接口，请求头格式：`Authorization: Bearer <HTTP_API_KEY>`。  
+> - 平台 Webhook（`/webhook/{platform}/{channel_id}`）**不**使用该密钥，仍按各平台签名/`verification_token` 校验。  
+> - `/live`、`/ready`、`/healthz`、`/health` 保持公开。  
+> - 通道回调路径统一为 `/webhook/{platform}/{channel_id}`（`channel_id` 为 UUID）。创建后 API 返回的 `webhook_path` 即为此格式；旧的 `/webhook/{platform}/{bot_id}/{unix}` 路径已废弃，需按新路径重新配置平台回调。
 
 ### 日志配置
 ```bash
@@ -44,6 +51,14 @@ DB_MAX_CONNECTIONS=10           # 最大连接数
 DB_LOG_LEVEL=warn              # 数据库日志级别
 DB_SLOW_THRESHOLD=200          # 慢查询阈值（毫秒）
 ```
+
+Migrations are dialect-specific under `migrations/{mysql,postgres,sqlite}` (selected by `DB_TYPE`).
+
+- **MySQL DSN**: `user:pass@tcp(host:3306)/db?...` (migrate prefixes `mysql://` if needed)
+- **Postgres DSN**: full `postgres://...` / `postgresql://...` URL, libpq keyword form (`host=... user=... dbname=...`), or `user:pass@host:5432/db`
+- **SQLite DSN**: file path; migrate/runtime append `_pragma=foreign_keys(1)` so FKs apply on every pool connection
+
+UUID→BIGINT MySQL down migration is **refused** (unsafe). Prefer restore-from-backup.
 
 ### gRPC配置
 ```bash

@@ -10,6 +10,8 @@ app:
 http:
   port: "8080"
   use_prefork_mode: false
+  # Admin /api/v1 Bearer key (env: HTTP_API_KEY). Required for admin API; webhooks/probes exempt.
+  api_key: ""
 
 # 日志配置
 log:

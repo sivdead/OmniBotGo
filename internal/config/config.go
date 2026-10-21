@@ -32,6 +32,9 @@ type (
 	HTTP struct {
 		Port           string `mapstructure:"port"`
 		UsePreforkMode bool   `mapstructure:"use_prefork_mode"`
+		// APIKey authenticates admin /api/v1 routes via Authorization: Bearer <key>.
+		// When empty, admin API requests are rejected. Platform webhooks do not use this key.
+		APIKey string `mapstructure:"api_key"`
 	}
 
 	// Log -.
@@ -100,7 +103,7 @@ type (
 func bindEnvKeys(v *viper.Viper) {
 	keys := []string{
 		"app.name", "app.version",
-		"http.port", "http.use_prefork_mode",
+		"http.port", "http.use_prefork_mode", "http.api_key",
 		"log.level",
 		"db.type", "db.dsn", "db.max_connections", "db.log_level", "db.slow_threshold",
 		"grpc.port",

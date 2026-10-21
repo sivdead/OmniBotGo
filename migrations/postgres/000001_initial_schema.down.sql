@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS api_call_logs;
+DROP TABLE IF EXISTS connection_logs;
+DROP TABLE IF EXISTS message_queue;
+DROP TABLE IF EXISTS system_configs;
+DROP TABLE IF EXISTS message_routing_rules;
+DROP TABLE IF EXISTS message_processors;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS channels;
+DROP TABLE IF EXISTS bots;

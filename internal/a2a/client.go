@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -150,9 +151,26 @@ func (c *Client) doJSONRPC(ctx context.Context, url string, payload jsonRPCReque
 	return rpcResp.Result, nil
 }
 
-func ensureURL(u string) string {
-	u = strings.TrimRight(u, "/")
-	return u + "/"
+// ensureURL returns the Agent Card / RPC URL for POSTing (A07).
+// Valid absolute URLs are used as-is (query/fragment preserved). Path is only
+// filled when empty so url.String() stays absolute — never append "/" onto
+// the full string (which would corrupt "?query").
+func ensureURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return raw
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return raw
+	}
+
+	if parsed.Path == "" {
+		parsed.Path = "/"
+	}
+
+	return parsed.String()
 }
 
 func extractFinalText(result json.RawMessage) (string, error) {

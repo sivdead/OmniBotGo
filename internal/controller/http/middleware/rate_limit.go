@@ -17,7 +17,7 @@ const (
 	DefaultGlobalExpiration  = 1 * time.Minute
 	DefaultPerIPExpiration   = 1 * time.Minute
 	DefaultPerUserExpiration = 1 * time.Minute
-	
+
 	// 垃圾回收间隔
 	GCInterval = 10 * time.Second
 )
@@ -204,15 +204,25 @@ func (s *MemoryStore) Get(key string) (int, error) {
 	return 0, nil
 }
 
-// Set 设置计数
+// Set updates the hit counter for a fixed window (A06).
+// When the key is still within its window, the original expire is preserved —
+// calling Set must not renew the full TTL on every hit.
 func (s *MemoryStore) Set(key string, hits int, exp time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	now := time.Now()
+	expire := now.Add(exp)
+
+	if existing, ok := s.data[key]; ok && now.Before(existing.expire) {
+		expire = existing.expire
+	}
+
 	s.data[key] = entry{
 		hits:   hits,
-		expire: time.Now().Add(exp),
+		expire: expire,
 	}
+
 	return nil
 }
 

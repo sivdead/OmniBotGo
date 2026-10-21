@@ -16,11 +16,11 @@ type MessageSender interface {
 // WebhookProcessor Webhook处理的能力接口
 type WebhookProcessor interface {
 	// VerifyWebhook 验证Webhook请求
-	VerifyWebhook(ctx context.Context, signature string, timestamp string, nonce string, body []byte, config map[string]interface{}) error
+	VerifyWebhook(ctx context.Context, signature, timestamp, nonce string, body []byte, config map[string]interface{}) error
 	// ParseInboundMessage 解析入站消息
 	ParseInboundMessage(ctx context.Context, body []byte, config map[string]interface{}) (*dto.UnifiedMessage, error)
-	// BuildWebhookPath 构建Webhook路径
-	BuildWebhookPath(channelID int64) string
+	// BuildWebhookPath 构建Webhook路径（channelID 为 UUID 字符串）
+	BuildWebhookPath(channelID string) string
 }
 
 // TokenManager Token管理的能力接口
@@ -39,6 +39,13 @@ type StreamAdapter interface {
 	Stop(ctx context.Context) error
 	// IsConnected 检查连接状态
 	IsConnected() bool
+}
+
+// StreamSessionFactory creates per-channel StreamAdapter sessions.
+// Platform singletons in the registry should implement this when they hold
+// connection state so ConnectionManager can run multiple channels in parallel.
+type StreamSessionFactory interface {
+	NewStreamSession() StreamAdapter
 }
 
 // MessageHandler Stream消息处理回调函数

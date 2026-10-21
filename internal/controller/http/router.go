@@ -2,7 +2,6 @@
 package http
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/ansrivas/fiberprometheus/v2"
@@ -10,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/swagger"
 	_ "github.com/sivdead/OmniBotGo/docs" // Swagger docs.
+	"github.com/sivdead/OmniBotGo/internal/adapter"
 	"github.com/sivdead/OmniBotGo/internal/config"
 	"github.com/sivdead/OmniBotGo/internal/controller/http/middleware"
 	v1 "github.com/sivdead/OmniBotGo/internal/controller/http/v1"
@@ -36,6 +36,8 @@ func NewRouter(
 	logUC usecase.LogUseCase,
 	queueUC usecase.QueueUseCase,
 	processorUC usecase.ProcessorUseCase,
+	routingUC usecase.RoutingUseCase,
+	adapterManager *adapter.Manager,
 	l logger.Interface,
 ) {
 	// Options
@@ -59,8 +61,8 @@ func NewRouter(
 		app.Get("/swagger/*", swagger.HandlerDefault)
 	}
 
-	// K8s probe
-	app.Get("/healthz", func(ctx *fiber.Ctx) error { return ctx.SendStatus(http.StatusOK) })
+	// Health/readiness probes are registered by NewHealthRoutes (/healthz, /ready, /live).
+	// Do not register a placeholder /healthz here — it would always return 200 (F02).
 
 	// 添加并发限制中间件（在速率限制之前）
 	concurrentLimitConfig := middleware.ConcurrentLimitConfig{
@@ -80,6 +82,8 @@ func NewRouter(
 		SkipPaths: []string{
 			"/health",
 			"/healthz",
+			"/ready",
+			"/live",
 			"/metrics",
 			"/swagger",
 		},
@@ -88,17 +92,17 @@ func NewRouter(
 	app.Use(middleware.NewRateLimiter(rateLimitConfig))
 
 	// 创建V1控制器实例（避免重复创建）
-	v1Controller := v1.NewV1Controller(messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
+	v1Controller := v1.NewV1Controller(messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, routingUC, l, cfg)
 
-	// API路由
-	apiV1Group := app.Group("/api/v1")
+	// Admin API routes — require Bearer HTTP_API_KEY; not applied to webhooks/probes.
+	apiV1Group := app.Group("/api/v1", middleware.RequireAPIKey(cfg.HTTP.APIKey))
 	{
-		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
+		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, routingUC, l, cfg)
 	}
 
-	// Webhook路由（在根路径下）
-	v1.NewWebhookRoutes(app, v1Controller)
+	// Webhook routes use platform signature/token verification only (no admin API key).
+	v1.NewWebhookRoutes(app, v1Controller, adapterManager)
 
-	// 健康检查路由
-	v1.NewHealthRoutes(app, v1Controller)
+	// Health/readiness probes stay public.
+	v1.NewHealthRoutes(app, v1Controller, adapterManager)
 }

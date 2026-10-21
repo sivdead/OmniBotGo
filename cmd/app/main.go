@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/sivdead/OmniBotGo/internal/app"
 	"github.com/sivdead/OmniBotGo/internal/config"
@@ -14,6 +15,9 @@ func main() {
 		log.Fatalf("Config error: %s", err)
 	}
 
-	// Run
-	app.Run(cfg)
+	// Run — listen/runtime failures exit non-zero; clean signal shutdown exits 0 (F03).
+	if err := app.Run(cfg); err != nil {
+		log.Printf("Application error: %v", err)
+		os.Exit(1)
+	}
 }

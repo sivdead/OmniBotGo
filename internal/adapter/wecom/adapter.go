@@ -17,7 +17,11 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
 
-var errWecomMissingAgentID = errors.New("agent_id is required in wecom config")
+var (
+	errWecomMissingAgentID = errors.New("agent_id is required in wecom config")
+	errWecomHTTPStatus     = errors.New("wecom API HTTP error")
+	errWecomMissingSecret  = errors.New("企业微信配置中缺少secret")
+)
 
 // WecomAdapter 企业微信平台适配器
 type WecomAdapter struct {
@@ -80,6 +84,12 @@ func (w *WecomAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMess
 
 	case entity.MessageTypeImage:
 		sendMsg.Image = &WecomImageMessage{
+			MediaID: message.MediaURL,
+		}
+
+	case entity.MessageTypeAudio:
+		// D05: audio → voice with media_id (not text fallback).
+		sendMsg.Voice = &WecomVoiceMessage{
 			MediaID: message.MediaURL,
 		}
 
@@ -179,6 +189,11 @@ func (w *WecomAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMess
 	}
 	defer resp.Body.Close()
 
+	// D06: reject non-2xx before treating as sent.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("%w: status %d", errWecomHTTPStatus, resp.StatusCode)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response: %w", err)
@@ -225,6 +240,20 @@ func (w *WecomAdapter) GetAccessToken(ctx context.Context, config map[string]int
 	return w.RefreshAccessToken(ctx, config, "")
 }
 
+// wecomCorpSecret resolves the corp secret used by gettoken.
+// Policy (D01): prefer ValidateConfig's `secret`; accept `app_secret` as alias.
+func wecomCorpSecret(cfg map[string]interface{}) (string, error) {
+	if secret, ok := cfg["secret"].(string); ok && secret != "" {
+		return secret, nil
+	}
+
+	if appSecret, ok := cfg["app_secret"].(string); ok && appSecret != "" {
+		return appSecret, nil
+	}
+
+	return "", errWecomMissingSecret
+}
+
 // RefreshAccessToken 刷新访问令牌
 func (w *WecomAdapter) RefreshAccessToken(ctx context.Context, config map[string]interface{}, oldToken string) (*dto.AccessTokenResponse, error) {
 	// 从配置中获取企业微信相关信息
@@ -233,14 +262,14 @@ func (w *WecomAdapter) RefreshAccessToken(ctx context.Context, config map[string
 		return nil, fmt.Errorf("企业微信配置中缺少corp_id")
 	}
 
-	appSecret, ok := config["app_secret"].(string)
-	if !ok || appSecret == "" {
-		return nil, fmt.Errorf("企业微信配置中缺少app_secret")
+	secret, err := wecomCorpSecret(config)
+	if err != nil {
+		return nil, err
 	}
 
 	// 调用企业微信API获取access_token
 	// 参考：https://developer.work.weixin.qq.com/document/path/91039
-	apiURL := fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=%s&corpsecret=%s", corpID, appSecret)
+	apiURL := fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=%s&corpsecret=%s", corpID, secret)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {

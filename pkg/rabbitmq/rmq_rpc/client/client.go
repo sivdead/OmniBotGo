@@ -1,9 +1,11 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/goccy/go-json"
@@ -48,6 +50,12 @@ type Client struct {
 	calls map[string]*pendingCall
 
 	timeout time.Duration
+
+	stopOnce        sync.Once
+	errOnce         sync.Once
+	shuttingDown    atomic.Bool
+	reconnectMu     sync.Mutex
+	reconnectCancel context.CancelFunc
 }
 
 // New -.
@@ -61,7 +69,7 @@ func New(url, serverExchange, clientExchange string, opts ...Option) (*Client, e
 	c := &Client{
 		conn:           rmqrpc.New(clientExchange, cfg),
 		serverExchange: serverExchange,
-		error:          make(chan error),
+		error:          make(chan error, 1),
 		stop:           make(chan struct{}),
 		calls:          make(map[string]*pendingCall),
 		timeout:        _defaultTimeout,
@@ -114,12 +122,7 @@ func (c *Client) publish(corrID, handler string, request interface{}) error {
 func (c *Client) RemoteCall(handler string, request, response interface{}) error { //nolint:cyclop // complex func
 	select {
 	case <-c.stop:
-		time.Sleep(c.timeout)
-		select {
-		case <-c.stop:
-			return ErrConnectionClosed
-		default:
-		}
+		return ErrConnectionClosed
 	default:
 	}
 
@@ -138,6 +141,8 @@ func (c *Client) RemoteCall(handler string, request, response interface{}) error
 	select {
 	case <-time.After(c.timeout):
 		return rmqrpc.ErrTimeout
+	case <-c.stop:
+		return ErrConnectionClosed
 	case <-call.done:
 	}
 
@@ -181,19 +186,57 @@ func (c *Client) consumer() {
 }
 
 func (c *Client) reconnect() {
-	close(c.stop)
+	if c.shuttingDown.Load() {
+		return
+	}
 
-	err := c.conn.AttemptConnect()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	c.reconnectMu.Lock()
+	c.reconnectCancel = cancel
+	c.reconnectMu.Unlock()
+
+	defer func() {
+		cancel()
+
+		c.reconnectMu.Lock()
+		c.reconnectCancel = nil
+		c.reconnectMu.Unlock()
+	}()
+
+	err := c.conn.AttemptConnectContext(ctx)
 	if err != nil {
-		c.error <- err
-		close(c.error)
+		if c.shuttingDown.Load() || ctx.Err() != nil {
+			return
+		}
+
+		c.reportFatal(err)
 
 		return
 	}
 
-	c.stop = make(chan struct{})
+	if c.shuttingDown.Load() {
+		return
+	}
 
 	go c.consumer()
+}
+
+func (c *Client) reportFatal(err error) {
+	c.errOnce.Do(func() {
+		select {
+		case c.error <- err:
+		default:
+		}
+
+		close(c.error)
+	})
+}
+
+func (c *Client) signalStop() {
+	c.stopOnce.Do(func() {
+		close(c.stop)
+	})
 }
 
 func (c *Client) getCall(d *amqp.Delivery) {
@@ -227,16 +270,26 @@ func (c *Client) Notify() <-chan error {
 	return c.error
 }
 
-// Shutdown -.
+// Shutdown stops the consumer, cancels in-flight reconnect, and closes AMQP (F01).
 func (c *Client) Shutdown() error {
-	select {
-	case <-c.error:
+	if !c.shuttingDown.CompareAndSwap(false, true) {
 		return nil
-	default:
 	}
 
-	close(c.stop)
+	c.reconnectMu.Lock()
+	cancel := c.reconnectCancel
+	c.reconnectMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+
+	c.signalStop()
 	time.Sleep(c.timeout)
+
+	if c.conn.Connection == nil {
+		return nil
+	}
 
 	err := c.conn.Connection.Close()
 	if err != nil {

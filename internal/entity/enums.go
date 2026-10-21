@@ -52,15 +52,24 @@ func (d MessageDirection) String() string {
 }
 
 // MessageStatus 消息状态
+//
+// Failure / recovery stages (T10):
+//   - Receive: inbound accepted → Pending; platform ACK is separate from processing.
+//   - Process: Processing while routing/processors run; Processed when inbound handling
+//     finished without a platform deliver (or before outbound send).
+//   - Deliver: outbound SendMessage → Sent on platform success; Failed on receive/process/
+//     deliver errors (retryable via CanRetry). Expired is terminal non-retry.
+//
+// Dedup treats only Processed/Sent as final success (see Batch 2).
 type MessageStatus int8
 
 const (
-	MessageStatusPending    MessageStatus = 0 // 待处理
-	MessageStatusProcessing MessageStatus = 1 // 处理中
-	MessageStatusProcessed  MessageStatus = 2 // 已处理
-	MessageStatusSent       MessageStatus = 3 // 已发送
-	MessageStatusFailed     MessageStatus = 4 // 处理失败
-	MessageStatusExpired    MessageStatus = 5 // 已过期
+	MessageStatusPending    MessageStatus = 0 // 待处理 (receive accepted / outbound queued)
+	MessageStatusProcessing MessageStatus = 1 // 处理中 (process in flight)
+	MessageStatusProcessed  MessageStatus = 2 // 已处理 (inbound process done; may not yet deliver)
+	MessageStatusSent       MessageStatus = 3 // 已发送 (deliver success)
+	MessageStatusFailed     MessageStatus = 4 // 失败 (receive/process/deliver)
+	MessageStatusExpired    MessageStatus = 5 // 已过期 (terminal)
 )
 
 // String 返回消息状态的字符串表示

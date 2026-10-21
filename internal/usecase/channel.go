@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sivdead/OmniBotGo/internal/entity"
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 	"github.com/sivdead/OmniBotGo/pkg/logger"
@@ -72,6 +73,18 @@ func (uc *channelUseCase) CreateChannel(ctx context.Context, req CreateChannelRe
 		Status:           entity.StatusActive,
 	}
 
+	// Pre-assign UUID so WebhookPath matches the registered Fiber route
+	// /webhook/{platform}/{channel_id} before persistence.
+	id, err := uuid.NewV7()
+	if err != nil {
+		uc.logger.Error("生成通道ID失败", "error", err)
+
+		return nil, fmt.Errorf("生成通道ID失败: %w", err)
+	}
+
+	channel.ID = id.String()
+	channel.WebhookPath = fmt.Sprintf("/webhook/%s/%s", req.PlatformType, channel.ID)
+
 	// 设置基础信息
 	now := time.Now()
 	channel.CreatedAt = now
@@ -81,9 +94,6 @@ func (uc *channelUseCase) CreateChannel(ctx context.Context, req CreateChannelRe
 	if req.Config != nil {
 		channel.Config = entity.JSONField(req.Config)
 	}
-
-	// 生成Webhook路径
-	channel.WebhookPath = fmt.Sprintf("/webhook/%s/%s/%d", req.PlatformType, req.BotID, time.Now().Unix())
 
 	// 验证通道数据
 	if err := channel.Validate(); err != nil {

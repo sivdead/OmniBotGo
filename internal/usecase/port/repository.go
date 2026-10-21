@@ -50,7 +50,7 @@ type ChannelRepository interface {
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.Channel], error)
 	ListActive(ctx context.Context) ([]*entity.Channel, error)
 	UpdateConnectionStatus(ctx context.Context, id string, status entity.ConnectionStatus) error
-	UpdateAccessToken(ctx context.Context, id string, token string, expiresAt *time.Time) error
+	UpdateAccessToken(ctx context.Context, id, token string, expiresAt *time.Time) error
 	Exists(ctx context.Context, id string) (bool, error)
 }
 
@@ -59,7 +59,7 @@ type MessageRepository interface {
 	Create(ctx context.Context, message *entity.Message) error
 	GetByID(ctx context.Context, id string) (*entity.Message, error)
 	GetByMessageID(ctx context.Context, messageID string) (*entity.Message, error)
-	GetByPlatformMessageID(ctx context.Context, channelID string, platformMessageID string) (*entity.Message, error)
+	GetByPlatformMessageID(ctx context.Context, channelID, platformMessageID string) (*entity.Message, error)
 	GetByChannelID(ctx context.Context, channelID string, params ListParams) (*PaginatedResult[*entity.Message], error)
 	GetByConversationID(ctx context.Context, conversationID string, params ListParams) (*PaginatedResult[*entity.Message], error)
 	GetPendingMessages(ctx context.Context, limit int) ([]*entity.Message, error)
@@ -71,7 +71,7 @@ type MessageRepository interface {
 	IncrementRetryCount(ctx context.Context, id string) error
 	MarkAsProcessed(ctx context.Context, id string) error
 	MarkAsSent(ctx context.Context, id string) error
-	MarkAsFailed(ctx context.Context, id string, errorMsg string) error
+	MarkAsFailed(ctx context.Context, id, errorMsg string) error
 	Exists(ctx context.Context, id string) (bool, error)
 	ExistsByMessageID(ctx context.Context, messageID string) (bool, error)
 }
@@ -97,7 +97,7 @@ type MessageRoutingRuleRepository interface {
 	GetByID(ctx context.Context, id string) (*entity.MessageRoutingRule, error)
 	GetByProcessorID(ctx context.Context, processorID string) ([]*entity.MessageRoutingRule, error)
 	GetActiveRules(ctx context.Context) ([]*entity.MessageRoutingRule, error)
-	GetMatchingRules(ctx context.Context, botID string, platformType string, channelID string, messageType string) ([]*entity.MessageRoutingRule, error)
+	GetMatchingRules(ctx context.Context, botID, platformType, channelID, messageType string) ([]*entity.MessageRoutingRule, error)
 	GetFallbackRules(ctx context.Context) ([]*entity.MessageRoutingRule, error)
 	Update(ctx context.Context, rule *entity.MessageRoutingRule) error
 	Delete(ctx context.Context, id string) error
@@ -133,7 +133,7 @@ type MessageQueueRepository interface {
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.MessageQueue], error)
 	MarkAsRunning(ctx context.Context, id string) error
 	MarkAsCompleted(ctx context.Context, id string) error
-	MarkAsFailed(ctx context.Context, id string, errorMsg string) error
+	MarkAsFailed(ctx context.Context, id, errorMsg string) error
 	MarkForRetry(ctx context.Context, id string, nextScheduleTime int64) error
 	MarkAsCancelled(ctx context.Context, id string) error
 	Exists(ctx context.Context, id string) (bool, error)
@@ -156,13 +156,13 @@ type APICallLogRepository interface {
 	GetByRequestID(ctx context.Context, requestID string) (*entity.APICallLog, error)
 	GetByChannelID(ctx context.Context, channelID string, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
 	GetByProcessorID(ctx context.Context, processorID string, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
-	GetSlowCalls(ctx context.Context, thresholdMs int, limit int) ([]*entity.APICallLog, error)
+	GetSlowCalls(ctx context.Context, thresholdMs, limit int) ([]*entity.APICallLog, error)
 	GetFailedCalls(ctx context.Context, limit int) ([]*entity.APICallLog, error)
 	GetRecentCalls(ctx context.Context, limit int) ([]*entity.APICallLog, error)
 	List(ctx context.Context, params ListParams) (*PaginatedResult[*entity.APICallLog], error)
 	Delete(ctx context.Context, id string) error
 	DeleteOldLogs(ctx context.Context, beforeDays int) error
-	GetStatistics(ctx context.Context, channelID *string, processorID *string) (*CallStatistics, error)
+	GetStatistics(ctx context.Context, channelID, processorID *string) (*CallStatistics, error)
 }
 
 // CallStatistics API调用统计信息

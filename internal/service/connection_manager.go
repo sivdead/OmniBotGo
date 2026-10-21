@@ -117,6 +117,18 @@ func (cm *ConnectionManager) Stop(ctx context.Context) error {
 	return nil
 }
 
+// resolveStreamAdapter returns a per-channel StreamAdapter when the platform
+// registry entry is a StreamSessionFactory (C06); otherwise the shared singleton.
+func (cm *ConnectionManager) resolveStreamAdapter(platformAdapter interface{}) (port.StreamAdapter, bool) {
+	if factory, ok := platformAdapter.(port.StreamSessionFactory); ok {
+		return factory.NewStreamSession(), true
+	}
+
+	streamAdapter, ok := platformAdapter.(port.StreamAdapter)
+
+	return streamAdapter, ok
+}
+
 // startChannelConnection 为单个通道启动连接
 func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel *entity.Channel) error {
 	// 获取适配器
@@ -125,8 +137,8 @@ func (cm *ConnectionManager) startChannelConnection(ctx context.Context, channel
 		return fmt.Errorf("failed to get adapter for platform %s: %w", channel.PlatformType, err)
 	}
 
-	// 检查适配器是否支持Stream模式
-	streamAdapter, ok := platformAdapter.(port.StreamAdapter)
+	// C06: prefer per-channel session; singleton only for stateless / single-session platforms.
+	streamAdapter, ok := cm.resolveStreamAdapter(platformAdapter)
 	if !ok {
 		cm.logger.Debug().
 			Str("channel_id", channel.ID).

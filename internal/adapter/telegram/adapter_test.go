@@ -98,7 +98,7 @@ func TestParseInbound_SampleGetUpdates(t *testing.T) {
 	assert.Equal(t, entity.SenderTypeUser, msg.SenderType)
 	assert.Equal(t, "10001", msg.ReceiverID)
 	assert.Equal(t, "hello bot", msg.Content)
-	assert.Equal(t, "42", msg.PlatformMessageID)
+	assert.Equal(t, "10001:42", msg.PlatformMessageID)
 	assert.Equal(t, "ch-1", msg.RawContent["channel_id"])
 	assert.Equal(t, "tg-900001-42", msg.MessageID)
 }

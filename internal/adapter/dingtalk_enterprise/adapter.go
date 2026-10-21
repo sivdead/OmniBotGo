@@ -28,6 +28,7 @@ var (
 	errDingtalkMissingAppSecret     = errors.New("app_secret is required in dingtalk enterprise config")
 	errDingtalkMissingWebhookSecret = errors.New("app_secret is required in dingtalk enterprise config for webhook verification")
 	errDingtalkWebhookSigFailed     = errors.New("webhook signature verification failed")
+	errDingtalkHTTPStatus           = errors.New("dingtalk API HTTP error")
 )
 
 const (
@@ -96,10 +97,14 @@ func (a *DingtalkEnterpriseAdapter) GetAccessToken(ctx context.Context, config m
 	cacheKey := fmt.Sprintf("%s:%s", appKey, appSecret)
 	a.tokenMutex.RLock()
 	if cached, ok := a.tokenCache[cacheKey]; ok && cached.ExpireTime.After(time.Now()) {
+		expiresAt := cached.ExpireTime
 		a.tokenMutex.RUnlock()
+
+		// D03: cache hits must expose ExpiresAt so callers can refresh before expiry.
 		return &dto.AccessTokenResponse{
 			AccessToken: cached.Token,
-			ExpiresIn:   int(time.Until(cached.ExpireTime).Seconds()),
+			ExpiresIn:   int(time.Until(expiresAt).Seconds()),
+			ExpiresAt:   &expiresAt,
 		}, nil
 	}
 	a.tokenMutex.RUnlock()
@@ -138,16 +143,19 @@ func (a *DingtalkEnterpriseAdapter) GetAccessToken(ctx context.Context, config m
 	}
 
 	// 缓存令牌
+	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 	a.tokenMutex.Lock()
 	a.tokenCache[cacheKey] = &tokenCacheItem{
 		Token:      tokenResp.AccessToken,
-		ExpireTime: time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+		ExpireTime: expiresAt,
 	}
 	a.tokenMutex.Unlock()
 
+	// D03: first fetch sets ExpiresAt from expires_in.
 	return &dto.AccessTokenResponse{
 		AccessToken: tokenResp.AccessToken,
 		ExpiresIn:   tokenResp.ExpiresIn,
+		ExpiresAt:   &expiresAt,
 	}, nil
 }
 
@@ -237,8 +245,8 @@ func (a *DingtalkEnterpriseAdapter) ParseInboundMessage(_ context.Context, body 
 }
 
 // BuildWebhookPath 实现WebhookProcessor接口。
-func (a *DingtalkEnterpriseAdapter) BuildWebhookPath(channelID int64) string {
-	return fmt.Sprintf("/webhook/dingtalk/%d", channelID)
+func (a *DingtalkEnterpriseAdapter) BuildWebhookPath(channelID string) string {
+	return fmt.Sprintf("/webhook/dingtalk/%s", channelID)
 }
 
 // 编译期接口实现检查。
@@ -305,6 +313,11 @@ func (a *DingtalkEnterpriseAdapter) sendAPIRequest(ctx context.Context, apiURL, 
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// D06: reject non-2xx before treating as sent.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("%w: status %d", errDingtalkHTTPStatus, resp.StatusCode)
+	}
 
 	var apiResp struct {
 		ErrCode int    `json:"errcode"`

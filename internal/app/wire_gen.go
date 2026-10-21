@@ -49,7 +49,7 @@ func InitializeApp(cfg *config.Config) (*providers.App, func(), error) {
 	logUseCase := providers.NewLogUseCase(connectionLogRepository, apiCallLogRepository, loggerInterface)
 	queueUseCase := providers.NewQueueUseCase(messageQueueRepository, loggerInterface)
 	processorUseCase := providers.NewProcessorUseCase(messageProcessorRepository, messageRoutingRuleRepository, loggerInterface)
-	server := providers.NewHTTPServer(cfg, messageUseCase, channelUseCase, botUseCase, systemConfigUseCase, platformUseCase, monitorUseCase, logUseCase, queueUseCase, processorUseCase, loggerInterface)
+	server := providers.NewHTTPServer(cfg, messageUseCase, channelUseCase, botUseCase, systemConfigUseCase, platformUseCase, monitorUseCase, logUseCase, queueUseCase, processorUseCase, routingUseCase, manager, loggerInterface)
 	grpcserverServer := providers.NewGRPCServer(cfg, loggerInterface)
 	serverServer, err := providers.NewRMQServer(cfg, loggerInterface)
 	if err != nil {

@@ -20,6 +20,11 @@ type MessageHandler interface {
 	ProcessInboundMessage(ctx context.Context, message *entity.Message) error
 }
 
+const (
+	receiverTypeBot = "bot"
+	stopWaitTimeout = 10 * time.Second
+)
+
 // StreamController 钉钉Stream控制器
 type StreamController struct {
 	messageHandler MessageHandler
@@ -28,6 +33,8 @@ type StreamController struct {
 	config         *config.DingtalkStreamConfig
 	channelID      string
 	isRunning      bool
+	cancel         context.CancelFunc
+	done           chan struct{}
 	mu             sync.RWMutex
 }
 
@@ -47,8 +54,9 @@ func NewStreamController(
 	}
 }
 
-// Start 启动钉钉Stream客户端
-func (c *StreamController) Start(ctx context.Context) error {
+// Start 启动钉钉Stream客户端。
+// C03: SDK Start 返回不代表连接结束；isRunning 仅由 Stop（或未启动）清除。
+func (c *StreamController) Start(parentCtx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -65,23 +73,23 @@ func (c *StreamController) Start(ctx context.Context) error {
 	// 注册机器人消息处理器
 	streamClient.RegisterChatBotCallbackRouter(c.handleChatBotMessage)
 
-	// 启动客户端
+	runCtx, cancel := context.WithCancel(parentCtx)
+	done := make(chan struct{})
+
 	c.client = streamClient
+	c.cancel = cancel
+	c.done = done
 	c.isRunning = true
 
 	c.logger.Info().Msg("dingtalk stream controller started")
 
-	// 在goroutine中运行客户端，ctx取消时客户端退出
+	// SDK Start may return after dial while the session stays open until Close/cancel.
+	// Do not clear isRunning when Start returns — Stop owns lifecycle teardown.
 	go func() {
-		defer func() {
-			c.mu.Lock()
-			c.isRunning = false
-			c.mu.Unlock()
-			c.logger.Info().Msg("dingtalk stream controller stopped")
-		}()
+		defer close(done)
 
-		err := streamClient.Start(ctx)
-		if err != nil {
+		err := streamClient.Start(runCtx)
+		if err != nil && runCtx.Err() == nil {
 			c.logger.Error().Err(err).Msg("dingtalk stream client error")
 		}
 	}()
@@ -89,21 +97,42 @@ func (c *StreamController) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop 停止钉钉Stream客户端
+// Stop 停止钉钉Stream客户端。
+// C03: 始终 cancel + Close client（即使 SDK 已提前返回导致 isRunning 仍为 true），并等待回调退出。
 func (c *StreamController) Stop() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	cancel := c.cancel
+	streamClient := c.client
+	done := c.done
+	c.cancel = nil
+	c.client = nil
+	wasRunning := c.isRunning
+	c.mu.Unlock()
 
-	if !c.isRunning {
-		return nil
+	if cancel != nil {
+		cancel()
 	}
 
-	if c.client != nil {
-		c.client.Close()
+	if streamClient != nil {
+		streamClient.Close()
 	}
 
+	if done != nil {
+		select {
+		case <-done:
+		case <-time.After(stopWaitTimeout):
+			c.logger.Warn().Msg("dingtalk stream controller stop timed out waiting for callbacks")
+		}
+	}
+
+	c.mu.Lock()
 	c.isRunning = false
-	c.logger.Info().Msg("dingtalk stream controller stopping")
+	c.done = nil
+	c.mu.Unlock()
+
+	if wasRunning || streamClient != nil {
+		c.logger.Info().Msg("dingtalk stream controller stopped")
+	}
 
 	return nil
 }
@@ -112,6 +141,7 @@ func (c *StreamController) Stop() error {
 func (c *StreamController) IsRunning() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
 	return c.isRunning
 }
 
@@ -127,7 +157,8 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 	unifiedMsg, err := c.convertToUnifiedMessage(data)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("failed to convert dingtalk message")
-		return []byte(`{"text": "消息转换失败"}`), nil
+		// C04: protocol failure ACK — non-nil error (not a success body with nil err).
+		return nil, fmt.Errorf("dingtalk message conversion failed: %w", err)
 	}
 
 	// 创建消息实体
@@ -159,14 +190,15 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 	err = c.messageHandler.ProcessInboundMessage(ctx, message)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("failed to process inbound message")
-		// 返回错误响应
-		return []byte(`{"text": "消息处理失败，请稍后重试"}`), nil
+		// C04: failure ACK so upstream does not treat process errors as success.
+		return nil, fmt.Errorf("dingtalk inbound process failed: %w", err)
 	}
 
 	// 这里可以根据业务逻辑决定是否返回响应
 	// 目前先返回一个简单的确认消息
 	if message.MessageType == "text" {
 		response := fmt.Sprintf(`{"text": "收到消息：%s"}`, message.Content)
+
 		return []byte(response), nil
 	}
 
@@ -190,7 +222,7 @@ func (c *StreamController) convertToUnifiedMessage(data *chatbot.BotCallbackData
 	// 设置接收者信息
 	if data.ConversationType == "1" { // 单聊
 		unifiedMsg.ReceiverID = data.ChatbotUserId
-		unifiedMsg.ReceiverType = "bot"
+		unifiedMsg.ReceiverType = receiverTypeBot
 	} else { // 群聊
 		unifiedMsg.ReceiverID = data.ConversationId
 		unifiedMsg.ReceiverType = "group"
@@ -286,6 +318,7 @@ func getStringFromMap(m map[string]interface{}, key string) string {
 			return s
 		}
 	}
+
 	return ""
 }
 
@@ -301,6 +334,7 @@ func getInt64FromMap(m map[string]interface{}, key string) int64 {
 			return int64(val)
 		}
 	}
+
 	return 0
 }
 
@@ -314,8 +348,10 @@ func (c *StreamController) ValidateConfig(config map[string]interface{}) error {
 	if clientID, ok := config["client_id"].(string); !ok || clientID == "" {
 		return fmt.Errorf("client_id is required")
 	}
+
 	if clientSecret, ok := config["client_secret"].(string); !ok || clientSecret == "" {
 		return fmt.Errorf("client_secret is required")
 	}
+
 	return nil
 }

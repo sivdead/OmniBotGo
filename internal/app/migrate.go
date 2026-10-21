@@ -6,16 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/sivdead/OmniBotGo/internal/config"
-
-	// migrate tools
+	// migrate database drivers
 	_ "github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/database/sqlite"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/sivdead/OmniBotGo/internal/config"
 )
 
 const (
@@ -24,10 +23,9 @@ const (
 )
 
 func init() {
-	// Get database configuration from Viper
 	dbType := config.GetString("db.type")
 	if dbType == "" {
-		dbType = "mysql" // default to mysql for backward compatibility
+		dbType = "mysql"
 	}
 
 	dbDSN := config.GetString("db.dsn")
@@ -35,27 +33,27 @@ func init() {
 		log.Fatalf("migrate: database DSN not configured. Please set db.dsn in config file or DB_DSN environment variable")
 	}
 
-	// Construct migration URL based on database type
-	var migrationURL string
-	switch strings.ToLower(dbType) {
-	case "mysql":
-		migrationURL = fmt.Sprintf("mysql://%s", dbDSN)
-	case "postgres", "postgresql":
-		migrationURL = fmt.Sprintf("postgres://%s", dbDSN)
-	default:
-		log.Fatalf("migrate: unsupported database type: %s. Supported types: mysql, postgres", dbType)
+	sourceDir, err := MigrationSourceDir(dbType)
+	if err != nil {
+		log.Fatalf("migrate: %v", err)
 	}
 
-	log.Printf("Migrate: Using database type: %s", dbType)
+	migrationURL, err := BuildMigrationDatabaseURL(dbType, dbDSN)
+	if err != nil {
+		log.Fatalf("migrate: %v", err)
+	}
+
+	log.Printf("Migrate: Using database type: %s source=%s", dbType, sourceDir)
 
 	var (
 		attempts = _defaultAttempts
-		err      error
 		m        *migrate.Migrate
 	)
 
+	sourceURL := fmt.Sprintf("file://%s", sourceDir)
+
 	for attempts > 0 {
-		m, err = migrate.New("file://migrations", migrationURL)
+		m, err = migrate.New(sourceURL, migrationURL)
 		if err == nil {
 			break
 		}
@@ -77,6 +75,7 @@ func init() {
 
 	if errors.Is(err, migrate.ErrNoChange) {
 		log.Printf("Migrate: no change")
+
 		return
 	}
 

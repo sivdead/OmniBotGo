@@ -57,8 +57,8 @@ func NewApp(
 	}
 }
 
-// Run 启动应用程序
-func (a *App) Run() {
+// Run 启动应用程序。信号优雅退出返回 nil；监听/运行时失败在 cleanup 后返回 error（F03）。
+func (a *App) Run() error {
 	// 延迟关闭数据库连接
 	defer func() {
 		if err := a.Database.Close(); err != nil {
@@ -95,21 +95,44 @@ func (a *App) Run() {
 		rmqNotify = a.RMQServer.Notify()
 	}
 
-	select {
-	case s := <-interrupt:
-		a.Logger.Info("app - Run - signal: %s", s.String())
-	case err := <-a.HTTPServer.Notify():
-		a.Logger.Error(fmt.Errorf("app - Run - httpServer.Notify: %w", err))
-	case err := <-a.GRPCServer.Notify():
-		a.Logger.Error(fmt.Errorf("app - Run - grpcServer.Notify: %w", err))
-	case err := <-rmqNotify:
-		if err != nil {
-			a.Logger.Error(fmt.Errorf("app - Run - rmqServer.Notify: %w", err))
-		}
-	}
+	runErr := a.waitForExit(interrupt, rmqNotify)
 
 	// 优雅关闭所有服务器
 	a.shutdown()
+
+	return runErr
+}
+
+func (a *App) waitForExit(interrupt <-chan os.Signal, rmqNotify <-chan error) error {
+	select {
+	case s := <-interrupt:
+		a.Logger.Info("app - Run - signal: %s", s.String())
+
+		return nil
+	case err := <-a.HTTPServer.Notify():
+		if err != nil {
+			runErr := fmt.Errorf("app - Run - httpServer.Notify: %w", err)
+			a.Logger.Error(runErr)
+
+			return runErr
+		}
+	case err := <-a.GRPCServer.Notify():
+		if err != nil {
+			runErr := fmt.Errorf("app - Run - grpcServer.Notify: %w", err)
+			a.Logger.Error(runErr)
+
+			return runErr
+		}
+	case err := <-rmqNotify:
+		if err != nil {
+			runErr := fmt.Errorf("app - Run - rmqServer.Notify: %w", err)
+			a.Logger.Error(runErr)
+
+			return runErr
+		}
+	}
+
+	return nil
 }
 
 // shutdown 优雅关闭所有服务器
