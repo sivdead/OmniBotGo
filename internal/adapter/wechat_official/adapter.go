@@ -23,6 +23,7 @@ var (
 	errWechatOfficialMissingAppSecret = errors.New("app_secret is required in wechat official config")
 	errWechatOfficialMissingToken     = errors.New("token is required in wechat official config for webhook verification")
 	errWechatOfficialInvalidSignature = errors.New("invalid signature")
+	errWechatOfficialHTTPStatus       = errors.New("wechat official API HTTP error")
 )
 
 // WechatOfficialAdapter 微信公众号平台适配器
@@ -122,6 +123,11 @@ func (w *WechatOfficialAdapter) SendMessage(ctx context.Context, message *dto.Un
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// D06: reject non-2xx before treating as sent.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("%w: status %d", errWechatOfficialHTTPStatus, resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

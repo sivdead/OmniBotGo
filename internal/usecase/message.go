@@ -98,22 +98,23 @@ func (uc *messageUseCase) CreateStreamMessageHandler() port.MessageHandler {
 func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity.Message) error {
 	uc.logger.Info("开始处理入站消息", "method", "ProcessInboundMessage", "message_id", msg.MessageID, "channel_id", msg.ChannelID)
 
-	if err := uc.validateInboundMessage(ctx, msg); err != nil {
-		return err
-	}
-
 	if err := uc.checkChannelStatus(ctx, msg.ChannelID); err != nil {
 		return err
 	}
 
+	// Prepare (incl. MessageID) before ValidateMessage so empty ID is not rejected.
 	if err := uc.prepareInboundMessage(msg); err != nil {
+		return err
+	}
+
+	if err := uc.validateInboundMessage(ctx, msg); err != nil {
 		return err
 	}
 
 	if skip, err := uc.checkDuplicateMessage(ctx, msg); err != nil {
 		return err
 	} else if skip {
-		return nil // 重复消息，静默跳过
+		return nil // 已成功处理过的重复消息，静默跳过
 	}
 
 	if err := uc.persistAndProcessMessage(ctx, msg); err != nil {
@@ -151,51 +152,136 @@ func (uc *messageUseCase) checkChannelStatus(ctx context.Context, channelID stri
 // prepareInboundMessage 准备入站消息
 func (uc *messageUseCase) prepareInboundMessage(msg *entity.Message) error {
 	msg.Direction = entity.MessageDirectionInbound
-	msg.MessageStatus = entity.MessageStatusPending
-	msg.ReceivedAt = time.Now()
+
+	if msg.MessageStatus == 0 {
+		msg.MessageStatus = entity.MessageStatusPending
+	}
+
+	if msg.ReceivedAt.IsZero() {
+		msg.ReceivedAt = time.Now()
+	}
+
+	if msg.PlatformTimestamp.IsZero() {
+		msg.PlatformTimestamp = time.Now()
+	}
 
 	if msg.MessageID == "" {
 		msg.MessageID = uc.generateMessageID()
 	}
+
 	return nil
 }
 
-// checkDuplicateMessage 检查重复消息
+const successfulProcessorsKey = "_successful_processor_ids"
+
+var (
+	errChannelNotReady         = errors.New("通道未就绪")
+	errWebhookDeliveryFailed   = errors.New("webhook delivery failed")
+	errRetryExhausted          = errors.New("retry exhausted")
+	errUnsupportedMsgDirection = errors.New("unsupported message direction")
+)
+
+// checkDuplicateMessage 检查重复消息。
+// 仅对最终成功（processed/sent）去重跳过；pending/failed/processing 恢复同一行继续处理。
 func (uc *messageUseCase) checkDuplicateMessage(ctx context.Context, msg *entity.Message) (bool, error) {
 	if msg.PlatformMessageID == "" {
 		return false, nil
 	}
 
-	existingMsg, err := uc.messageRepo.GetByPlatformMessageID(ctx, msg.ChannelID, msg.PlatformMessageID)
-	if err == nil && existingMsg != nil {
-		uc.logger.Warn("检测到重复消息，跳过处理",
+	existingMsg, err := uc.findExistingByPlatformMessageID(ctx, msg)
+	if err != nil {
+		return false, err
+	}
+
+	if existingMsg == nil {
+		return false, nil
+	}
+
+	if existingMsg.MessageStatus.IsProcessed() {
+		uc.logger.Warn("检测到已成功处理的重复消息，跳过",
 			"message_id", msg.MessageID,
 			"platform_message_id", msg.PlatformMessageID,
-			"existing_message_id", existingMsg.MessageID)
-		return true, nil // 返回true表示跳过处理
+			"existing_message_id", existingMsg.MessageID,
+			"status", existingMsg.MessageStatus.String())
+
+		return true, nil
 	}
+
+	// Resume unfinished row instead of dropping redelivery.
+	uc.logger.Info("恢复未完成消息处理",
+		"existing_id", existingMsg.ID,
+		"status", existingMsg.MessageStatus.String(),
+		"platform_message_id", msg.PlatformMessageID)
+
+	msg.ID = existingMsg.ID
+	msg.MessageID = existingMsg.MessageID
+	msg.RetryCount = existingMsg.RetryCount
+
+	if existingMsg.UnifiedContent != nil {
+		if msg.UnifiedContent == nil {
+			msg.UnifiedContent = make(entity.JSONField)
+		}
+
+		if ids, ok := existingMsg.UnifiedContent[successfulProcessorsKey]; ok {
+			msg.UnifiedContent[successfulProcessorsKey] = ids
+		}
+	}
+
 	return false, nil
+}
+
+// findExistingByPlatformMessageID looks up by current PlatformMessageID and,
+// for chat_id:message_id form, also legacy message_id-only rows in the same conversation.
+func (uc *messageUseCase) findExistingByPlatformMessageID(ctx context.Context, msg *entity.Message) (*entity.Message, error) {
+	existingMsg, err := uc.messageRepo.GetByPlatformMessageID(ctx, msg.ChannelID, msg.PlatformMessageID)
+	if err != nil {
+		return nil, fmt.Errorf("查询平台消息失败: %w", err)
+	}
+
+	if existingMsg != nil {
+		return existingMsg, nil
+	}
+
+	// Legacy Telegram-style IDs were message_id only; new form is chat_id:message_id.
+	if idx := strings.LastIndex(msg.PlatformMessageID, ":"); idx > 0 {
+		legacyID := msg.PlatformMessageID[idx+1:]
+
+		legacy, err := uc.messageRepo.GetByPlatformMessageID(ctx, msg.ChannelID, legacyID)
+		if err != nil {
+			return nil, fmt.Errorf("查询遗留平台消息失败: %w", err)
+		}
+
+		if legacy != nil && (msg.ConversationID == "" || legacy.ConversationID == "" || legacy.ConversationID == msg.ConversationID) {
+			return legacy, nil
+		}
+	}
+
+	return nil, nil
 }
 
 // persistAndProcessMessage 持久化并处理消息
 func (uc *messageUseCase) persistAndProcessMessage(ctx context.Context, msg *entity.Message) error {
-	// 保存消息到数据库
-	if err := uc.messageRepo.Create(ctx, msg); err != nil {
-		uc.logger.Error("保存消息失败", "error", err)
-		return fmt.Errorf("保存消息失败: %w", err)
+	if msg.ID == "" {
+		if err := uc.messageRepo.Create(ctx, msg); err != nil {
+			uc.logger.Error("保存消息失败", "error", err)
+
+			return fmt.Errorf("保存消息失败: %w", err)
+		}
 	}
 
-	// 标记消息为处理中
 	uc.msgService.MarkAsProcessing(msg)
+
 	if err := uc.messageRepo.Update(ctx, msg); err != nil {
 		uc.logger.Error("更新消息状态失败", "error", err)
+
 		return fmt.Errorf("更新消息状态失败: %w", err)
 	}
 
-	// 进行消息路由处理
 	if err := uc.routeAndProcessMessage(ctx, msg); err != nil {
 		uc.logger.Error("消息路由处理失败", "error", err)
 		uc.handleMessageProcessingError(ctx, msg, err)
+
+		return err // propagate: do not ACK upstream as success
 	}
 
 	return nil
@@ -218,7 +304,15 @@ func (uc *messageUseCase) handleMessageProcessingError(ctx context.Context, msg 
 func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) error {
 	uc.logger.Info("开始发送消息", "method", "SendMessage", "message_id", msg.MessageID, "channel_id", msg.ChannelID)
 
-	// 使用service验证消息数据
+	// B01: generate MessageID before ValidateMessage so HTTP callers need not supply one.
+	if msg.MessageID == "" {
+		msg.MessageID = uc.generateMessageID()
+	}
+	// E01: strict MySQL rejects zero datetime for platform_timestamp.
+	if msg.PlatformTimestamp.IsZero() {
+		msg.PlatformTimestamp = time.Now()
+	}
+
 	if err := uc.msgService.ValidateMessage(msg); err != nil {
 		uc.logger.Error("消息验证失败", "error", err)
 		return fmt.Errorf("消息验证失败: %w", err)
@@ -233,7 +327,8 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 
 	if !channel.IsActive() {
 		uc.logger.Warn("通道未激活，无法发送消息")
-		return fmt.Errorf("通道未就绪")
+
+		return errChannelNotReady
 	}
 	// Outbound HTTP send (e.g. Telegram sendMessage) does not require a live stream.
 	// connection_status used to lag behind long-poll Start → false 「通道未就绪」.
@@ -245,11 +340,6 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 	// 设置消息为出站方向
 	msg.Direction = entity.MessageDirectionOutbound
 	msg.MessageStatus = entity.MessageStatusPending
-
-	// 生成消息ID（如果为空）
-	if msg.MessageID == "" {
-		msg.MessageID = uc.generateMessageID()
-	}
 
 	// 保存消息到数据库
 	if err := uc.messageRepo.Create(ctx, msg); err != nil {
@@ -443,25 +533,73 @@ func (uc *messageUseCase) GetMessage(ctx context.Context, id string) (*entity.Me
 	return message, nil
 }
 
-// RetryFailedMessage 重试失败的消息
+// RetryFailedMessage 重试失败的消息（更新已有行并重新投递，禁止再 Create）.
 func (uc *messageUseCase) RetryFailedMessage(ctx context.Context, messageID string) error {
 	uc.logger.Info("重试失败消息", "method", "RetryFailedMessage", "message_id", messageID)
 
-	// 获取消息
 	message, err := uc.messageRepo.GetByMessageID(ctx, messageID)
 	if err != nil {
 		uc.logger.Error("获取消息失败", "error", err)
+
 		return fmt.Errorf("获取消息失败: %w", err)
 	}
 
-	// 检查消息状态
 	if message.MessageStatus != entity.MessageStatusFailed {
 		uc.logger.Warn("消息状态不是失败状态，无法重试", "current_status", message.MessageStatus)
+
 		return fmt.Errorf("消息状态不是失败状态")
 	}
 
-	// 重新发送消息
-	return uc.SendMessage(ctx, message)
+	channel, err := uc.channelRepo.GetByID(ctx, message.ChannelID)
+	if err != nil {
+		return fmt.Errorf("获取通道信息失败: %w", err)
+	}
+
+	if !channel.IsActive() {
+		return errChannelNotReady
+	}
+
+	if message.PlatformTimestamp.IsZero() {
+		message.PlatformTimestamp = time.Now()
+	}
+
+	message.ErrorMessage = ""
+	uc.msgService.MarkAsProcessing(message)
+
+	if err := uc.messageRepo.Update(ctx, message); err != nil {
+		return fmt.Errorf("更新消息状态失败: %w", err)
+	}
+
+	switch message.Direction {
+	case entity.MessageDirectionInbound:
+		if err := uc.routeAndProcessMessage(ctx, message); err != nil {
+			uc.handleMessageProcessingError(ctx, message, err)
+
+			return err
+		}
+
+		return nil
+	case entity.MessageDirectionOutbound:
+		if err := uc.sendMessageToPlatform(ctx, message, channel); err != nil {
+			uc.msgService.MarkAsFailed(message, err.Error())
+
+			if updateErr := uc.messageRepo.Update(ctx, message); updateErr != nil {
+				uc.logger.Error("更新消息失败状态失败", "error", updateErr)
+			}
+
+			return fmt.Errorf("发送消息失败: %w", err)
+		}
+
+		uc.msgService.MarkAsSent(message)
+
+		if err := uc.messageRepo.Update(ctx, message); err != nil {
+			return fmt.Errorf("更新消息发送状态失败: %w", err)
+		}
+
+		return nil
+	default:
+		return fmt.Errorf("%w: %v", errUnsupportedMsgDirection, message.Direction)
+	}
 }
 
 // generateMessageID 生成消息ID
@@ -469,9 +607,9 @@ func (uc *messageUseCase) generateMessageID() string {
 	return fmt.Sprintf("msg_%d", time.Now().UnixNano())
 }
 
-// routeAndProcessMessage 路由并处理消息
+// routeAndProcessMessage 路由并处理消息。
+// B02: 任一处理器失败则不 MarkAsProcessed；广播模式下已成功的目标记录后重试时跳过。
 func (uc *messageUseCase) routeAndProcessMessage(ctx context.Context, msg *entity.Message) error {
-	// 使用路由规则处理消息
 	processors, err := uc.routingUC.RouteMessage(ctx, msg)
 	if err != nil {
 		return fmt.Errorf("消息路由失败: %w", err)
@@ -479,24 +617,99 @@ func (uc *messageUseCase) routeAndProcessMessage(ctx context.Context, msg *entit
 
 	if len(processors) == 0 {
 		uc.logger.Warn("没有找到匹配的处理器", "message_id", msg.MessageID)
-		return nil // 没有处理器不算错误，可能是正常情况
+		uc.msgService.MarkAsProcessed(msg)
+
+		if err := uc.messageRepo.Update(ctx, msg); err != nil {
+			return fmt.Errorf("更新消息状态失败: %w", err)
+		}
+
+		return nil
 	}
 
-	// 依次调用处理器处理消息
+	done := successfulProcessorSet(msg)
+
+	var failures []error
+
 	for _, processor := range processors {
+		if done[processor.ID] {
+			uc.logger.Info("跳过已成功的广播目标", "processor_id", processor.ID, "message_id", msg.MessageID)
+
+			continue
+		}
+
 		if err := uc.processMessageWithProcessor(ctx, msg, processor); err != nil {
 			uc.logger.Error("处理器处理消息失败", "processor_id", processor.ID, "processor_name", processor.ProcessorName, "error", err)
-			// 继续处理其他处理器，不中断流程
+			failures = append(failures, fmt.Errorf("%s: %w", processor.ID, err))
+
+			continue
+		}
+
+		markProcessorSuccessful(msg, processor.ID)
+
+		if err := uc.messageRepo.Update(ctx, msg); err != nil {
+			uc.logger.Error("持久化成功处理器记录失败", "error", err)
 		}
 	}
 
-	// 使用service标记消息为已处理
+	if len(failures) > 0 {
+		return fmt.Errorf("processor failures (%d): %w", len(failures), errors.Join(failures...))
+	}
+
 	uc.msgService.MarkAsProcessed(msg)
+
 	if err := uc.messageRepo.Update(ctx, msg); err != nil {
 		return fmt.Errorf("更新消息状态失败: %w", err)
 	}
 
 	return nil
+}
+
+func successfulProcessorSet(msg *entity.Message) map[string]bool {
+	out := make(map[string]bool)
+	if msg.UnifiedContent == nil {
+		return out
+	}
+
+	raw, ok := msg.UnifiedContent[successfulProcessorsKey]
+	if !ok {
+		return out
+	}
+
+	switch v := raw.(type) {
+	case []string:
+		for _, id := range v {
+			out[id] = true
+		}
+	case []interface{}:
+		for _, item := range v {
+			if id, ok := item.(string); ok {
+				out[id] = true
+			}
+		}
+	}
+
+	return out
+}
+
+func markProcessorSuccessful(msg *entity.Message, processorID string) {
+	if msg.UnifiedContent == nil {
+		msg.UnifiedContent = make(entity.JSONField)
+	}
+
+	set := successfulProcessorSet(msg)
+
+	if set[processorID] {
+		return
+	}
+
+	ids := make([]string, 0, len(set)+1)
+
+	for id := range set {
+		ids = append(ids, id)
+	}
+
+	ids = append(ids, processorID)
+	msg.UnifiedContent[successfulProcessorsKey] = ids
 }
 
 // processMessageWithProcessor 使用特定处理器处理消息
@@ -624,28 +837,30 @@ func (uc *messageUseCase) processWebhookForwarder(ctx context.Context, msg *enti
 	apiLog.ResponseStatus = resp.StatusCode
 	apiLog.ResponseBody = string(responseBody)
 
-	// 3. 处理响应并记录日志
+	// B05: any non-2xx is a delivery failure; retryability must not be treated as success.
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		uc.logger.Info("Webhook转发成功",
 			"url", url,
 			"message_id", msg.MessageID,
 			"status_code", resp.StatusCode,
 			"duration_ms", duration.Milliseconds())
-	} else {
-		uc.logger.Warn("Webhook转发返回非成功状态",
-			"url", url,
-			"message_id", msg.MessageID,
-			"status_code", resp.StatusCode,
-			"response", string(responseBody))
 
-		// 对于某些状态码，可能需要重试
-		if shouldRetryOnStatusCode(resp.StatusCode) {
-			return uc.enqueueWebhookMessage(ctx, msg, processor, url)
+		return nil
+	}
+
+	uc.logger.Warn("Webhook转发返回非成功状态",
+		"url", url,
+		"message_id", msg.MessageID,
+		"status_code", resp.StatusCode,
+		"response", string(responseBody))
+
+	if shouldRetryOnStatusCode(resp.StatusCode) {
+		if enqErr := uc.enqueueWebhookMessage(ctx, msg, processor, url); enqErr != nil {
+			uc.logger.Error("非2xx后入队重试失败", "error", enqErr)
 		}
 	}
 
-	uc.logger.Info("Webhook转发处理完成", "url", url, "message_id", msg.MessageID)
-	return nil
+	return fmt.Errorf("%w: HTTP %d", errWebhookDeliveryFailed, resp.StatusCode)
 }
 
 // shouldRetryOnError 判断错误是否应该重试
@@ -729,21 +944,22 @@ func (uc *messageUseCase) processAutoReply(ctx context.Context, msg *entity.Mess
 		return fmt.Errorf("无效的reply_content配置")
 	}
 
-	// 构建回复消息
+	// 构建回复消息（E01: PlatformTimestamp 必须非零，严格 MySQL 才能插入）
 	replyMsg := &entity.Message{
-		MessageID:       uc.generateMessageID(),
-		ChannelID:       msg.ChannelID,
-		Direction:       entity.MessageDirectionOutbound,
-		MessageType:     "text",
-		SenderID:        msg.ReceiverID, // 回复者变成发送者
-		SenderName:      msg.ReceiverName,
-		SenderType:      msg.ReceiverType,
-		ReceiverID:      msg.SenderID, // 原发送者变成接收者
-		ReceiverName:    msg.SenderName,
-		ReceiverType:    msg.SenderType,
-		Content:         content,
-		ConversationID:  msg.ConversationID,
-		ParentMessageID: &msg.ID, // 设置父消息ID
+		MessageID:         uc.generateMessageID(),
+		ChannelID:         msg.ChannelID,
+		Direction:         entity.MessageDirectionOutbound,
+		MessageType:       entity.MessageTypeText,
+		SenderID:          msg.ReceiverID, // 回复者变成发送者
+		SenderName:        msg.ReceiverName,
+		SenderType:        msg.ReceiverType,
+		ReceiverID:        msg.SenderID, // 原发送者变成接收者
+		ReceiverName:      msg.SenderName,
+		ReceiverType:      msg.SenderType,
+		Content:           content,
+		ConversationID:    msg.ConversationID,
+		ParentMessageID:   &msg.ID, // 设置父消息ID
+		PlatformTimestamp: time.Now(),
 	}
 
 	// 发送回复消息
@@ -886,7 +1102,8 @@ func (uc *messageUseCase) processAIChatSync(ctx context.Context, msg *entity.Mes
 	EnableTools  bool                     `json:"enable_tools"`
 	Tools        []map[string]interface{} `json:"tools,omitempty"`
 	StreamMode   bool                     `json:"stream_mode"`
-}) error {
+},
+) error {
 	// 调用AI模型
 	response, err := chatModel.Generate(ctx, messages)
 	if err != nil {
@@ -936,7 +1153,8 @@ func (uc *messageUseCase) processAIChatStream(ctx context.Context, msg *entity.M
 	EnableTools  bool                     `json:"enable_tools"`
 	Tools        []map[string]interface{} `json:"tools,omitempty"`
 	StreamMode   bool                     `json:"stream_mode"`
-}) error {
+},
+) error {
 	// 调用流式AI模型
 	streamReader, err := chatModel.Stream(ctx, messages)
 	if err != nil {
@@ -1022,7 +1240,8 @@ func (uc *messageUseCase) handleToolCalls(ctx context.Context, msg *entity.Messa
 	EnableTools  bool                     `json:"enable_tools"`
 	Tools        []map[string]interface{} `json:"tools,omitempty"`
 	StreamMode   bool                     `json:"stream_mode"`
-}) error {
+},
+) error {
 	uc.logger.Info("Processing tool calls", "count", len(response.ToolCalls))
 
 	// 添加助手的工具调用消息
@@ -1153,8 +1372,8 @@ func (uc *messageUseCase) toolSendMessage(ctx context.Context, args string) (str
 		ChannelID:         params.ChannelID,
 		PlatformMessageID: fmt.Sprintf("tool_msg_%d", time.Now().Unix()),
 		Direction:         entity.MessageDirectionOutbound,
-		MessageType:       "text",
-		ContentType:       "text",
+		MessageType:       entity.MessageTypeText,
+		ContentType:       entity.MessageTypeText,
 		SenderID:          "ai_tool",
 		SenderName:        "AI Tool",
 		SenderType:        "bot",
@@ -1183,7 +1402,8 @@ func (uc *messageUseCase) createAIReplyMessage(msg *entity.Message, content stri
 	EnableTools  bool                     `json:"enable_tools"`
 	Tools        []map[string]interface{} `json:"tools,omitempty"`
 	StreamMode   bool                     `json:"stream_mode"`
-}, processor *entity.MessageProcessor, toolCalls []map[string]interface{}) *entity.Message {
+}, processor *entity.MessageProcessor, toolCalls []map[string]interface{},
+) *entity.Message {
 	unifiedContent := entity.JSONField{
 		"ai_provider":  aiConfig.Provider,
 		"ai_model":     aiConfig.Model,
@@ -1200,7 +1420,7 @@ func (uc *messageUseCase) createAIReplyMessage(msg *entity.Message, content stri
 		PlatformMessageID: fmt.Sprintf("ai_reply_%s_%d", msg.ID, time.Now().Unix()),
 		Direction:         entity.MessageDirectionOutbound,
 		MessageType:       msg.MessageType,
-		ContentType:       "text",
+		ContentType:       entity.MessageTypeText,
 		SenderID:          "ai_bot",
 		SenderName:        fmt.Sprintf("AI Bot (%s)", aiConfig.Model),
 		SenderType:        "bot",

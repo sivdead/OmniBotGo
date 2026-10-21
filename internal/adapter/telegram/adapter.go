@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	defaultAPIBase       = "https://api.telegram.org"
-	defaultPollTimeout   = 30
-	defaultHTTPTimeout   = 60 * time.Second
-	pollRetryBackoff     = 3 * time.Second
+	defaultAPIBase     = "https://api.telegram.org"
+	defaultPollTimeout = 30
+	defaultHTTPTimeout = 60 * time.Second
+	pollRetryBackoff   = 3 * time.Second
 )
 
 var (
@@ -217,7 +217,7 @@ func (a *Adapter) pollLoop(ctx context.Context, handler port.MessageHandler, bot
 		default:
 		}
 
-		updates, nextOffset, err := a.getUpdates(ctx, botToken, offset)
+		updates, _, err := a.getUpdates(ctx, botToken, offset)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -231,21 +231,35 @@ func (a *Adapter) pollLoop(ctx context.Context, handler port.MessageHandler, bot
 			continue
 		}
 
-		if nextOffset > offset {
-			offset = nextOffset
-		}
-
+		// C01: advance offset only past successfully handled (or intentionally skipped) updates.
 		for i := range updates {
 			msg, err := updateToUnified(&updates[i], channelID)
 			if err != nil {
 				a.logger.Warn().Err(err).Int64("update_id", updates[i].UpdateID).Msg("skip telegram update")
+
+				if updates[i].UpdateID+1 > offset {
+					offset = updates[i].UpdateID + 1
+				}
+
 				continue
 			}
+
 			if msg == nil {
+				if updates[i].UpdateID+1 > offset {
+					offset = updates[i].UpdateID + 1
+				}
+
 				continue
 			}
+
 			if err := handler(ctx, msg); err != nil {
 				a.logger.Error().Err(err).Str("message_id", msg.MessageID).Msg("telegram message handler error")
+				// Do not advance offset past this update so Telegram redelivers it.
+				break
+			}
+
+			if updates[i].UpdateID+1 > offset {
+				offset = updates[i].UpdateID + 1
 			}
 		}
 	}
@@ -359,6 +373,9 @@ func updateToUnified(update *Update, channelID string) (*dto.UnifiedMessage, err
 		raw["channel_id"] = channelID
 	}
 
+	// C02: include chat_id to avoid cross-chat PlatformMessageID collisions.
+	platformMessageID := fmt.Sprintf("%s:%d", chatID, msg.MessageID)
+
 	return &dto.UnifiedMessage{
 		MessageID:         fmt.Sprintf("tg-%d-%d", update.UpdateID, msg.MessageID),
 		MessageType:       entity.MessageTypeText,
@@ -370,7 +387,7 @@ func updateToUnified(update *Update, channelID string) (*dto.UnifiedMessage, err
 		Content:           msg.Text,
 		RawContent:        raw,
 		ConversationID:    chatID,
-		PlatformMessageID: strconv.FormatInt(msg.MessageID, 10),
+		PlatformMessageID: platformMessageID,
 		PlatformTimestamp: time.Unix(msg.Date, 0).UTC(),
 	}, nil
 }

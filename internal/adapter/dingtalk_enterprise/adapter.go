@@ -28,6 +28,7 @@ var (
 	errDingtalkMissingAppSecret     = errors.New("app_secret is required in dingtalk enterprise config")
 	errDingtalkMissingWebhookSecret = errors.New("app_secret is required in dingtalk enterprise config for webhook verification")
 	errDingtalkWebhookSigFailed     = errors.New("webhook signature verification failed")
+	errDingtalkHTTPStatus           = errors.New("dingtalk API HTTP error")
 )
 
 const (
@@ -305,6 +306,11 @@ func (a *DingtalkEnterpriseAdapter) sendAPIRequest(ctx context.Context, apiURL, 
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// D06: reject non-2xx before treating as sent.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("%w: status %d", errDingtalkHTTPStatus, resp.StatusCode)
+	}
 
 	var apiResp struct {
 		ErrCode int    `json:"errcode"`

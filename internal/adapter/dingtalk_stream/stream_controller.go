@@ -127,7 +127,8 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 	unifiedMsg, err := c.convertToUnifiedMessage(data)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("failed to convert dingtalk message")
-		return []byte(`{"text": "消息转换失败"}`), nil
+		// C04: protocol failure ACK — non-nil error (not a success body with nil err).
+		return nil, fmt.Errorf("dingtalk message conversion failed: %w", err)
 	}
 
 	// 创建消息实体
@@ -159,8 +160,8 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 	err = c.messageHandler.ProcessInboundMessage(ctx, message)
 	if err != nil {
 		c.logger.Error().Err(err).Msg("failed to process inbound message")
-		// 返回错误响应
-		return []byte(`{"text": "消息处理失败，请稍后重试"}`), nil
+		// C04: failure ACK so upstream does not treat process errors as success.
+		return nil, fmt.Errorf("dingtalk inbound process failed: %w", err)
 	}
 
 	// 这里可以根据业务逻辑决定是否返回响应

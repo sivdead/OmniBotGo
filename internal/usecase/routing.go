@@ -117,12 +117,8 @@ func (uc *routingUseCase) GetMatchingRules(ctx context.Context, message *entity.
 		return nil, fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
-	// 获取所有激活的路由规则
-	activeStatus := entity.StatusActive
-	filters := RoutingRuleFilters{
-		Status: &activeStatus,
-	}
-	allRules, err := uc.GetRoutingRules(ctx, filters)
+	// B06: load all active rules (not first page of 20) for runtime matching.
+	allRules, err := uc.routingRuleRepo.GetActiveRules(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("获取路由规则失败: %w", err)
 	}

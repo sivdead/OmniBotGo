@@ -17,7 +17,10 @@ import (
 	"github.com/sivdead/OmniBotGo/internal/usecase/port"
 )
 
-var errWecomMissingAgentID = errors.New("agent_id is required in wecom config")
+var (
+	errWecomMissingAgentID = errors.New("agent_id is required in wecom config")
+	errWecomHTTPStatus     = errors.New("wecom API HTTP error")
+)
 
 // WecomAdapter 企业微信平台适配器
 type WecomAdapter struct {
@@ -178,6 +181,11 @@ func (w *WecomAdapter) SendMessage(ctx context.Context, message *dto.UnifiedMess
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// D06: reject non-2xx before treating as sent.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("%w: status %d", errWecomHTTPStatus, resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

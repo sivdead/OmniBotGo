@@ -91,6 +91,12 @@ func (uc *queueUC) RetryQueueMessage(ctx context.Context, id string) error {
 		return fmt.Errorf("only failed messages can be retried")
 	}
 
+	// B07: refuse exhausted retries so MarkForRetry does not return success for jobs
+	// that GetRetryableJobs will never select (retry_count < max_retries).
+	if message.RetryCount >= message.MaxRetries {
+		return fmt.Errorf("%w: retry_count=%d max_retries=%d", errRetryExhausted, message.RetryCount, message.MaxRetries)
+	}
+
 	// 标记为重试状态
 	nextScheduleTime := time.Now().Unix()
 	if err := uc.queueRepo.MarkForRetry(ctx, id, nextScheduleTime); err != nil {
