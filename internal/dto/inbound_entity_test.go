@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testReceiverTypeBot = "bot"
+
 func TestUnifiedMessage_ToInboundEntity(t *testing.T) {
 	t.Parallel()
 
@@ -17,8 +19,8 @@ func TestUnifiedMessage_ToInboundEntity(t *testing.T) {
 		SenderID:          "u1",
 		SenderName:        "Alice",
 		SenderType:        "user",
-		ReceiverID:        "bot",
-		ReceiverType:      "bot",
+		ReceiverID:        testReceiverTypeBot,
+		ReceiverType:      testReceiverTypeBot,
 		Content:           "hi",
 		MediaType:         "text/plain",
 		ConversationID:    "conv-1",
@@ -44,5 +46,6 @@ func TestUnifiedMessage_ToInboundEntity_Nil(t *testing.T) {
 	t.Parallel()
 
 	var u *UnifiedMessage
+
 	require.Nil(t, u.ToInboundEntity("ch"))
 }

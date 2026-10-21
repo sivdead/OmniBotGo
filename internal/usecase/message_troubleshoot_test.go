@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testBizMsgID = "biz-1"
+
 func TestDeriveMessagePipelineStage(t *testing.T) {
 	t.Parallel()
 
@@ -40,9 +42,9 @@ func TestTroubleshootMessage_RecoverableFailedInbound(t *testing.T) {
 
 	repo := &msgRepoStub{
 		byMessageID: map[string]*entity.Message{
-			"biz-1": {
+			testBizMsgID: {
 				BaseEntity:    entity.BaseEntity{ID: "pk-1"},
-				MessageID:     "biz-1",
+				MessageID:     testBizMsgID,
 				ChannelID:     "ch-1",
 				Direction:     entity.MessageDirectionInbound,
 				MessageStatus: entity.MessageStatusFailed,
@@ -58,9 +60,9 @@ func TestTroubleshootMessage_RecoverableFailedInbound(t *testing.T) {
 		logger:      logger.New("error"),
 	}
 
-	result, err := uc.TroubleshootMessage(context.Background(), "biz-1")
+	result, err := uc.TroubleshootMessage(context.Background(), testBizMsgID)
 	require.NoError(t, err)
-	require.Equal(t, "biz-1", result.MessageID)
+	require.Equal(t, testBizMsgID, result.MessageID)
 	require.Equal(t, MessageStageProcess, result.Stage)
 	require.True(t, result.CanRetry)
 	require.True(t, result.Recoverable)

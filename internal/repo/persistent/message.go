@@ -105,7 +105,7 @@ func (r *MessageRepo) GetByChannelID(ctx context.Context, channelID string, para
 	return result, nil
 }
 
-// GetByConversationID 根据通道+会话ID获取消息列表（T06：按 channel 隔离 AI 历史）
+// GetByConversationID 根据通道+会话ID获取消息列表（T06：按 channel 隔离 AI 历史）.
 func (r *MessageRepo) GetByConversationID(ctx context.Context, channelID, conversationID string, params port.ListParams) (*port.PaginatedResult[*entity.Message], error) {
 	validatedParams := r.validateParams(params)
 

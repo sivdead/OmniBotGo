@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testValidateBotID  = "bot-1"
+	testValidatePlat   = "feishu"
+	testValidateChName = "main"
+)
+
 var errBadPlatformConfig = errors.New("bad platform config")
 
 type validatingAdapterManager struct {
@@ -20,6 +26,7 @@ type validatingAdapterManager struct {
 
 func (v *validatingAdapterManager) ValidateConfig(entity.PlatformType, map[string]interface{}) error {
 	v.called = true
+
 	return v.err
 }
 
@@ -30,10 +37,10 @@ func TestCreateChannel_ValidatesConfig(t *testing.T) {
 	uc := NewChannelUseCase(&memoryChannelRepo{}, &memoryBotRepo{}, mgr, logger.New("error"))
 
 	_, err := uc.CreateChannel(context.Background(), CreateChannelRequest{
-		BotID:        "bot-1",
-		PlatformType: "feishu",
-		ChannelName:  "main",
-		Config:       map[string]interface{}{"app_id": "x"},
+		BotID:        testValidateBotID,
+		PlatformType: testValidatePlat,
+		ChannelName:  testValidateChName,
+		Config:       map[string]interface{}{testAppID: "x"},
 	})
 	require.ErrorIs(t, err, errBadPlatformConfig)
 	require.True(t, mgr.called)
@@ -46,9 +53,9 @@ func TestCreateChannel_CallsValidateEvenWhenConfigNil(t *testing.T) {
 	uc := NewChannelUseCase(&memoryChannelRepo{}, &memoryBotRepo{}, mgr, logger.New("error"))
 
 	ch, err := uc.CreateChannel(context.Background(), CreateChannelRequest{
-		BotID:        "bot-1",
-		PlatformType: "feishu",
-		ChannelName:  "main",
+		BotID:        testValidateBotID,
+		PlatformType: testValidatePlat,
+		ChannelName:  testValidateChName,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, ch)

@@ -138,6 +138,7 @@ func (m *UnifiedMessage) ToInboundEntity(channelID string) *entity.Message {
 	if raw == nil {
 		raw = make(map[string]interface{})
 	}
+
 	if channelID != "" {
 		raw["channel_id"] = channelID
 	}

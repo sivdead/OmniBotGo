@@ -26,6 +26,8 @@ var (
 const (
 	feishuMsgTypeMDAlias = "md"
 	feishuContentKeyText = "text"
+	feishuMsgTypeMedia   = "media"
+	feishuMsgTypeSticker = "sticker"
 )
 
 // FeishuAdapter 飞书平台适配器
@@ -60,8 +62,8 @@ func (f *FeishuAdapter) SupportedMessageTypes() []string {
 		entity.MessageTypeImage,
 		entity.MessageTypeAudio,
 		entity.MessageTypeFile,
-		"media",
-		"sticker",
+		feishuMsgTypeMedia,
+		feishuMsgTypeSticker,
 	}
 }
 
@@ -135,12 +137,12 @@ func (f *FeishuAdapter) mapToFeishuMessageType(msgType string) string {
 		return "image"
 	case "audio":
 		return "audio"
-	case "media":
-		return "media"
+	case feishuMsgTypeMedia:
+		return feishuMsgTypeMedia
 	case "file":
 		return "file"
-	case "sticker":
-		return "sticker"
+	case feishuMsgTypeSticker:
+		return feishuMsgTypeSticker
 	default:
 		return ""
 	}

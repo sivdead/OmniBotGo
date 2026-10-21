@@ -95,11 +95,13 @@ func (uc *channelUseCase) CreateChannel(ctx context.Context, req CreateChannelRe
 	if cfg == nil {
 		cfg = map[string]interface{}{}
 	}
+
 	channel.Config = entity.JSONField(cfg)
 
 	// T08: validate platform credentials/config at create time (do not defer to first message)
 	if err := uc.adapterManager.ValidateConfig(entity.PlatformType(req.PlatformType), cfg); err != nil {
 		uc.logger.Error("平台配置验证失败", "error", err)
+
 		return nil, fmt.Errorf("平台配置验证失败: %w", err)
 	}
 
@@ -173,6 +175,7 @@ func (uc *channelUseCase) UpdateChannel(ctx context.Context, req UpdateChannelRe
 	if req.Config != nil {
 		if err := uc.adapterManager.ValidateConfig(entity.PlatformType(channel.PlatformType), map[string]interface{}(channel.Config)); err != nil {
 			uc.logger.Error("平台配置验证失败", "error", err)
+
 			return nil, fmt.Errorf("平台配置验证失败: %w", err)
 		}
 	}

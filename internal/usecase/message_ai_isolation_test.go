@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testAIMsgID = "m1"
+
 type convRepoStub struct {
 	msgRepoStub
 	lastChannelID string
@@ -28,7 +30,7 @@ func TestGetConversationHistory_ScopesByChannel(t *testing.T) {
 	t.Parallel()
 
 	repo := &convRepoStub{
-		items: []*entity.Message{{MessageID: "m1", ChannelID: "ch-a", ConversationID: "same-conv"}},
+		items: []*entity.Message{{MessageID: testAIMsgID, ChannelID: "ch-a", ConversationID: "same-conv"}},
 	}
 	uc := &messageUseCase{messageRepo: repo, logger: logger.New("error")}
 

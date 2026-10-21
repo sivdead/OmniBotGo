@@ -34,7 +34,7 @@ type StreamController struct {
 	mu             sync.RWMutex
 }
 
-// NewStreamController 创建钉钉Stream控制器（T02：直接传 UnifiedMessage，避免 entity 往返）
+// NewStreamController 创建钉钉Stream控制器（T02：直接传 UnifiedMessage，避免 entity 往返）.
 func NewStreamController(
 	messageHandler port.MessageHandler,
 	logger zerolog.Logger,
@@ -160,6 +160,7 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 	if unifiedMsg.RawContent == nil {
 		unifiedMsg.RawContent = make(map[string]interface{})
 	}
+
 	unifiedMsg.RawContent["channel_id"] = c.channelID
 
 	err = c.messageHandler(ctx, unifiedMsg)
@@ -171,7 +172,7 @@ func (c *StreamController) handleChatBotMessage(ctx context.Context, data *chatb
 
 	// 这里可以根据业务逻辑决定是否返回响应
 	// 目前先返回一个简单的确认消息
-	if unifiedMsg.MessageType == "text" {
+	if unifiedMsg.MessageType == string(DingtalkMessageTypeText) {
 		response := fmt.Sprintf(`{"text": "收到消息：%s"}`, unifiedMsg.Content)
 
 		return []byte(response), nil

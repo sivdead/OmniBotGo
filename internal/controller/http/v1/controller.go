@@ -290,6 +290,7 @@ func (v *V1) TroubleshootMessage(c *fiber.Ctx) error {
 	result, err := v.messageUC.TroubleshootMessage(c.Context(), id)
 	if err != nil {
 		v.l.Error("消息排障查询失败: %v", err)
+
 		return NewErrorResponse(c, http.StatusNotFound, "消息不存在")
 	}
 

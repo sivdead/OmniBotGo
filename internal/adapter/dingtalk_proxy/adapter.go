@@ -42,7 +42,9 @@ var (
 func (a *DingtalkProxyAdapter) SupportedMessageTypes() []string {
 	// Union of stream + enterprise; SendMessage still rejects per concrete adapter.
 	seen := make(map[string]struct{})
+
 	var out []string
+
 	for _, src := range [][]string{
 		a.streamAdapter.SupportedMessageTypes(),
 		a.enterpriseAdapter.SupportedMessageTypes(),
@@ -51,10 +53,13 @@ func (a *DingtalkProxyAdapter) SupportedMessageTypes() []string {
 			if _, ok := seen[t]; ok {
 				continue
 			}
+
 			seen[t] = struct{}{}
+
 			out = append(out, t)
 		}
 	}
+
 	return out
 }
 

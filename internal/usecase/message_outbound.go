@@ -12,7 +12,9 @@ import (
 
 // Outbound send / reply / retry / query / troubleshoot (T03/T11)
 
-// SendMessage 发送消息
+// SendMessage 发送消息.
+//
+//nolint:gocyclo,cyclop,funlen // pre-existing branching retained in T03 split
 func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) error {
 	uc.logger.Info("开始发送消息", "method", "SendMessage", "message_id", msg.MessageID, "channel_id", msg.ChannelID)
 
@@ -27,6 +29,7 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 
 	if err := uc.msgService.ValidateMessage(msg); err != nil {
 		uc.logger.Error("消息验证失败", "error", err)
+
 		return fmt.Errorf("消息验证失败: %w", err)
 	}
 
@@ -34,6 +37,7 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 	channel, err := uc.channelRepo.GetByID(ctx, msg.ChannelID)
 	if err != nil {
 		uc.logger.Error("获取通道信息失败", "error", err)
+
 		return fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
@@ -56,13 +60,16 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 	// 保存消息到数据库
 	if err := uc.messageRepo.Create(ctx, msg); err != nil {
 		uc.logger.Error("保存消息失败", "error", err)
+
 		return fmt.Errorf("保存消息失败: %w", err)
 	}
 
 	// 使用service标记消息为处理中
 	uc.msgService.MarkAsProcessing(msg)
+
 	if err := uc.messageRepo.Update(ctx, msg); err != nil {
 		uc.logger.Error("更新消息状态失败", "error", err)
+
 		return fmt.Errorf("更新消息状态失败: %w", err)
 	}
 
@@ -70,21 +77,27 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 	if err := uc.sendMessageToPlatform(ctx, msg, channel); err != nil {
 		// 发送失败，使用service标记消息为失败状态
 		uc.msgService.MarkAsFailed(msg, err.Error())
+
 		if updateErr := uc.messageRepo.Update(ctx, msg); updateErr != nil {
 			uc.logger.Error("更新消息失败状态失败", "error", updateErr)
 		}
+
 		uc.logger.Error("发送消息到平台失败", "error", err)
+
 		return fmt.Errorf("发送消息失败: %w", err)
 	}
 
 	// 发送成功，使用service标记消息为已发送
 	uc.msgService.MarkAsSent(msg)
+
 	if err := uc.messageRepo.Update(ctx, msg); err != nil {
 		uc.logger.Error("更新消息发送状态失败", "error", err)
+
 		return fmt.Errorf("更新消息发送状态失败: %w", err)
 	}
 
 	uc.logger.Info("消息发送完成")
+
 	return nil
 }
 
@@ -126,24 +139,33 @@ func (uc *messageUseCase) resolveInboundMessage(ctx context.Context, ref string)
 	return msg, nil
 }
 
-// sendMessageToPlatform 发送消息到具体平台
+// ensureMessageTypeSupported rejects undeclared types when the adapter declares capabilities (T08).
+func (uc *messageUseCase) ensureMessageTypeSupported(platformType entity.PlatformType, msgType string) error {
+	platformAdapter, err := uc.adapterManager.GetAdapter(platformType)
+	if err != nil {
+		return nil // sender lookup will surface missing adapters
+	}
+
+	caps, ok := platformAdapter.(port.MessageTypeSupport)
+	if !ok {
+		return nil
+	}
+
+	for _, t := range caps.SupportedMessageTypes() {
+		if t == msgType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%w: platform %s cannot send %q", port.ErrUnsupportedMessageType, platformType, msgType)
+}
+
+// sendMessageToPlatform 发送消息到具体平台.
 func (uc *messageUseCase) sendMessageToPlatform(ctx context.Context, msg *entity.Message, channel *entity.Channel) error {
 	platformType := entity.PlatformType(channel.PlatformType)
 
-	// T08: reject undeclared message types before calling the sender
-	if platformAdapter, err := uc.adapterManager.GetAdapter(platformType); err == nil {
-		if caps, ok := platformAdapter.(port.MessageTypeSupport); ok {
-			supported := false
-			for _, t := range caps.SupportedMessageTypes() {
-				if t == msg.MessageType {
-					supported = true
-					break
-				}
-			}
-			if !supported {
-				return fmt.Errorf("%w: platform %s cannot send %q", port.ErrUnsupportedMessageType, platformType, msg.MessageType)
-			}
-		}
+	if err := uc.ensureMessageTypeSupported(platformType, msg.MessageType); err != nil {
+		return err
 	}
 
 	// 使用新的MessageSender接口
@@ -160,10 +182,9 @@ func (uc *messageUseCase) sendMessageToPlatform(ctx context.Context, msg *entity
 
 	// 检查访问令牌是否过期
 	if channel.AccessTokenExpiresAt != nil && time.Now().After(*channel.AccessTokenExpiresAt) {
-		// 尝试刷新令牌
 		if err := uc.refreshChannelToken(ctx, channel); err != nil {
+			// Stream mode: token refresh failure is non-fatal.
 			uc.logger.Warn("刷新访问令牌失败", "error", err)
-			// 对于Stream模式，Token刷新失败不是致命错误
 		}
 	}
 
@@ -191,7 +212,7 @@ func (uc *messageUseCase) sendMessageToPlatform(ctx context.Context, msg *entity
 	return messageSender.SendMessage(ctx, unifiedMessage, channel.Config, channel.AccessToken)
 }
 
-// refreshChannelToken 刷新通道访问令牌
+// refreshChannelToken 刷新通道访问令牌.
 func (uc *messageUseCase) refreshChannelToken(ctx context.Context, channel *entity.Channel) error {
 	uc.logger.Info("刷新通道访问令牌", "channel_id", channel.ID)
 
@@ -217,10 +238,13 @@ func (uc *messageUseCase) refreshChannelToken(ctx context.Context, channel *enti
 	}
 
 	uc.logger.Info("通道访问令牌刷新成功")
+
 	return nil
 }
 
-// GetMessageHistory 获取消息历史
+// GetMessageHistory 获取消息历史.
+//
+//nolint:gocyclo,cyclop,gocritic // filter assembly retained from pre-split message.go
 func (uc *messageUseCase) GetMessageHistory(ctx context.Context, params GetMessageHistoryParams) (*MessageHistoryResult, error) {
 	uc.logger.Info("获取消息历史", "method", "GetMessageHistory")
 
@@ -230,24 +254,31 @@ func (uc *messageUseCase) GetMessageHistory(ctx context.Context, params GetMessa
 	if params.ChannelID != nil {
 		filters["channel_id"] = *params.ChannelID
 	}
+
 	if params.SenderID != nil {
 		filters["sender_id"] = *params.SenderID
 	}
+
 	if params.ReceiverID != nil {
 		filters["receiver_id"] = *params.ReceiverID
 	}
+
 	if params.MessageType != nil {
 		filters["message_type"] = *params.MessageType
 	}
+
 	if params.MessageStatus != nil {
 		filters["message_status"] = *params.MessageStatus
 	}
+
 	if params.Direction != nil {
 		filters["direction"] = *params.Direction
 	}
+
 	if params.StartTime != nil {
 		filters["start_time"] = *params.StartTime
 	}
+
 	if params.EndTime != nil {
 		filters["end_time"] = *params.EndTime
 	}
@@ -262,6 +293,7 @@ func (uc *messageUseCase) GetMessageHistory(ctx context.Context, params GetMessa
 	result, err := uc.messageRepo.List(ctx, listParams)
 	if err != nil {
 		uc.logger.Error("查询消息历史失败", "error", err)
+
 		return nil, fmt.Errorf("查询消息历史失败: %w", err)
 	}
 
@@ -284,13 +316,14 @@ func (uc *messageUseCase) GetMessageHistory(ctx context.Context, params GetMessa
 	return historyResult, nil
 }
 
-// GetMessage 根据业务 message_id 或 DB PK 获取消息
+// GetMessage 根据业务 message_id 或 DB PK 获取消息.
 func (uc *messageUseCase) GetMessage(ctx context.Context, id string) (*entity.Message, error) {
 	uc.logger.Info("获取消息详情", "method", "GetMessage", "message_id", id)
 
 	message, err := uc.resolveInboundMessage(ctx, id)
 	if err != nil {
 		uc.logger.Error("获取消息失败", "error", err)
+
 		return nil, fmt.Errorf("获取消息失败: %w", err)
 	}
 
@@ -300,6 +333,8 @@ func (uc *messageUseCase) GetMessage(ctx context.Context, id string) (*entity.Me
 }
 
 // TroubleshootMessage returns receive/process/deliver stage + recoverability for a single message (T11).
+//
+//nolint:gocyclo,cyclop // stage/action matrix is intentionally explicit
 func (uc *messageUseCase) TroubleshootMessage(ctx context.Context, id string) (*MessageTroubleshootResult, error) {
 	msg, err := uc.resolveInboundMessage(ctx, id)
 	if err != nil {
@@ -311,6 +346,7 @@ func (uc *messageUseCase) TroubleshootMessage(ctx context.Context, id string) (*
 	recoverable := canRetry
 
 	action := "none"
+
 	switch {
 	case !canRetry && msg.MessageStatus == entity.MessageStatusExpired:
 		action = "expired_terminal"
@@ -323,7 +359,7 @@ func (uc *messageUseCase) TroubleshootMessage(ctx context.Context, id string) (*
 	case msg.MessageStatus == entity.MessageStatusProcessing:
 		action = "await_process"
 	case msg.MessageStatus.IsProcessed() || msg.MessageStatus == entity.MessageStatusSent:
-		action = "healthy"
+		action = actionHealthy
 	}
 
 	result := &MessageTroubleshootResult{
@@ -345,10 +381,12 @@ func (uc *messageUseCase) TroubleshootMessage(ctx context.Context, id string) (*
 		s := msg.ReceivedAt.UTC().Format(time.RFC3339)
 		result.ReceivedAt = &s
 	}
+
 	if msg.ProcessedAt != nil {
 		s := msg.ProcessedAt.UTC().Format(time.RFC3339)
 		result.ProcessedAt = &s
 	}
+
 	if msg.SentAt != nil {
 		s := msg.SentAt.UTC().Format(time.RFC3339)
 		result.SentAt = &s
@@ -374,6 +412,7 @@ func deriveMessagePipelineStage(msg *entity.Message) MessagePipelineStage {
 		if msg.Direction == entity.MessageDirectionOutbound {
 			return MessageStageDeliver
 		}
+
 		if msg.ProcessedAt != nil || msg.MessageStatus == entity.MessageStatusExpired {
 			return MessageStageProcess
 		}
@@ -385,6 +424,8 @@ func deriveMessagePipelineStage(msg *entity.Message) MessagePipelineStage {
 }
 
 // RetryFailedMessage 重试失败的消息（更新已有行并重新投递，禁止再 Create）.
+//
+//nolint:gocognit,gocyclo,cyclop // inbound/outbound retry branches retained from pre-split message.go
 func (uc *messageUseCase) RetryFailedMessage(ctx context.Context, messageID string) error {
 	uc.logger.Info("重试失败消息", "method", "RetryFailedMessage", "message_id", messageID)
 
@@ -398,7 +439,7 @@ func (uc *messageUseCase) RetryFailedMessage(ctx context.Context, messageID stri
 	if message.MessageStatus != entity.MessageStatusFailed {
 		uc.logger.Warn("消息状态不是失败状态，无法重试", "current_status", message.MessageStatus)
 
-		return fmt.Errorf("消息状态不是失败状态")
+		return errMessageNotFailed
 	}
 
 	channel, err := uc.channelRepo.GetByID(ctx, message.ChannelID)

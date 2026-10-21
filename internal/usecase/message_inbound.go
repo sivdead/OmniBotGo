@@ -13,12 +13,13 @@ import (
 
 // Inbound message path (T03)
 
-// CreateStreamMessageHandler 创建用于Stream适配器的消息处理回调函数
+// CreateStreamMessageHandler 创建用于Stream适配器的消息处理回调函数.
 func (uc *messageUseCase) CreateStreamMessageHandler() port.MessageHandler {
 	return func(ctx context.Context, unifiedMessage *dto.UnifiedMessage) error {
 		uc.logger.Info("Stream消息处理回调", "message_id", unifiedMessage.MessageID, "sender_id", unifiedMessage.SenderID)
 
 		channelID := ""
+
 		if unifiedMessage.RawContent != nil {
 			if v, ok := unifiedMessage.RawContent["channel_id"].(string); ok {
 				channelID = v
@@ -30,7 +31,7 @@ func (uc *messageUseCase) CreateStreamMessageHandler() port.MessageHandler {
 	}
 }
 
-// ProcessInboundMessage 处理入站消息
+// ProcessInboundMessage 处理入站消息.
 func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity.Message) error {
 	uc.logger.Info("开始处理入站消息", "method", "ProcessInboundMessage", "message_id", msg.MessageID, "channel_id", msg.ChannelID)
 
@@ -58,34 +59,40 @@ func (uc *messageUseCase) ProcessInboundMessage(ctx context.Context, msg *entity
 	}
 
 	uc.logger.Info("入站消息处理完成")
+
 	return nil
 }
 
-// validateInboundMessage 验证入站消息
-func (uc *messageUseCase) validateInboundMessage(ctx context.Context, msg *entity.Message) error {
+// validateInboundMessage 验证入站消息.
+func (uc *messageUseCase) validateInboundMessage(_ context.Context, msg *entity.Message) error {
 	if err := uc.msgService.ValidateMessage(msg); err != nil {
 		uc.logger.Error("消息验证失败", "error", err)
+
 		return fmt.Errorf("消息验证失败: %w", err)
 	}
+
 	return nil
 }
 
-// checkChannelStatus 检查通道状态
+// checkChannelStatus 检查通道状态.
 func (uc *messageUseCase) checkChannelStatus(ctx context.Context, channelID string) error {
 	channel, err := uc.channelRepo.GetByID(ctx, channelID)
 	if err != nil {
 		uc.logger.Error("获取通道信息失败", "error", err)
+
 		return fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
 	if !channel.IsActive() {
 		uc.logger.Warn("通道未激活，拒绝处理消息")
-		return fmt.Errorf("通道未激活")
+
+		return errChannelInactive
 	}
+
 	return nil
 }
 
-// prepareInboundMessage 准备入站消息
+// prepareInboundMessage 准备入站消息.
 func (uc *messageUseCase) prepareInboundMessage(msg *entity.Message) error {
 	msg.Direction = entity.MessageDirectionInbound
 
@@ -186,7 +193,7 @@ func (uc *messageUseCase) findExistingByPlatformMessageID(ctx context.Context, m
 	return nil, nil
 }
 
-// persistAndProcessMessage 持久化并处理消息
+// persistAndProcessMessage 持久化并处理消息.
 func (uc *messageUseCase) persistAndProcessMessage(ctx context.Context, msg *entity.Message) error {
 	if msg.ID == "" {
 		if err := uc.messageRepo.Create(ctx, msg); err != nil {
@@ -214,9 +221,10 @@ func (uc *messageUseCase) persistAndProcessMessage(ctx context.Context, msg *ent
 	return nil
 }
 
-// handleMessageProcessingError 处理消息处理错误
+// handleMessageProcessingError 处理消息处理错误.
 func (uc *messageUseCase) handleMessageProcessingError(ctx context.Context, msg *entity.Message, err error) {
 	uc.msgService.MarkAsFailed(msg, err.Error())
+
 	if updateErr := uc.messageRepo.Update(ctx, msg); updateErr != nil {
 		uc.logger.Error("更新消息状态失败", "error", updateErr)
 	}

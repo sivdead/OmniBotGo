@@ -358,7 +358,9 @@ func (a *DingtalkEnterpriseAdapter) sendAPIRequest(ctx context.Context, apiURL, 
 	return nil
 }
 
-// buildDingtalkMessage 构建钉钉消息格式（T08：未知类型返回错误，不再降级为文本）
+// buildDingtalkMessage 构建钉钉消息格式（T08：未知类型返回错误，不再降级为文本）.
+//
+//nolint:gocognit,gocyclo,cyclop,funlen // message-type switch retained; unknown types error out (T08)
 func buildDingtalkMessage(message *dto.UnifiedMessage) (map[string]interface{}, error) {
 	switch message.MessageType {
 	case entity.MessageTypeText:

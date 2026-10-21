@@ -15,7 +15,9 @@ import (
 
 // AI chat processing (T03/T06)
 
-// processAIChat 处理AI聊天功能
+// processAIChat 处理AI聊天功能.
+//
+//nolint:gocognit,gocyclo,cyclop,funlen // AI chat orchestration retained from pre-split message.go
 func (uc *messageUseCase) processAIChat(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor) error {
 	// 解析AI配置
 	var aiConfig struct {
@@ -35,40 +37,47 @@ func (uc *messageUseCase) processAIChat(ctx context.Context, msg *entity.Message
 	configBytes, err := json.Marshal(processor.Config)
 	if err != nil {
 		uc.logger.Error("Failed to marshal processor config", "error", err)
+
 		return fmt.Errorf("invalid processor config: %w", err)
 	}
 
 	if err := json.Unmarshal(configBytes, &aiConfig); err != nil {
 		uc.logger.Error("Failed to parse AI config", "error", err)
+
 		return fmt.Errorf("invalid AI config: %w", err)
 	}
 
 	// 验证必要参数
 	if aiConfig.Provider == "" {
-		return fmt.Errorf("AI provider is required")
+		return errAIProviderRequired
 	}
+
 	if aiConfig.Model == "" {
-		return fmt.Errorf("AI model is required")
+		return errAIModelRequired
 	}
+
 	if aiConfig.APIKey == "" {
-		return fmt.Errorf("API key is required")
+		return errAIAPIKeyRequired
 	}
 
 	// 设置默认值
 	if aiConfig.Temperature == 0 {
 		aiConfig.Temperature = 0.7
 	}
+
 	if aiConfig.MaxTokens == 0 {
 		aiConfig.MaxTokens = 1024
 	}
+
 	if aiConfig.SystemPrompt == "" {
 		aiConfig.SystemPrompt = "You are a helpful assistant."
 	}
 
 	// 获取会话历史（T06：按 channel_id + conversation_id 隔离）
-	history, err := uc.getConversationHistory(ctx, msg.ChannelID, msg.ConversationID, 10)
+	history, err := uc.getConversationHistory(ctx, msg.ChannelID, msg.ConversationID, defaultAIHistoryLimit)
 	if err != nil {
 		uc.logger.Error("Failed to get conversation history", "error", err)
+
 		return fmt.Errorf("failed to get conversation history: %w", err)
 	}
 
@@ -82,6 +91,7 @@ func (uc *messageUseCase) processAIChat(ctx context.Context, msg *entity.Message
 		if historyMsg.ID == msg.ID {
 			continue // 跳过当前消息
 		}
+
 		if historyMsg.Direction == entity.MessageDirectionInbound {
 			messages = append(messages, schema.UserMessage(historyMsg.Content))
 		} else {
@@ -102,39 +112,40 @@ func (uc *messageUseCase) processAIChat(ctx context.Context, msg *entity.Message
 
 	// 将配置转换为map格式
 	configMap := map[string]interface{}{
-		"provider":      aiConfig.Provider,
-		"model":         aiConfig.Model,
-		"system_prompt": aiConfig.SystemPrompt,
-		"temperature":   aiConfig.Temperature,
-		"max_tokens":    aiConfig.MaxTokens,
-		"api_key":       aiConfig.APIKey,
-		"base_url":      aiConfig.BaseURL,
-		"enable_tools":  aiConfig.EnableTools,
-		"tools":         aiConfig.Tools,
-		"stream_mode":   aiConfig.StreamMode,
+		"provider":          aiConfig.Provider,
+		"model":             aiConfig.Model,
+		"system_prompt":     aiConfig.SystemPrompt,
+		"temperature":       aiConfig.Temperature,
+		"max_tokens":        aiConfig.MaxTokens,
+		"api_key":           aiConfig.APIKey,
+		"base_url":          aiConfig.BaseURL,
+		"enable_tools":      aiConfig.EnableTools,
+		"tools":             aiConfig.Tools,
+		configKeyStreamMode: aiConfig.StreamMode,
 	}
 
 	chatModelInterface, err := aiModelManager.CreateChatModel(ctx, aiConfig.Provider, configMap)
 	if err != nil {
 		uc.logger.Error("Failed to create chat model", "error", err)
+
 		return fmt.Errorf("failed to create chat model: %w", err)
 	}
 
 	// 类型断言为ToolCallingChatModel
 	chatModel, ok := chatModelInterface.(model.ToolCallingChatModel)
 	if !ok {
-		return fmt.Errorf("created model does not implement ToolCallingChatModel interface")
+		return errAIModelNotToolCalling
 	}
 
 	// 根据配置选择处理方式
 	if aiConfig.StreamMode {
 		return uc.processAIChatStream(ctx, msg, processor, chatModel, messages, &aiConfig)
-	} else {
-		return uc.processAIChatSync(ctx, msg, processor, chatModel, messages, &aiConfig)
 	}
+
+	return uc.processAIChatSync(ctx, msg, processor, chatModel, messages, &aiConfig)
 }
 
-// processAIChatSync 同步处理AI聊天
+// processAIChatSync 同步处理AI聊天.
 func (uc *messageUseCase) processAIChatSync(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor, chatModel model.ToolCallingChatModel, messages []*schema.Message, aiConfig *struct {
 	Provider     string                   `json:"provider"`
 	Model        string                   `json:"model"`
@@ -152,6 +163,7 @@ func (uc *messageUseCase) processAIChatSync(ctx context.Context, msg *entity.Mes
 	response, err := chatModel.Generate(ctx, messages)
 	if err != nil {
 		uc.logger.Error("Failed to call AI model", "error", err)
+
 		return fmt.Errorf("failed to call AI model: %w", err)
 	}
 
@@ -163,7 +175,7 @@ func (uc *messageUseCase) processAIChatSync(ctx context.Context, msg *entity.Mes
 	// 获取AI响应内容
 	aiResponse := response.Content
 	if aiResponse == "" {
-		return fmt.Errorf("empty response from AI model")
+		return errAIEmptyResponse
 	}
 
 	// 创建AI回复消息
@@ -172,6 +184,7 @@ func (uc *messageUseCase) processAIChatSync(ctx context.Context, msg *entity.Mes
 	// 保存AI回复消息
 	if err := uc.messageRepo.Create(ctx, replyMsg); err != nil {
 		uc.logger.Error("Failed to save AI reply message", "error", err)
+
 		return fmt.Errorf("failed to save AI reply message: %w", err)
 	}
 
@@ -185,7 +198,9 @@ func (uc *messageUseCase) processAIChatSync(ctx context.Context, msg *entity.Mes
 	return nil
 }
 
-// processAIChatStream 流式处理AI聊天
+// processAIChatStream 流式处理AI聊天.
+//
+//nolint:gocognit,gocyclo,cyclop,funlen // stream path retained from pre-split message.go
 func (uc *messageUseCase) processAIChatStream(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor, chatModel model.ToolCallingChatModel, messages []*schema.Message, aiConfig *struct {
 	Provider     string                   `json:"provider"`
 	Model        string                   `json:"model"`
@@ -203,11 +218,13 @@ func (uc *messageUseCase) processAIChatStream(ctx context.Context, msg *entity.M
 	streamReader, err := chatModel.Stream(ctx, messages)
 	if err != nil {
 		uc.logger.Error("Failed to call AI model stream", "error", err)
+
 		return fmt.Errorf("failed to call AI model stream: %w", err)
 	}
 	defer streamReader.Close()
 
 	var fullResponse strings.Builder
+
 	var toolCalls []schema.ToolCall
 
 	// 读取流式响应
@@ -217,7 +234,9 @@ func (uc *messageUseCase) processAIChatStream(ctx context.Context, msg *entity.M
 			if err.Error() == "EOF" {
 				break
 			}
+
 			uc.logger.Error("Failed to read stream chunk", "error", err)
+
 			return fmt.Errorf("failed to read stream chunk: %w", err)
 		}
 
@@ -231,8 +250,7 @@ func (uc *messageUseCase) processAIChatStream(ctx context.Context, msg *entity.M
 			toolCalls = append(toolCalls, chunk.ToolCalls...)
 		}
 
-		// 这里可以实现实时推送到客户端的逻辑
-		// 例如通过WebSocket或Server-Sent Events
+		// Real-time client push (WebSocket/SSE) can be added later.
 		uc.logger.Debug("Received stream chunk",
 			"content", chunk.Content,
 			"tool_calls", len(chunk.ToolCalls))
@@ -240,7 +258,7 @@ func (uc *messageUseCase) processAIChatStream(ctx context.Context, msg *entity.M
 
 	finalResponse := fullResponse.String()
 	if finalResponse == "" && len(toolCalls) == 0 {
-		return fmt.Errorf("empty response from AI model stream")
+		return errAIEmptyStreamResponse
 	}
 
 	// 处理工具调用
@@ -250,6 +268,7 @@ func (uc *messageUseCase) processAIChatStream(ctx context.Context, msg *entity.M
 			Content:   finalResponse,
 			ToolCalls: toolCalls,
 		}
+
 		return uc.handleToolCalls(ctx, msg, processor, chatModel, messages, response, aiConfig)
 	}
 
@@ -259,6 +278,7 @@ func (uc *messageUseCase) processAIChatStream(ctx context.Context, msg *entity.M
 	// 保存AI回复消息
 	if err := uc.messageRepo.Create(ctx, replyMsg); err != nil {
 		uc.logger.Error("Failed to save AI reply message", "error", err)
+
 		return fmt.Errorf("failed to save AI reply message: %w", err)
 	}
 
@@ -272,7 +292,7 @@ func (uc *messageUseCase) processAIChatStream(ctx context.Context, msg *entity.M
 	return nil
 }
 
-// handleToolCalls 处理工具调用
+// handleToolCalls 处理工具调用.
 func (uc *messageUseCase) handleToolCalls(ctx context.Context, msg *entity.Message, processor *entity.MessageProcessor, chatModel model.ToolCallingChatModel, messages []*schema.Message, response *schema.Message, aiConfig *struct {
 	Provider     string                   `json:"provider"`
 	Model        string                   `json:"model"`
@@ -300,15 +320,14 @@ func (uc *messageUseCase) handleToolCalls(ctx context.Context, msg *entity.Messa
 		}
 
 		// 添加工具结果消息
-		toolMessage := schema.ToolMessage(toolResult, toolCall.ID)
-		messages = append(messages, toolMessage)
-		messages = append(messages, toolMessage)
+		messages = append(messages, schema.ToolMessage(toolResult, toolCall.ID))
 	}
 
 	// 再次调用AI模型获取最终响应
 	finalResponse, err := chatModel.Generate(ctx, messages)
 	if err != nil {
 		uc.logger.Error("Failed to get final response after tool calls", "error", err)
+
 		return fmt.Errorf("failed to get final response after tool calls: %w", err)
 	}
 
@@ -316,9 +335,9 @@ func (uc *messageUseCase) handleToolCalls(ctx context.Context, msg *entity.Messa
 	toolCallsData := make([]map[string]interface{}, len(response.ToolCalls))
 	for i, toolCall := range response.ToolCalls {
 		toolCallsData[i] = map[string]interface{}{
-			"id":       toolCall.ID,
-			"function": toolCall.Function.Name,
-			"args":     toolCall.Function.Arguments,
+			jsonKeyID:       toolCall.ID,
+			jsonKeyFunction: toolCall.Function.Name,
+			jsonKeyArgs:     toolCall.Function.Arguments,
 		}
 	}
 
@@ -327,6 +346,7 @@ func (uc *messageUseCase) handleToolCalls(ctx context.Context, msg *entity.Messa
 	// 保存AI回复消息
 	if err := uc.messageRepo.Create(ctx, replyMsg); err != nil {
 		uc.logger.Error("Failed to save AI reply message with tool calls", "error", err)
+
 		return fmt.Errorf("failed to save AI reply message with tool calls: %w", err)
 	}
 
@@ -340,7 +360,7 @@ func (uc *messageUseCase) handleToolCalls(ctx context.Context, msg *entity.Messa
 	return nil
 }
 
-// executeToolCall 执行工具调用
+// executeToolCall 执行工具调用.
 func (uc *messageUseCase) executeToolCall(ctx context.Context, toolCall *schema.ToolCall) (string, error) {
 	uc.logger.Info("Executing tool call", "function", toolCall.Function.Name, "args", toolCall.Function.Arguments)
 
@@ -355,38 +375,40 @@ func (uc *messageUseCase) executeToolCall(ctx context.Context, toolCall *schema.
 	case "send_message":
 		return uc.toolSendMessage(ctx, toolCall.Function.Arguments)
 	default:
-		return "", fmt.Errorf("unknown tool function: %s", toolCall.Function.Name)
+		return "", fmt.Errorf("%w: %s", errUnknownToolFunction, toolCall.Function.Name)
 	}
 }
 
-// toolGetCurrentTime 获取当前时间工具
-func (uc *messageUseCase) toolGetCurrentTime(ctx context.Context, args string) (string, error) {
+// toolGetCurrentTime 获取当前时间工具.
+func (uc *messageUseCase) toolGetCurrentTime(_ context.Context, _ string) (string, error) {
 	now := time.Now()
+
 	return fmt.Sprintf("Current time: %s", now.Format("2006-01-02 15:04:05 MST")), nil
 }
 
-// toolGetWeather 获取天气工具
-func (uc *messageUseCase) toolGetWeather(ctx context.Context, args string) (string, error) {
+// toolGetWeather 获取天气工具.
+func (uc *messageUseCase) toolGetWeather(_ context.Context, args string) (string, error) {
 	// 解析参数
 	var params struct {
 		Location string `json:"location"`
 	}
+
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return "", fmt.Errorf("invalid weather tool arguments: %w", err)
 	}
 
-	// 这里应该调用实际的天气API
-	// 暂时返回模拟数据
+	// Placeholder until a real weather provider is wired.
 	return fmt.Sprintf("Weather in %s: Sunny, 25°C", params.Location), nil
 }
 
-// toolSearchWeb 网络搜索工具
-func (uc *messageUseCase) toolSearchWeb(ctx context.Context, args string) (string, error) {
+// toolSearchWeb 网络搜索工具.
+func (uc *messageUseCase) toolSearchWeb(_ context.Context, args string) (string, error) {
 	// 解析参数
 	var params struct {
 		Query string `json:"query"`
 		Count int    `json:"count,omitempty"`
 	}
+
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return "", fmt.Errorf("invalid search tool arguments: %w", err)
 	}
@@ -395,18 +417,18 @@ func (uc *messageUseCase) toolSearchWeb(ctx context.Context, args string) (strin
 		params.Count = 3
 	}
 
-	// 这里应该调用实际的搜索API
-	// 暂时返回模拟数据
+	// Placeholder until a real search provider is wired.
 	return fmt.Sprintf("Search results for '%s': Found %d relevant results", params.Query, params.Count), nil
 }
 
-// toolSendMessage 发送消息工具
+// toolSendMessage 发送消息工具.
 func (uc *messageUseCase) toolSendMessage(ctx context.Context, args string) (string, error) {
 	// 解析参数
 	var params struct {
 		ChannelID string `json:"channel_id"`
 		Content   string `json:"content"`
 	}
+
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return "", fmt.Errorf("invalid send message tool arguments: %w", err)
 	}
@@ -434,7 +456,7 @@ func (uc *messageUseCase) toolSendMessage(ctx context.Context, args string) (str
 	return fmt.Sprintf("Message sent successfully to channel %s", params.ChannelID), nil
 }
 
-// createAIReplyMessage 创建AI回复消息
+// createAIReplyMessage 创建AI回复消息.
 func (uc *messageUseCase) createAIReplyMessage(msg *entity.Message, content string, aiConfig *struct {
 	Provider     string                   `json:"provider"`
 	Model        string                   `json:"model"`
@@ -452,7 +474,7 @@ func (uc *messageUseCase) createAIReplyMessage(msg *entity.Message, content stri
 		"ai_provider":         aiConfig.Provider,
 		"ai_model":            aiConfig.Model,
 		payloadKeyProcessorID: processor.ID,
-		"stream_mode":         aiConfig.StreamMode,
+		configKeyStreamMode:   aiConfig.StreamMode,
 	}
 
 	if toolCalls != nil {
@@ -475,7 +497,7 @@ func (uc *messageUseCase) createAIReplyMessage(msg *entity.Message, content stri
 	return reply
 }
 
-// extractToolCallFromMessage 从消息中提取工具调用信息
+// extractToolCallFromMessage 从消息中提取工具调用信息.
 func (uc *messageUseCase) extractToolCallFromMessage(msg *entity.Message) []schema.ToolCall {
 	if msg.UnifiedContent == nil {
 		return nil
@@ -493,30 +515,41 @@ func (uc *messageUseCase) extractToolCallFromMessage(msg *entity.Message) []sche
 	}
 
 	var toolCalls []schema.ToolCall
+
 	for _, item := range toolCallsSlice {
 		toolCallMap, ok := item.(map[string]interface{})
 		if !ok {
 			continue
 		}
 
-		id, _ := toolCallMap["id"].(string)
-		functionName, _ := toolCallMap["function"].(string)
-		args, _ := toolCallMap["args"].(string)
+		id, ok := toolCallMap[jsonKeyID].(string)
+		if !ok {
+			continue
+		}
 
-		toolCall := schema.ToolCall{
+		functionName, ok := toolCallMap[jsonKeyFunction].(string)
+		if !ok {
+			continue
+		}
+
+		args, ok := toolCallMap[jsonKeyArgs].(string)
+		if !ok {
+			continue
+		}
+
+		toolCalls = append(toolCalls, schema.ToolCall{
 			ID: id,
 			Function: schema.FunctionCall{
 				Name:      functionName,
 				Arguments: args,
 			},
-		}
-		toolCalls = append(toolCalls, toolCall)
+		})
 	}
 
 	return toolCalls
 }
 
-// getConversationHistory 获取会话历史消息（T06：必须带 channelID，避免跨 bot 历史串扰）
+// getConversationHistory 获取会话历史消息（T06：必须带 channelID，避免跨 bot 历史串扰）.
 func (uc *messageUseCase) getConversationHistory(ctx context.Context, channelID, conversationID string, limit int) ([]*entity.Message, error) {
 	if conversationID == "" || channelID == "" {
 		return []*entity.Message{}, nil
@@ -525,7 +558,7 @@ func (uc *messageUseCase) getConversationHistory(ctx context.Context, channelID,
 	params := port.ListParams{
 		Page:     1,
 		PageSize: limit,
-		OrderBy:  "created_at",
+		OrderBy:  orderByCreatedAt,
 	}
 
 	result, err := uc.messageRepo.GetByConversationID(ctx, channelID, conversationID, params)
