@@ -20,10 +20,11 @@ func NewAPIRoutes(
 	logUC usecase.LogUseCase,
 	queueUC usecase.QueueUseCase,
 	processorUC usecase.ProcessorUseCase,
+	routingUC usecase.RoutingUseCase,
 	l logger.Interface,
 	cfg *config.Config,
 ) {
-	v1 := NewV1Controller(messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
+	v1 := NewV1Controller(messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, routingUC, l, cfg)
 
 	// 消息相关路由
 	messagesGroup := apiV1Group.Group("/messages")
@@ -32,6 +33,7 @@ func NewAPIRoutes(
 		messagesGroup.Get("/", v1.GetMessageHistory)
 		messagesGroup.Get("/:id", v1.GetMessage)
 		messagesGroup.Post("/:id/retry", v1.RetryMessage)
+		messagesGroup.Post("/:id/reply", v1.ReplyToOriginal)
 	}
 
 	// 通道相关路由
@@ -95,6 +97,12 @@ func NewAPIRoutes(
 		processorsGroup.Get("/:id/rules", v1.GetRoutingRules)
 		processorsGroup.Put("/:id/rules/:rule_id", v1.UpdateRoutingRule)
 		processorsGroup.Delete("/:id/rules/:rule_id", v1.DeleteRoutingRule)
+	}
+
+	// 路由预览（不执行处理器、不发送）（T05）
+	routingGroup := apiV1Group.Group("/routing")
+	{
+		routingGroup.Post("/preview", v1.PreviewRouting)
 	}
 
 	// 队列管理路由

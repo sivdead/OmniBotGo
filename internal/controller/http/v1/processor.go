@@ -40,7 +40,7 @@ func (v *V1) CreateProcessor(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "创建处理器失败")
 	}
 
-	return NewSuccessResponse(c, http.StatusCreated, "处理器创建成功", result)
+	return NewSuccessResponse(c, http.StatusCreated, "处理器创建成功", ToProcessorResponse(result))
 }
 
 // GetProcessors 获取处理器列表
@@ -78,7 +78,23 @@ func (v *V1) GetProcessors(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "获取处理器列表失败")
 	}
 
-	return NewSuccessResponse(c, result)
+	type listOut struct {
+		Items      []*ProcessorResponse `json:"items"`
+		Total      int64                `json:"total"`
+		Page       int                  `json:"page"`
+		PageSize   int                  `json:"page_size"`
+		TotalPages int                  `json:"total_pages"`
+	}
+
+	out := listOut{
+		Items:      ToProcessorListResponse(result.Items),
+		Total:      result.Total,
+		Page:       result.Page,
+		PageSize:   result.PageSize,
+		TotalPages: result.TotalPages,
+	}
+
+	return NewSuccessResponse(c, out)
 }
 
 // GetProcessorByID 获取处理器详情
@@ -105,7 +121,7 @@ func (v *V1) GetProcessorByID(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusNotFound, "处理器不存在")
 	}
 
-	return NewSuccessResponse(c, result)
+	return NewSuccessResponse(c, ToProcessorResponse(result))
 }
 
 // UpdateProcessor 更新处理器
@@ -147,7 +163,7 @@ func (v *V1) UpdateProcessor(c *fiber.Ctx) error {
 		return NewErrorResponse(c, http.StatusInternalServerError, "更新处理器失败")
 	}
 
-	return NewSuccessResponse(c, result)
+	return NewSuccessResponse(c, ToProcessorResponse(result))
 }
 
 // DeleteProcessor 删除处理器

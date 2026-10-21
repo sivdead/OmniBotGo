@@ -71,6 +71,10 @@ type stubMessageUC struct{}
 
 func (s *stubMessageUC) ProcessInboundMessage(context.Context, *entity.Message) error { return nil }
 func (s *stubMessageUC) SendMessage(context.Context, *entity.Message) error           { return nil }
+func (s *stubMessageUC) ReplyToOriginal(context.Context, string, usecase.ReplyToOriginalRequest) (*entity.Message, error) {
+	return nil, nil
+}
+
 func (s *stubMessageUC) GetMessageHistory(context.Context, usecase.GetMessageHistoryParams) (*usecase.MessageHistoryResult, error) {
 	return nil, nil
 }

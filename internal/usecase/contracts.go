@@ -15,8 +15,10 @@ type (
 	MessageUseCase interface {
 		// ProcessInboundMessage 处理入站消息
 		ProcessInboundMessage(ctx context.Context, msg *entity.Message) error
-		// SendMessage 发送消息
+		// SendMessage 主动发送消息（调用方显式指定 channel + receiver）
 		SendMessage(ctx context.Context, msg *entity.Message) error
+		// ReplyToOriginal 按入站消息 ID 回复原会话（DM/群正确寻址，T04）
+		ReplyToOriginal(ctx context.Context, inboundRef string, req ReplyToOriginalRequest) (*entity.Message, error)
 		// GetMessageHistory 获取消息历史
 		GetMessageHistory(ctx context.Context, params GetMessageHistoryParams) (*MessageHistoryResult, error)
 		// GetMessage 根据ID获取消息
@@ -226,6 +228,12 @@ type ListResult[T any] struct {
 
 // BotListResult 机器人列表结果（使用泛型）
 type BotListResult = ListResult[entity.Bot]
+
+// ReplyToOriginalRequest is the body for reply-by-inbound-message-id (T04).
+type ReplyToOriginalRequest struct {
+	Content     string `json:"content" validate:"required"`
+	MessageType string `json:"message_type,omitempty"`
+}
 
 // GetMessageHistoryParams 获取消息历史参数
 type GetMessageHistoryParams struct {

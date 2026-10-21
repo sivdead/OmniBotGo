@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -42,6 +43,7 @@ type V1 struct {
 	logUC          LogUseCase
 	queueUC        QueueUseCase
 	processorUC    ProcessorUseCase
+	routingUC      usecase.RoutingUseCase
 }
 
 // NewV1Controller 创建V1控制器实例
@@ -55,6 +57,7 @@ func NewV1Controller(
 	logUC LogUseCase,
 	queueUC QueueUseCase,
 	processorUC ProcessorUseCase,
+	routingUC usecase.RoutingUseCase,
 	l logger.Interface,
 	cfg *config.Config,
 ) *V1 {
@@ -68,6 +71,7 @@ func NewV1Controller(
 		logUC:          logUC,
 		queueUC:        queueUC,
 		processorUC:    processorUC,
+		routingUC:      routingUC,
 		l:              l,
 		v:              validator.New(),
 		startTime:      time.Now(),
@@ -291,4 +295,50 @@ func (v *V1) RetryMessage(c *fiber.Ctx) error {
 	}
 
 	return NewSuccessResponse(c, "重试成功")
+}
+
+// ReplyToOriginal 按入站消息 ID 回复原会话（T04）
+// @Summary 回复原消息
+// @Description 根据入站消息 ID（业务 message_id 或 DB PK）解析通道与 DM/群目标并发送回复；主动发送请用 /messages/send
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param id path string true "入站消息 ID"
+// @Param request body usecase.ReplyToOriginalRequest true "回复内容"
+// @Success 200 {object} StandardResponse{data=entity.Message} "回复成功"
+// @Failure 400 {object} StandardResponse "请求参数错误"
+// @Failure 404 {object} StandardResponse "消息不存在"
+// @Failure 500 {object} StandardResponse "内部服务器错误"
+// @Router /api/v1/messages/{id}/reply [post]
+func (v *V1) ReplyToOriginal(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return NewErrorResponse(c, http.StatusBadRequest, "消息ID不能为空")
+	}
+
+	var req usecase.ReplyToOriginalRequest
+	if err := c.BodyParser(&req); err != nil {
+		v.l.Error("解析请求体失败: %v", err)
+
+		return NewErrorResponse(c, http.StatusBadRequest, "请求参数格式错误")
+	}
+
+	if err := v.v.Struct(&req); err != nil {
+		v.l.Error("请求参数验证失败: %v", err)
+
+		return NewValidationErrorResponse(c, err)
+	}
+
+	reply, err := v.messageUC.ReplyToOriginal(c.Context(), id, req)
+	if err != nil {
+		v.l.Error("回复原消息失败: %v", err)
+
+		if errors.Is(err, usecase.ErrInboundMessageNotFound) || errors.Is(err, usecase.ErrReplyRequiresInbound) {
+			return NewErrorResponse(c, http.StatusBadRequest, err.Error())
+		}
+
+		return NewErrorResponse(c, http.StatusInternalServerError, "回复消息失败")
+	}
+
+	return NewSuccessResponse(c, reply)
 }

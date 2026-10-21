@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -12,10 +13,15 @@ import (
 	"github.com/sivdead/OmniBotGo/pkg/logger"
 )
 
+// ErrNoMatchingRoutingRules is returned when preview/route finds no rules.
+var ErrNoMatchingRoutingRules = errors.New("没有找到匹配的路由规则")
+
 // RoutingUseCase 消息路由业务逻辑接口
 type RoutingUseCase interface {
-	// RouteMessage 根据路由规则处理消息
+	// RouteMessage 根据路由规则处理消息（会解析处理器；仍不执行处理器业务）
 	RouteMessage(ctx context.Context, message *entity.Message) ([]*entity.MessageProcessor, error)
+	// PreviewRoute 预览匹配规则与选中处理器，不执行处理器、不发送消息（T05）
+	PreviewRoute(ctx context.Context, message *entity.Message) (*RoutingPreview, error)
 	// GetMatchingRules 获取匹配的路由规则
 	GetMatchingRules(ctx context.Context, message *entity.Message) ([]*entity.MessageRoutingRule, error)
 	// CreateRoutingRule 创建路由规则
@@ -26,6 +32,13 @@ type RoutingUseCase interface {
 	DeleteRoutingRule(ctx context.Context, ruleID string) error
 	// GetRoutingRules 获取路由规则列表
 	GetRoutingRules(ctx context.Context, filters RoutingRuleFilters) ([]*entity.MessageRoutingRule, error)
+}
+
+// RoutingPreview is a dry-run view of rule matching + processor selection (T05).
+type RoutingPreview struct {
+	MatchedRules       []*entity.MessageRoutingRule `json:"matched_rules"`
+	SelectedProcessors []*entity.MessageProcessor   `json:"selected_processors"`
+	UsedFallback       bool                         `json:"used_fallback"`
 }
 
 // RoutingRuleFilters 路由规则查询过滤器
@@ -62,68 +75,63 @@ func NewRoutingUseCase(
 	}
 }
 
-// RouteMessage 根据路由规则处理消息
+// RouteMessage resolves processors with the same selection semantics as PreviewRoute.
 func (uc *routingUseCase) RouteMessage(ctx context.Context, message *entity.Message) ([]*entity.MessageProcessor, error) {
 	uc.logger.Info("开始路由消息", "message_id", message.MessageID, "channel_id", message.ChannelID)
 
-	// 获取匹配的路由规则
-	rules, err := uc.GetMatchingRules(ctx, message)
+	preview, err := uc.PreviewRoute(ctx, message)
 	if err != nil {
-		uc.logger.Error("获取匹配路由规则失败", "error", err)
-		return nil, fmt.Errorf("获取匹配路由规则失败: %w", err)
+		return nil, err
+	}
+
+	uc.logger.Info("消息路由完成", "message_id", message.MessageID, "processor_count", len(preview.SelectedProcessors))
+
+	return preview.SelectedProcessors, nil
+}
+
+// PreviewRoute returns matched rules and selected processors without executing them (T05).
+func (uc *routingUseCase) PreviewRoute(ctx context.Context, message *entity.Message) (*RoutingPreview, error) {
+	rules, usedFallback, err := uc.matchRulesWithFallback(ctx, message)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(rules) == 0 {
-		uc.logger.Warn("没有找到匹配的路由规则", "message_id", message.MessageID)
-		return nil, fmt.Errorf("没有找到匹配的路由规则")
+		return nil, ErrNoMatchingRoutingRules
 	}
 
-	// 根据优先级排序规则
 	sort.Slice(rules, func(i, j int) bool {
 		return rules[i].Priority < rules[j].Priority
 	})
 
-	// 获取对应的处理器
-	processors := make([]*entity.MessageProcessor, 0, len(rules))
-	for _, rule := range rules {
-		processor, err := uc.messageProcessorRepo.GetByID(ctx, rule.ProcessorID)
-		if err != nil {
-			uc.logger.Error("获取处理器失败", "processor_id", rule.ProcessorID, "error", err)
-			continue
-		}
+	processors, selectedRules := uc.selectProcessorsFromRules(ctx, rules)
 
-		if !processor.IsActive() {
-			uc.logger.Warn("处理器未激活", "processor_id", rule.ProcessorID)
-			continue
-		}
-
-		processors = append(processors, processor)
-
-		// 如果不是广播模式，只取第一个匹配的处理器
-		if rule.RouteType != entity.RouteTypeBroadcast {
-			break
-		}
-	}
-
-	uc.logger.Info("消息路由完成", "message_id", message.MessageID, "processor_count", len(processors))
-	return processors, nil
+	return &RoutingPreview{
+		MatchedRules:       selectedRules,
+		SelectedProcessors: processors,
+		UsedFallback:       usedFallback,
+	}, nil
 }
 
-// GetMatchingRules 获取匹配的路由规则
+// GetMatchingRules returns matched rules with fallback merge (same as PreviewRoute).
 func (uc *routingUseCase) GetMatchingRules(ctx context.Context, message *entity.Message) ([]*entity.MessageRoutingRule, error) {
-	// 获取通道信息
+	rules, _, err := uc.matchRulesWithFallback(ctx, message)
+
+	return rules, err
+}
+
+func (uc *routingUseCase) matchRulesWithFallback(ctx context.Context, message *entity.Message) ([]*entity.MessageRoutingRule, bool, error) {
 	channel, err := uc.channelRepo.GetByID(ctx, message.ChannelID)
 	if err != nil {
-		return nil, fmt.Errorf("获取通道信息失败: %w", err)
+		return nil, false, fmt.Errorf("获取通道信息失败: %w", err)
 	}
 
 	// B06: load all active rules (not first page of 20) for runtime matching.
 	allRules, err := uc.routingRuleRepo.GetActiveRules(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("获取路由规则失败: %w", err)
+		return nil, false, fmt.Errorf("获取路由规则失败: %w", err)
 	}
 
-	// 过滤匹配的规则
 	var matchingRules []*entity.MessageRoutingRule
 	var fallbackRules []*entity.MessageRoutingRule
 
@@ -137,12 +145,40 @@ func (uc *routingUseCase) GetMatchingRules(ctx context.Context, message *entity.
 		}
 	}
 
-	// 如果没有匹配的常规规则，使用兜底规则
 	if len(matchingRules) == 0 && len(fallbackRules) > 0 {
-		matchingRules = fallbackRules
+		return fallbackRules, true, nil
 	}
 
-	return matchingRules, nil
+	return matchingRules, false, nil
+}
+
+func (uc *routingUseCase) selectProcessorsFromRules(ctx context.Context, rules []*entity.MessageRoutingRule) ([]*entity.MessageProcessor, []*entity.MessageRoutingRule) {
+	processors := make([]*entity.MessageProcessor, 0, len(rules))
+	selectedRules := make([]*entity.MessageRoutingRule, 0, len(rules))
+
+	for _, rule := range rules {
+		processor, err := uc.messageProcessorRepo.GetByID(ctx, rule.ProcessorID)
+		if err != nil {
+			uc.logger.Error("获取处理器失败", "processor_id", rule.ProcessorID, "error", err)
+
+			continue
+		}
+
+		if !processor.IsActive() {
+			uc.logger.Warn("处理器未激活", "processor_id", rule.ProcessorID)
+
+			continue
+		}
+
+		processors = append(processors, processor)
+		selectedRules = append(selectedRules, rule)
+
+		if rule.RouteType != entity.RouteTypeBroadcast {
+			break
+		}
+	}
+
+	return processors, selectedRules
 }
 
 // matchesRule 检查消息是否匹配路由规则

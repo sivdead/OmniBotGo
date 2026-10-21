@@ -36,6 +36,7 @@ func NewRouter(
 	logUC usecase.LogUseCase,
 	queueUC usecase.QueueUseCase,
 	processorUC usecase.ProcessorUseCase,
+	routingUC usecase.RoutingUseCase,
 	adapterManager *adapter.Manager,
 	l logger.Interface,
 ) {
@@ -91,12 +92,12 @@ func NewRouter(
 	app.Use(middleware.NewRateLimiter(rateLimitConfig))
 
 	// 创建V1控制器实例（避免重复创建）
-	v1Controller := v1.NewV1Controller(messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
+	v1Controller := v1.NewV1Controller(messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, routingUC, l, cfg)
 
 	// Admin API routes — require Bearer HTTP_API_KEY; not applied to webhooks/probes.
 	apiV1Group := app.Group("/api/v1", middleware.RequireAPIKey(cfg.HTTP.APIKey))
 	{
-		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, l, cfg)
+		v1.NewAPIRoutes(apiV1Group, messageUC, channelUC, botUC, systemConfigUC, platformUC, monitorUC, logUC, queueUC, processorUC, routingUC, l, cfg)
 	}
 
 	// Webhook routes use platform signature/token verification only (no admin API key).

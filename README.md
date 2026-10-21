@@ -517,10 +517,14 @@ platforms:
 - `GET /metrics` - Prometheus 指标
 - `POST /webhook/{platform}/{channel_id}` - 平台消息接收（`channel_id` 为 UUID；按平台签名/`verification_token` 校验，**不**使用管理 API Key）
 - `POST /api/v1/...` - 管理 API（需 `Authorization: Bearer $HTTP_API_KEY`，见 `docs/development/ENV_CONFIG.md`）
-- `POST /api/v1/message/send` - 消息发送
-- `GET /api/v1/message/history` - 消息历史
+- `POST /api/v1/messages/send` - 主动发送（显式 channel + receiver）
+- `POST /api/v1/messages/{id}/reply` - 按入站消息回复原会话（DM/群）
+- `POST /api/v1/routing/preview` - 路由预览（不执行处理器、不发送）
+- `GET /api/v1/messages/history` - 消息历史
 
 数据库迁移按方言分目录：`migrations/{mysql,postgres,sqlite}`（由 `DB_TYPE` 选择）。
+
+金路径（账号 → 通道 → 处理器 → 默认路由 → 收发）：见 [`docs/development/ACCESS_LOOP.md`](docs/development/ACCESS_LOOP.md) 与 [`scripts/init_access_loop.sh`](scripts/init_access_loop.sh)。
 
 ### gRPC API
 

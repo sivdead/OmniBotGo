@@ -183,6 +183,10 @@ var (
 	errWebhookDeliveryFailed   = errors.New("webhook delivery failed")
 	errRetryExhausted          = errors.New("retry exhausted")
 	errUnsupportedMsgDirection = errors.New("unsupported message direction")
+	// ErrReplyRequiresInbound is returned when ReplyToOriginal is given a non-inbound message.
+	ErrReplyRequiresInbound = errors.New("reply requires an inbound message")
+	// ErrInboundMessageNotFound is returned when the inbound ref cannot be resolved.
+	ErrInboundMessageNotFound = errors.New("inbound message not found")
 )
 
 // checkDuplicateMessage 检查重复消息。
@@ -378,6 +382,44 @@ func (uc *messageUseCase) SendMessage(ctx context.Context, msg *entity.Message) 
 
 	uc.logger.Info("消息发送完成")
 	return nil
+}
+
+// ReplyToOriginal resolves an inbound message by business message_id (fallback DB PK)
+// and sends a reply into the correct DM or group conversation (T04).
+func (uc *messageUseCase) ReplyToOriginal(ctx context.Context, inboundRef string, req ReplyToOriginalRequest) (*entity.Message, error) {
+	inbound, err := uc.resolveInboundMessage(ctx, inboundRef)
+	if err != nil {
+		return nil, err
+	}
+
+	if inbound.Direction != entity.MessageDirectionInbound {
+		return nil, ErrReplyRequiresInbound
+	}
+
+	reply := BuildOutboundReplyFromInbound(inbound, req.Content, req.MessageType)
+	if err := uc.SendMessage(ctx, reply); err != nil {
+		return nil, fmt.Errorf("reply to original: %w", err)
+	}
+
+	return reply, nil
+}
+
+func (uc *messageUseCase) resolveInboundMessage(ctx context.Context, ref string) (*entity.Message, error) {
+	if ref == "" {
+		return nil, ErrInboundMessageNotFound
+	}
+
+	msg, err := uc.messageRepo.GetByMessageID(ctx, ref)
+	if err == nil {
+		return msg, nil
+	}
+
+	msg, err = uc.messageRepo.GetByID(ctx, ref)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrInboundMessageNotFound, ref)
+	}
+
+	return msg, nil
 }
 
 // sendMessageToPlatform 发送消息到具体平台
@@ -948,23 +990,8 @@ func (uc *messageUseCase) processAutoReply(ctx context.Context, msg *entity.Mess
 		return fmt.Errorf("无效的reply_content配置")
 	}
 
-	// 构建回复消息（E01: PlatformTimestamp 必须非零，严格 MySQL 才能插入）
-	replyMsg := &entity.Message{
-		MessageID:         uc.generateMessageID(),
-		ChannelID:         msg.ChannelID,
-		Direction:         entity.MessageDirectionOutbound,
-		MessageType:       entity.MessageTypeText,
-		SenderID:          msg.ReceiverID, // 回复者变成发送者
-		SenderName:        msg.ReceiverName,
-		SenderType:        msg.ReceiverType,
-		ReceiverID:        msg.SenderID, // 原发送者变成接收者
-		ReceiverName:      msg.SenderName,
-		ReceiverType:      msg.SenderType,
-		Content:           content,
-		ConversationID:    msg.ConversationID,
-		ParentMessageID:   &msg.ID, // 设置父消息ID
-		PlatformTimestamp: time.Now(),
-	}
+	// T04: shared DM/group targeting (no blind sender↔receiver swap).
+	replyMsg := BuildOutboundReplyFromInbound(msg, content, entity.MessageTypeText)
 
 	// 发送回复消息
 	if err := uc.SendMessage(ctx, replyMsg); err != nil {
@@ -1419,26 +1446,20 @@ func (uc *messageUseCase) createAIReplyMessage(msg *entity.Message, content stri
 		unifiedContent["tool_calls"] = toolCalls
 	}
 
-	return &entity.Message{
-		ChannelID:         msg.ChannelID,
-		PlatformMessageID: fmt.Sprintf("ai_reply_%s_%d", msg.ID, time.Now().Unix()),
-		Direction:         entity.MessageDirectionOutbound,
-		MessageType:       msg.MessageType,
-		ContentType:       entity.MessageTypeText,
-		SenderID:          "ai_bot",
-		SenderName:        fmt.Sprintf("AI Bot (%s)", aiConfig.Model),
-		SenderType:        "bot",
-		ReceiverID:        msg.SenderID,
-		ReceiverName:      msg.SenderName,
-		ReceiverType:      msg.SenderType,
-		Content:           content,
-		ConversationID:    msg.ConversationID,
-		ParentMessageID:   &msg.ID,
-		UnifiedContent:    unifiedContent,
-		MessageStatus:     entity.MessageStatusProcessed,
-		PlatformTimestamp: time.Now(),
-		ProcessedAt:       &[]time.Time{time.Now()}[0],
-	}
+	// T04: reuse DM/group targeting (do not always reply to SenderID).
+	reply := BuildOutboundReplyFromInbound(msg, content, msg.MessageType)
+	reply.PlatformMessageID = fmt.Sprintf("ai_reply_%s_%d", msg.ID, time.Now().Unix())
+	reply.ContentType = entity.MessageTypeText
+	reply.SenderID = "ai_bot"
+	reply.SenderName = fmt.Sprintf("AI Bot (%s)", aiConfig.Model)
+	reply.SenderType = entity.SenderTypeBot
+	reply.UnifiedContent = unifiedContent
+	// Persist-only AI path historically marked processed without deliver (T10).
+	reply.MessageStatus = entity.MessageStatusProcessed
+	now := time.Now()
+	reply.ProcessedAt = &now
+
+	return reply
 }
 
 // extractToolCallFromMessage 从消息中提取工具调用信息
